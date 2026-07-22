@@ -6,8 +6,8 @@ Install path for SGLang workers on a customer GPU host. Everything is in this fi
 
 | Requirement | Notes |
 |---|---|
-| GPU EC2 instance | Ubuntu/Debian |
-| [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
+| GPU EC2 instance | Ubuntu/Debian, NVIDIA GPUs (4× L4 for 27B; 2+ for 7B) |
+| [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable (typically EKS) |
 | [Distr](https://app.distr.sh) account | Subconscious provisions the SGLang worker Helm application |
 | Distr registry access | Profile enables `distrPullSecret` for `registry.distr.sh/subconscious/timrun` |
 
@@ -39,12 +39,33 @@ Copy the **entire file** into Distr Helm Values (step 4).
 
 ## Step 1 — Bootstrap the GPU host
 
+`dependencies.sh` is self-contained — step 1 only needs that one file. Profiles (`profiles/*.yaml`) are for Distr Apply in step 4.
+
+**Option A — clone the runbook (recommended)**
+
 ```bash
 git clone git@github.com:subconscious-systems/ol-runbook.git
 cd ol-runbook/gpu-deployment
 chmod +x dependencies.sh
 ./dependencies.sh
 ```
+
+**Option B — copy just the bootstrap script**
+
+From your laptop (same directory as this README):
+
+```bash
+scp gpu-deployment/dependencies.sh admin@<GPU_HOST>:~/
+```
+
+On the GPU host:
+
+```bash
+chmod +x ~/dependencies.sh
+~/dependencies.sh
+```
+
+Use your instance SSH user and key (e.g. `admin` on Debian, `-i ~/.ssh/your-key.pem`).
 
 May reboot once for NVIDIA drivers. Then verify:
 
@@ -69,6 +90,13 @@ In Distr, add a **Kubernetes deployment target** for this host and run the k3s a
 ---
 
 ## Step 4 — Distr Apply
+
+Profile YAML lives in `profiles/` in this repo. If you only copied `dependencies.sh` in step 1, clone or copy the profile you need now:
+
+```bash
+git clone git@github.com:subconscious-systems/ol-runbook.git
+# or: scp ol-runbook/gpu-deployment/profiles/qwen36-27b.yaml admin@<GPU_HOST>:~/
+```
 
 1. Open the SGLang worker Helm application in Distr.
 2. **Create Deployment** → paste the profile YAML from the table above.
@@ -114,3 +142,20 @@ Model group from step 3 → **Create worker pool**:
 Same `WORKER_API_KEY` for all workers. Wait ~1 minute for sync.
 
 ---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Pods not Ready | `kubectl -n <namespace> logs deploy/...` |
+| 401 from worker | `WORKER_API_KEY` mismatch between Distr and dashboard |
+| NLB unhealthy | GPU security group / target group port |
+| Apply timeout | 120m (27B) or 60m (7B) |
+| Port conflict | 27B: 30001–30002; 7B: 30003–30004 on same host |
+
+---
+
+## Related repos
+
+- **27b-deployment** (private) — Helm chart source published to Distr
+- [`api-gateway`](https://github.com/subconscious-systems/api-gateway) — Router and dashboard
