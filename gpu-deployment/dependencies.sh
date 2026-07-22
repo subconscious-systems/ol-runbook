@@ -6,10 +6,11 @@
 # Run once on the GPU machine, then deploy from Distr (paste profiles/*.yaml).
 #
 # Usage:
-#   ./dependencies.sh
+#   NAMESPACE=<name> ./dependencies.sh
+#   ./dependencies.sh <name>
 #
 # Optional env:
-#   NAMESPACE=sglang-qwen36-27b   # default; use sglang-qwen36-7b for 7B — Distr agent + Apply use this
+#   NAMESPACE=                     # required unless passed as first argument
 #   SKIP_NVIDIA_DRIVERS=false
 #   K3S_VERSION=                  # empty = get.k3s.io default
 #   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml
@@ -22,14 +23,25 @@ K3S_VERSION="${K3S_VERSION:-}"
 K3S_KUBECONFIG_SOURCE="${K3S_KUBECONFIG_SOURCE:-/etc/rancher/k3s/k3s.yaml}"
 NVIDIA_DEVICE_PLUGIN_URL="${NVIDIA_DEVICE_PLUGIN_URL:-https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml}"
 GPU_READY_TIMEOUT_SECONDS="${GPU_READY_TIMEOUT_SECONDS:-180}"
-NAMESPACE="${NAMESPACE:-sglang-qwen36-27b}"
+
+log() { printf '[dep] %s\n' "$*"; }
+die() { printf '[dep] ERROR: %s\n' "$*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
   cat <<'EOF'
-Usage: ./dependencies.sh
+Usage:
+  NAMESPACE=<name> ./dependencies.sh
+  ./dependencies.sh <name>
 
 Install GPU host dependencies (drivers, k3s, NVIDIA device plugin).
-Creates namespace ${NAMESPACE:-sglang-qwen36-27b} for the Distr agent and worker Apply.
+Creates the given namespace for the Distr agent and Helm Apply (same name in
+Distr UI for connect -n and Customize Helm options). Not part of profile YAML.
+
+Examples:
+  NAMESPACE=sglang-qwen36-27b ./dependencies.sh
+  ./dependencies.sh sglang-qwen36-7b
+
 Model weights and the worker image are downloaded by Distr Helm Apply.
 EOF
 }
@@ -40,14 +52,32 @@ while (($#)); do
       usage
       exit 0
       ;;
-    *) printf 'ERROR: unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
+    -*)
+      printf 'ERROR: unknown option: %s\n' "$1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n "${NAMESPACE_ARG:-}" ]]; then
+        printf 'ERROR: unexpected extra argument: %s\n' "$1" >&2
+        usage >&2
+        exit 1
+      fi
+      NAMESPACE_ARG="$1"
+      ;;
   esac
   shift
 done
 
-log() { printf '[dep] %s\n' "$*"; }
-die() { printf '[dep] ERROR: %s\n' "$*" >&2; exit 1; }
-have() { command -v "$1" >/dev/null 2>&1; }
+if [[ -n "${NAMESPACE_ARG:-}" ]]; then
+  if [[ -n "${NAMESPACE:-}" && "${NAMESPACE}" != "${NAMESPACE_ARG}" ]]; then
+    die "NAMESPACE env (${NAMESPACE}) conflicts with argument (${NAMESPACE_ARG})"
+  fi
+  NAMESPACE="${NAMESPACE_ARG}"
+fi
+if [[ -z "${NAMESPACE:-}" ]]; then
+  die "NAMESPACE is required (e.g. NAMESPACE=sglang-qwen36-27b ./dependencies.sh)"
+fi
 
 if [[ ! -r /etc/os-release ]]; then
   die "requires Debian/Ubuntu with /etc/os-release"

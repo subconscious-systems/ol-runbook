@@ -1,9 +1,14 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
-# Distr UI (not in this file): namespace + operation-timeout-minutes (60) + served-model qwen3.6-7b
-# NodePorts 30003/30004 — use when another profile already uses 30001/30002 on the same host.
+# namespace: sglang-qwen36-7b
+# operation-timeout-minutes: 60
+# served-model: qwen3.6-7b
+#
+# NodePorts 30003/30004 — use when 27B already uses 30001/30002 on the same host.
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
-# Host bootstrap: NAMESPACE=<same-as-distr> ./dependencies.sh
+# Host bootstrap: ./dependencies.sh (once), then paste in Distr Apply.
+
+fullnameOverride: sglang-qwen36-7b
 
 images:
   distrPullSecret:
