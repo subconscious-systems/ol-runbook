@@ -2,7 +2,7 @@
 #
 # Weights: Qwen/Qwen3-8B-FP8 (official FP8 small model; Qwen3.6-7B-FP8 does not exist on HF).
 # Distr UI (not in this file): namespace + operation-timeout-minutes (60) + served-model qwen3.6-7b
-# NodePorts 30003/30004 — use when another profile already uses 30001/30002 on the same host.
+# NodePorts 30003–30006 — one worker per GPU (4× tp=1). Use when another profile uses 30001/30002.
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
 # Host bootstrap: NAMESPACE=<same-as-distr> ./dependencies.sh
 
@@ -92,6 +92,16 @@ models:
     port: 30004
     discoveryLabels:
       subconscious.dev/worker-name: 7b-b
+  - slug: 7b-c
+    replicas: 1
+    port: 30005
+    discoveryLabels:
+      subconscious.dev/worker-name: 7b-c
+  - slug: 7b-d
+    replicas: 1
+    port: 30006
+    discoveryLabels:
+      subconscious.dev/worker-name: 7b-d
 
 secrets:
   create: true
