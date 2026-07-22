@@ -20,12 +20,13 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 ## Contents
 
 
-| Doc                              | Description                                                                                                        |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Doc | Description |
+| --- | --- |
 | [TRUST_MODEL.md](TRUST_MODEL.md) | Security / platform trust model - Distr Assisted vs Fully Self-Managed, and the two deployment gates for your team |
-| *Getting started*                | Coming soon - end-to-end bootstrap by role                                                                         |
-| *FAQ*                            | Coming soon - common questions across deploy variants                                                              |
-| *Troubleshooting*                | Coming soon - failure modes and recovery notes                                                                     |
+| [FAQ.md](FAQ.md) | Common questions (naming deployments, namespaces, releases, and related day-0 guidance) |
+| [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env (paste into the Distr Docker deployment) |
+| *Getting started* | Coming soon - end-to-end bootstrap by role |
+| *Troubleshooting* | Coming soon - failure modes and recovery notes |
 
 
 ## Where detail lives
