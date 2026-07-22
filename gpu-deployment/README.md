@@ -88,8 +88,9 @@ kubectl get namespace sglang
 4. Select 27b-deployment as the application.
 5. Enter deployment name and set Kubernetes Namespace to "sglang".
 6. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-7. Click create deployment.
-8. Go back to GPU host and run the command Distr provides, should look like:
+7. Click Customize Helm options and set watcher to 2h.
+8. Click create deployment.
+9. Go back to GPU host and run the command Distr provides, should look like:
 
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
