@@ -2,7 +2,7 @@
 #
 # Weights: Qwen/Qwen3-8B-FP8 (official FP8 small model; Qwen3.6-7B-FP8 does not exist on HF).
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 60, served-model qwen3.6-7b
-# NodePort 30003 — single worker, tp=4 across all 4 GPUs on the host.
+# NodePorts 30003–30006 — four workers, one GPU each (tp=1).
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
 # Host bootstrap: ./dependencies.sh
 
@@ -27,7 +27,7 @@ worker:
   contextLength: 16384
   gpu:
     enabled: true
-    count: 4
+    count: 1
   discoveryLabels:
     subconscious.dev/worker-pool: g2-l4-qwen36-7b
   spreadAcrossNodes: false
@@ -42,12 +42,11 @@ worker:
     maxTotalTokens: "32768"
     chunkedPrefillSize: "4096"
     extraArgs: >-
-      --tp-size 4
+      --tp-size 1
       --model-impl sglang
       --reasoning-parser qwen3
       --tool-call-parser qwen3_coder
       --trust-remote-code
-      --disable-custom-all-reduce
   modelDownload:
     enabled: true
     hfRepo: Qwen/Qwen3-8B-FP8
@@ -61,11 +60,11 @@ worker:
       value: "1"
   resources:
     requests:
-      cpu: "4"
-      memory: "32Gi"
+      cpu: "2"
+      memory: "16Gi"
     limits:
-      cpu: "16"
-      memory: "64Gi"
+      cpu: "8"
+      memory: "32Gi"
   nodeSelector:
     kubernetes.io/os: linux
     kubernetes.io/arch: amd64
@@ -88,6 +87,21 @@ models:
     port: 30003
     discoveryLabels:
       subconscious.dev/worker-name: 7b-a
+  - slug: 7b-b
+    replicas: 1
+    port: 30004
+    discoveryLabels:
+      subconscious.dev/worker-name: 7b-b
+  - slug: 7b-c
+    replicas: 1
+    port: 30005
+    discoveryLabels:
+      subconscious.dev/worker-name: 7b-c
+  - slug: 7b-d
+    replicas: 1
+    port: 30006
+    discoveryLabels:
+      subconscious.dev/worker-name: 7b-d
 
 secrets:
   create: true
