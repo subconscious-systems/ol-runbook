@@ -70,12 +70,13 @@ kubectl get namespace sglang
 
 ## Step 2 — Connect Distr
 
-1. Log into [Distr](https://app.distr.sh/deployments) and click on the Deployments page.
-2. Click on New Deployment.
-3. Select 27b-deployment as the application.
-4. Enter deployment name and set Kubernetes Namespace to "sglang".
-5. Leave default Application Config, go to [profiles](/profiles) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-6. Click create deployment.
+1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
+2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
+3. Navigate to the deployments page and click on New Deployment.
+4. Select 27b-deployment as the application.
+5. Enter deployment name and set Kubernetes Namespace to "sglang".
+6. Leave default Application Config, go to [profiles](/profiles) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
+7. Click create deployment.
 
 In Distr, add a **Kubernetes deployment target** for this host and run the k3s agent install command:
 
