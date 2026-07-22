@@ -6,8 +6,8 @@ Install path for SGLang workers on a customer GPU host. Everything is in this fi
 
 | Requirement | Notes |
 |---|---|
-| GPU EC2 instance | Ubuntu/Debian, NVIDIA GPUs (4× L4 for 27B; 2+ for 7B) |
-| [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable (typically EKS) |
+| GPU EC2 instance | Ubuntu/Debian |
+| [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Subconscious provisions the SGLang worker Helm application |
 | Distr registry access | Profile enables `distrPullSecret` for `registry.distr.sh/subconscious/timrun` |
 
