@@ -1,6 +1,7 @@
 # GPU deployment
 
-Install path for SGLang workers on a customer GPU host. Everything is in this file.
+Install path for SGLang workers on a customer GPU host. Profiles, host bootstrap,
+and private AWS routing automation live in this directory.
 
 ## Prerequisites
 
@@ -61,15 +62,41 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 Each worker gets a **NodePort** on the GPU instance (see table). Repeat for every worker.
 
-**Security group:** allow each NodePort from gateway egress only — not the public internet.
+### Preferred: Terraform
 
-### Target group
+The reusable Terraform setup creates the VPC peering, bidirectional routes,
+security-group rules, target groups, internal NLBs, wildcard certificate,
+Route 53 aliases, and outputs the scoped gateway worker-egress NetworkPolicy:
 
-EC2 → Target groups → Create Target Group → **Instances**, TCP port = NodePort (e.g. `30001`) → register GPU instance.
+```bash
+cd terraform/aws-private-workers
+cp terraform.tfvars.example terraform.tfvars
+# Fill in the existing gateway VPC, GPU VPC/instance, private subnets,
+# Route 53 zone, worker domain, namespace, and gateway Helm release name.
+terraform init
+terraform plan
+terraform apply
+terraform output worker_endpoints
+```
 
-### Network Load Balancer
+Follow the complete setup and verification guide in
+[`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
 
-EC2 → Load balancers → **Network Load Balancer** → TLS :443 (ACM cert) → forward to target group → copy NLB DNS name.
+### Manual fallback
+
+If Terraform cannot be used:
+
+1. Peer the gateway and worker VPCs.
+2. Add gateway-to-worker and worker-to-gateway routes.
+3. Allow TLS 443 from the gateway VPC into a reusable NLB security group.
+4. Allow the GPU NodePort range only from that NLB security group.
+5. Create an **Instances/TCP** target group per NodePort.
+6. Set its health check to **HTTP**, traffic port, path `/health`, matcher `200`.
+7. Create an **internal** NLB with a TLS 443 listener and wildcard ACM certificate.
+8. Create a Route 53 alias such as `8b-a.workers.example.com`.
+9. Permit gateway, router, and adapter pod egress to the worker VPC on TCP 443.
+
+Never expose the NodePorts to the public internet.
 
 ---
 
@@ -80,19 +107,20 @@ Model group from step 3 → **Create worker pool**. One line per worker; same `W
 **27B** (`qwen3.6-27b`):
 
 ```text
-27b-a | https://<nlb-dns-for-30001> | <WORKER_API_KEY>
-27b-b | https://<nlb-dns-for-30002> | <WORKER_API_KEY>
+27b-a | https://27b-a.<worker-domain> | <WORKER_API_KEY>
+27b-b | https://27b-b.<worker-domain> | <WORKER_API_KEY>
 ```
 
 **8B** (`qwen3-8b`):
 
 ```text
-8b-a | https://<nlb-dns-for-30003> | <WORKER_API_KEY>
-8b-b | https://<nlb-dns-for-30004> | <WORKER_API_KEY>
-8b-c | https://<nlb-dns-for-30005> | <WORKER_API_KEY>
-8b-d | https://<nlb-dns-for-30006> | <WORKER_API_KEY>
+8b-a | https://8b-a.<worker-domain> | <WORKER_API_KEY>
+8b-b | https://8b-b.<worker-domain> | <WORKER_API_KEY>
+8b-c | https://8b-c.<worker-domain> | <WORKER_API_KEY>
+8b-d | https://8b-d.<worker-domain> | <WORKER_API_KEY>
 ```
 
-Wait ~1 minute for sync.
+Add `<worker-domain>` (for example `workers.example.com`) to the gateway
+`routeAllowedHostSuffixes`, then wait for each endpoint to report `registered`.
 
 ---

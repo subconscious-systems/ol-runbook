@@ -1,0 +1,46 @@
+aws_region = "us-east-2"
+
+# Existing gateway platform networking.
+gateway_vpc_id = "vpc-REPLACE_GATEWAY"
+gateway_subnet_ids = [
+  "subnet-REPLACE_GATEWAY_PRIVATE_A",
+  "subnet-REPLACE_GATEWAY_PRIVATE_B",
+]
+
+# Existing GPU-host networking.
+worker_vpc_id = "vpc-REPLACE_WORKER"
+worker_subnet_ids = [
+  "subnet-REPLACE_WORKER_A",
+  "subnet-REPLACE_WORKER_B",
+  "subnet-REPLACE_WORKER_C",
+]
+
+worker_instance_id                = "i-REPLACE_GPU"
+worker_instance_security_group_id = "sg-REPLACE_GPU"
+
+# Reuse these when they already exist; otherwise leave them null.
+existing_vpc_peering_connection_id = null
+existing_nlb_security_group_id      = null
+manage_vpc_routes                   = true
+manage_security_group_rules         = true
+
+route53_zone_name = "example.com"
+worker_domain     = "workers.example.com"
+
+# Reuse an issued *.workers.example.com certificate or leave null to create it.
+certificate_arn = null
+
+workers = {
+  "8b-a" = { node_port = 30003 }
+  "8b-b" = { node_port = 30004 }
+  "8b-c" = { node_port = 30005 }
+  "8b-d" = { node_port = 30006 }
+}
+
+gateway_namespace    = "api-gateway"
+gateway_release_name = "api-gateway"
+
+tags = {
+  Environment = "production"
+  Project     = "subconscious-inference"
+}
