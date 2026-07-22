@@ -49,7 +49,7 @@ Copy the **entire profile file** into Distr Helm Values (step 4).
 
 ---
 
-## Step 1 — Bootstrap the GPU host
+## Step 1 — GPU host
 
 ```bash
 git clone git@github.com:subconscious-systems/ol-runbook.git
