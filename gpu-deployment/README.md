@@ -43,9 +43,9 @@ Helm values live in **`profiles/`** only (one YAML per model).
 | Model (HF weights) | Profile | Workers | NodePorts | Timeout |
 |---|---|---|---|---|
 | Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 2 × tp=2 (2 GPU each) | 30001, 30002 | 120m |
-| Qwen3-8B-FP8 | `profiles/qwen36-7b.yaml` | 4 × tp=1 (1 GPU each) | 30003–30006 | 60m |
+| Qwen3-8B-FP8 | `profiles/qwen3-8b.yaml` | 4 × tp=1 (1 GPU each) | 30003–30006 | 60m |
 
-Dashboard `servedModelName`: `qwen3.6-27b` or `qwen3.6-7b` (set in profile; independent of HF repo id).
+Dashboard `servedModelName`: `qwen3.6-27b` or `qwen3-8b` (set in profile).
 
 Copy the **entire profile file** into Distr Helm Values (step 4).
 
@@ -99,7 +99,7 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ## Step 3 — Worker API key
 
-1. **api-gateway dashboard** → model group for your served model (`qwen3.6-27b` or `qwen3.6-7b`) → create **worker API key**.
+1. **api-gateway dashboard** → model group for your served model (`qwen3.6-27b` or `qwen3-8b`) → create **worker API key**.
 2. **Distr → Hub Secrets** → `WORKER_API_KEY` = that key.
 
 ---
@@ -117,7 +117,7 @@ Verify on the host:
 kubectl -n sglang get pods
 kubectl -n sglang get svc
 export WORKER_API_KEY='your-key'
-# 27B: 30001 / 30002 — 7B: 30003–30006
+# 27B: 30001 / 30002 — 8B: 30003–30006
 curl -sS -H "Authorization: Bearer ${WORKER_API_KEY}" http://127.0.0.1:30003/v1/models
 ```
 
@@ -150,13 +150,13 @@ Model group from step 3 → **Create worker pool**. One line per worker; same `W
 27b-b | https://<nlb-dns-for-30002> | <WORKER_API_KEY>
 ```
 
-**7B** (`qwen3.6-7b`, weights `Qwen/Qwen3-8B-FP8`):
+**8B** (`qwen3-8b`):
 
 ```text
-7b-a | https://<nlb-dns-for-30003> | <WORKER_API_KEY>
-7b-b | https://<nlb-dns-for-30004> | <WORKER_API_KEY>
-7b-c | https://<nlb-dns-for-30005> | <WORKER_API_KEY>
-7b-d | https://<nlb-dns-for-30006> | <WORKER_API_KEY>
+8b-a | https://<nlb-dns-for-30003> | <WORKER_API_KEY>
+8b-b | https://<nlb-dns-for-30004> | <WORKER_API_KEY>
+8b-c | https://<nlb-dns-for-30005> | <WORKER_API_KEY>
+8b-d | https://<nlb-dns-for-30006> | <WORKER_API_KEY>
 ```
 
 Wait ~1 minute for sync.
