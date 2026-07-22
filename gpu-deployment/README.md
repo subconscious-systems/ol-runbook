@@ -17,7 +17,7 @@ Install path for SGLang workers on a customer GPU host. Everything is in this fi
 | Model | Profile | Timeout |
 |---|---|---|
 | Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 120m |
-| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | 60m |
+| Qwen3-8B-FP8 | `profiles/qwen36-7b.yaml` | 60m |
 
 Copy the **entire profile file** into Distr Helm Values (step 4).
 

@@ -1,5 +1,6 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
+# Weights: Qwen/Qwen3-8B-FP8 (official FP8 small model; Qwen3.6-7B-FP8 does not exist on HF).
 # Distr UI (not in this file): namespace + operation-timeout-minutes (60) + served-model qwen3.6-7b
 # NodePorts 30003/30004 — use when another profile already uses 30001/30002 on the same host.
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
@@ -22,7 +23,7 @@ worker:
     tag: sm_89-v1
     pullPolicy: IfNotPresent
   servedModelName: qwen3.6-7b
-  modelPath: /models/hf/Qwen3.6-7B-FP8
+  modelPath: /models/hf/Qwen3-8B-FP8
   contextLength: 16384
   gpu:
     enabled: true
@@ -48,8 +49,8 @@ worker:
       --trust-remote-code
   modelDownload:
     enabled: true
-    hfRepo: Qwen/Qwen3.6-7B-FP8
-    targetPath: /models/hf/Qwen3.6-7B-FP8
+    hfRepo: Qwen/Qwen3-8B-FP8
+    targetPath: /models/hf/Qwen3-8B-FP8
   extraEnv:
     - name: SGLANG_ENABLE_FP8
       value: "true"
