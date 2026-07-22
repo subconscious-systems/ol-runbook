@@ -1,0 +1,104 @@
+# Distr → Deployment → App Config → Helm Values (full replace).
+#
+# namespace: sglang-qwen36-27b
+# operation-timeout-minutes: 120
+# served-model: qwen3.6-27b
+#
+# Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
+# Host bootstrap: ./dependencies.sh (once), then paste in Distr Apply.
+
+fullnameOverride: sglang-qwen36-27b
+
+images:
+  distrPullSecret:
+    enabled: true
+
+worker:
+  progressDeadlineSeconds: 7200
+  hostIPC: true
+  profile: local
+  auth:
+    enabled: true
+  service:
+    type: NodePort
+  image:
+    repository: registry.distr.sh/subconscious/timrun
+    tag: sm_89-v1
+    pullPolicy: IfNotPresent
+  servedModelName: qwen3.6-27b
+  modelPath: /models/hf/Qwen3.6-27B-FP8
+  contextLength: 16384
+  gpu:
+    enabled: true
+    count: 2
+  discoveryLabels:
+    subconscious.dev/worker-pool: g2-l4-qwen36-27b
+  spreadAcrossNodes: false
+  strategy:
+    type: Recreate
+  terminationGracePeriodSeconds: 180
+  sglang:
+    enableMetrics: true
+    enableMfuMetrics: true
+    memFractionStatic: "0.8"
+    maxRunningRequests: "16"
+    maxTotalTokens: "32768"
+    chunkedPrefillSize: "4096"
+    extraArgs: >-
+      --tp-size 2
+      --model-impl sglang
+      --reasoning-parser qwen3
+      --tool-call-parser qwen3_coder
+      --trust-remote-code
+      --disable-custom-all-reduce
+  modelDownload:
+    enabled: true
+    hfRepo: Qwen/Qwen3.6-27B-FP8
+    targetPath: /models/hf/Qwen3.6-27B-FP8
+  extraEnv:
+    - name: SGLANG_ENABLE_FP8
+      value: "true"
+    - name: NCCL_P2P_DISABLE
+      value: "1"
+    - name: NCCL_IB_DISABLE
+      value: "1"
+  resources:
+    requests:
+      cpu: "4"
+      memory: "32Gi"
+    limits:
+      cpu: "16"
+      memory: "80Gi"
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  weights:
+    csi:
+      enabled: false
+    hostPath:
+      enabled: true
+      path: /models/hf
+      mountPath: /models/hf
+      type: DirectoryOrCreate
+
+models:
+  - slug: 27b-a
+    replicas: 1
+    port: 30001
+    discoveryLabels:
+      subconscious.dev/worker-name: 27b-a
+  - slug: 27b-b
+    replicas: 1
+    port: 30002
+    discoveryLabels:
+      subconscious.dev/worker-name: 27b-b
+
+secrets:
+  create: true
+  workerSecretName: worker-secrets
+  worker:
+    SGLANG_WORKER_API_KEY: "{{.Secrets.WORKER_API_KEY}}"
