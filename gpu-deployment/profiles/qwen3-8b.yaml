@@ -1,7 +1,7 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
-# Weights: Qwen/Qwen3-8B-FP8 (official FP8 small model; Qwen3.6-7B-FP8 does not exist on HF).
-# Distr UI (not in this file): namespace sglang, operation-timeout-minutes 60, served-model qwen3.6-7b
+# Weights: Qwen/Qwen3-8B-FP8
+# Distr UI (not in this file): namespace sglang, operation-timeout-minutes 60, served-model qwen3-8b
 # NodePorts 30003–30006 — four workers, one GPU each (tp=1).
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
 # Host bootstrap: ./dependencies.sh
@@ -22,14 +22,14 @@ worker:
     repository: registry.distr.sh/subconscious/timrun
     tag: sm_89-v1
     pullPolicy: IfNotPresent
-  servedModelName: qwen3.6-7b
+  servedModelName: qwen3-8b
   modelPath: /models/hf/Qwen3-8B-FP8
   contextLength: 16384
   gpu:
     enabled: true
     count: 1
   discoveryLabels:
-    subconscious.dev/worker-pool: g2-l4-qwen36-7b
+    subconscious.dev/worker-pool: g2-l4-qwen3-8b
   spreadAcrossNodes: false
   strategy:
     type: Recreate
@@ -82,26 +82,26 @@ worker:
       type: DirectoryOrCreate
 
 models:
-  - slug: 7b-a
+  - slug: 8b-a
     replicas: 1
     port: 30003
     discoveryLabels:
-      subconscious.dev/worker-name: 7b-a
-  - slug: 7b-b
+      subconscious.dev/worker-name: 8b-a
+  - slug: 8b-b
     replicas: 1
     port: 30004
     discoveryLabels:
-      subconscious.dev/worker-name: 7b-b
-  - slug: 7b-c
+      subconscious.dev/worker-name: 8b-b
+  - slug: 8b-c
     replicas: 1
     port: 30005
     discoveryLabels:
-      subconscious.dev/worker-name: 7b-c
-  - slug: 7b-d
+      subconscious.dev/worker-name: 8b-c
+  - slug: 8b-d
     replicas: 1
     port: 30006
     discoveryLabels:
-      subconscious.dev/worker-name: 7b-d
+      subconscious.dev/worker-name: 8b-d
 
 secrets:
   create: true
