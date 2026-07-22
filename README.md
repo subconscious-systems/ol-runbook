@@ -22,7 +22,7 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 
 | Doc | Description |
 | --- | --- |
-| [gpu-deployment/README.md](gpu-deployment/README.md) | GPU host bootstrap + Distr worker deploy (27B / 7B, NLB exposure) |
+| [gpu-deployment/README.md](gpu-deployment/README.md) | GPU host bootstrap + Distr worker deploy (27B / 8B, NLB exposure) |
 | [TRUST_MODEL.md](TRUST_MODEL.md) | Security / platform trust model - Distr Assisted vs Fully Self-Managed, and the two deployment gates for your team |
 | [FAQ.md](FAQ.md) | Common questions (naming deployments, namespaces, releases, and related day-0 guidance) |
 | [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env (paste into the Distr Docker deployment) |
