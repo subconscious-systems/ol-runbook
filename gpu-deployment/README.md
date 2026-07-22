@@ -65,7 +65,7 @@ Each worker gets a **NodePort** on the GPU instance (see table). Repeat for ever
 
 ### Target group
 
-EC2 → Target groups → Create → **Instances**, TCP port = NodePort (e.g. `30001`) → register GPU instance.
+EC2 → Target groups → Create Target Group → **Instances**, TCP port = NodePort (e.g. `30001`) → register GPU instance.
 
 ### Network Load Balancer
 
