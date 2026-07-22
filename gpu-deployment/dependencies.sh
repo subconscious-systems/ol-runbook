@@ -97,6 +97,7 @@ cat <<EOF
   4. k3s
   5. kubectl (+ kubeconfig for the current user)
   6. NVIDIA RuntimeClass + device plugin (nvidia.com/gpu)
+  7. Namespace ${NAMESPACE} (Distr agent + Apply)
 EOF
 
 ensure_base_packages() {
