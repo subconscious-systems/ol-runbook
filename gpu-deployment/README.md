@@ -15,10 +15,10 @@ Install path for SGLang workers on a customer GPU host. Everything is in this fi
 
 | Step | Where | What |
 |---|---|---|
-| **1** | GPU host | `./dependencies.sh` — k3s, NVIDIA drivers, device plugin |
-| **2** | Distr UI | Connect k3s agent to this host |
+| **1** | GPU host | `./dependencies.sh` — k3s, NVIDIA drivers, device plugin, **namespace** |
+| **2** | Distr UI | Connect k3s agent (`-n` = same namespace as step 1) |
 | **3** | Dashboard + Distr | Create worker API key → Distr Hub Secret `WORKER_API_KEY` |
-| **4** | Distr UI | Apply — paste `profiles/<model>.yaml`, set namespace + timeout |
+| **4** | Distr UI | Apply — paste `profiles/<model>.yaml`, same namespace + timeout |
 | **5** | AWS Console | NLB + target group per worker NodePort |
 | **6** | Dashboard | Register worker pool with NLB URLs + same `WORKER_API_KEY` |
 
@@ -33,11 +33,13 @@ Helm values live in **`profiles/`** only (one YAML per model). There is no separ
 | Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | `sglang-qwen36-27b` | 120m | 30001, 30002 |
 | Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | `sglang-qwen36-7b` | 60m | 30003, 30004 |
 
-Copy the **entire file** into Distr Helm Values (step 4).
+Copy the **entire file** into Distr Helm Values (step 4). Use the **same namespace** for steps 1, 2, and 4.
 
 ---
 
 ## Step 1 — Bootstrap the GPU host
+
+Default namespace is **`sglang-qwen36-27b`**. For 7B only, set `NAMESPACE=sglang-qwen36-7b`.
 
 ```bash
 git clone git@github.com:subconscious-systems/ol-runbook.git
@@ -46,11 +48,18 @@ chmod +x dependencies.sh
 ./dependencies.sh
 ```
 
+7B example:
+
+```bash
+NAMESPACE=sglang-qwen36-7b ./dependencies.sh
+```
+
 May reboot once for NVIDIA drivers. Then verify:
 
 ```bash
 nvidia-smi
 kubectl get nodes
+kubectl get namespace sglang-qwen36-27b
 ```
 
 ---
@@ -58,6 +67,12 @@ kubectl get nodes
 ## Step 2 — Connect Distr
 
 In Distr, add a **Kubernetes deployment target** for this host and run the k3s agent install command.
+
+The Hub command must use the **same namespace** `dependencies.sh` created, e.g.:
+
+```bash
+kubectl apply -n sglang-qwen36-27b -f "https://app.distr.sh/api/v1/connect?..."
+```
 
 ---
 
@@ -72,7 +87,7 @@ In Distr, add a **Kubernetes deployment target** for this host and run the k3s a
 
 1. Open the SGLang worker Helm application in Distr.
 2. **Create Deployment** → paste the profile YAML from the table above.
-3. **Customize Helm options** — namespace and timeout from the table; **120m** / **60m** on first Apply.
+3. **Customize Helm options** — namespace (same as step 1) and timeout from the table; **120m** / **60m** on first Apply.
 4. **Apply** — waits for model download Job + image pull + worker pods Ready.
 
 Verify on the host:

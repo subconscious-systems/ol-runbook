@@ -9,6 +9,7 @@
 #   ./dependencies.sh
 #
 # Optional env:
+#   NAMESPACE=sglang-qwen36-27b   # default; use sglang-qwen36-7b for 7B — Distr agent + Apply use this
 #   SKIP_NVIDIA_DRIVERS=false
 #   K3S_VERSION=                  # empty = get.k3s.io default
 #   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml
@@ -21,12 +22,14 @@ K3S_VERSION="${K3S_VERSION:-}"
 K3S_KUBECONFIG_SOURCE="${K3S_KUBECONFIG_SOURCE:-/etc/rancher/k3s/k3s.yaml}"
 NVIDIA_DEVICE_PLUGIN_URL="${NVIDIA_DEVICE_PLUGIN_URL:-https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml}"
 GPU_READY_TIMEOUT_SECONDS="${GPU_READY_TIMEOUT_SECONDS:-180}"
+NAMESPACE="${NAMESPACE:-sglang-qwen36-27b}"
 
 usage() {
   cat <<'EOF'
 Usage: ./dependencies.sh
 
-Install GPU host dependencies (drivers, k3s, NVIDIA device plugin, namespace).
+Install GPU host dependencies (drivers, k3s, NVIDIA device plugin).
+Creates namespace ${NAMESPACE:-sglang-qwen36-27b} for the Distr agent and worker Apply.
 Model weights and the worker image are downloaded by Distr Helm Apply.
 EOF
 }
@@ -350,6 +353,19 @@ wait_nvidia_gpu_allocatable() {
   die "timed out waiting for nvidia.com/gpu (check device-plugin pods in kube-system)"
 }
 
+ensure_deployment_namespace() {
+  if [[ ! "${NAMESPACE}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+    die "invalid NAMESPACE: ${NAMESPACE}"
+  fi
+  log "ensuring namespace ${NAMESPACE}"
+  if kubectl_cmd get namespace "${NAMESPACE}" >/dev/null 2>&1; then
+    log "namespace ${NAMESPACE} already exists"
+  else
+    kubectl_cmd create namespace "${NAMESPACE}"
+    log "created namespace ${NAMESPACE}"
+  fi
+}
+
 ensure_base_packages
 ensure_nvidia_drivers
 ensure_nvidia_container_toolkit
@@ -359,10 +375,12 @@ ensure_kubectl
 configure_k3s_nvidia_runtime
 apply_nvidia_device_plugin
 wait_nvidia_gpu_allocatable
+ensure_deployment_namespace
 
 cat <<EOF
 
 [dep] Host bootstrap complete.
+[dep] Namespace: ${NAMESPACE} (use this for Distr agent connect -n and Helm Apply)
 
 Next — see ${SCRIPT_DIR}/README.md (steps 2–6).
 EOF
