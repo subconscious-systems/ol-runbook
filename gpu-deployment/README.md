@@ -40,10 +40,10 @@ Helm values live in **`profiles/`** only (one YAML per model).
 
 ## Pick a model
 
-| Model | Profile | Timeout | NodePorts |
+| Model | Profile | Timeout |
 |---|---|---|---|
-| Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 120m | 30001, 30002 |
-| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | 60m | 30003, 30004 |
+| Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 120m |
+| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | 60m |
 
 Copy the **entire profile file** into Distr Helm Values (step 4).
 
