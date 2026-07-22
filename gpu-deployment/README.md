@@ -59,16 +59,7 @@ chmod +x ~/dependencies.sh
 ~/dependencies.sh
 ```
 
-Or clone the runbook (includes profiles for step 4):
-
-```bash
-git clone git@github.com:subconscious-systems/ol-runbook.git
-cd ol-runbook/gpu-deployment
-chmod +x dependencies.sh
-./dependencies.sh
-```
-
-May reboot once for NVIDIA drivers. Then verify:
+The GPU host may reboot once for NVIDIA drivers. Rerun script after reboot until it prints install finished. Then verify:
 
 ```bash
 nvidia-smi
@@ -78,7 +69,7 @@ kubectl get namespace sglang
 
 ---
 
-## Step 2 — Connect Distr
+## Step 2 — Connecting Distr
 
 1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
 2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
@@ -95,20 +86,6 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ---
 
-## Step 3 — Worker API key
-
-1. **api-gateway dashboard** → model group for your served model (`qwen3.6-27b` or `qwen3.6-7b`) → create **worker API key**.
-2. **Distr → Hub Secrets** → `WORKER_API_KEY` = that key.
-
----
-
-## Step 4 — Distr Apply
-
-1. Open the SGLang worker Helm application in Distr.
-2. **Create Deployment** → paste the profile YAML from the table above.
-3. **Customize Helm options** — namespace **`sglang`** and timeout from the table.
-4. **Apply** — waits for model download + image pull + worker pods Ready.
-
 Verify on the host:
 
 ```bash
@@ -120,7 +97,7 @@ curl -sS -H "Authorization: Bearer ${WORKER_API_KEY}" http://127.0.0.1:30001/v1/
 
 ---
 
-## Step 5 — AWS: NLB per worker
+## Step 3 — AWS: NLB per worker
 
 Each worker gets a **NodePort** on the GPU instance (see table). Repeat for every worker.
 
@@ -136,7 +113,7 @@ EC2 → Load balancers → **Network Load Balancer** → TLS :443 (ACM cert) →
 
 ---
 
-## Step 6 — Dashboard worker pool
+## Step 4 — Dashboard worker pool
 
 Model group from step 3 → **Create worker pool**:
 
@@ -145,6 +122,6 @@ Model group from step 3 → **Create worker pool**:
 27b-b | https://<nlb-dns-for-30002> | <WORKER_API_KEY>
 ```
 
-Same `WORKER_API_KEY` for all workers. Wait ~1 minute for sync.
+Same `WORKER_API_KEY` from Distr secrets for all workers. Wait ~1 minute for sync.
 
 ---
