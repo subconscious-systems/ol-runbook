@@ -40,16 +40,28 @@ Helm values live in **`profiles/`** only (one YAML per model).
 
 ## Pick a model
 
-| Model | Profile | Timeout |
-|---|---|---|
-| Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 120m |
-| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | 60m |
+| Model | Profile | Timeout | NodePorts |
+|---|---|---|---|
+| Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 120m | 30001, 30002 |
+| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | 60m | 30003, 30004 |
 
 Copy the **entire profile file** into Distr Helm Values (step 4).
 
 ---
 
-## Step 1 — GPU host
+## Step 1 — Bootstrap the GPU host
+
+`dependencies.sh` is self-contained. **Download it with `curl`** — do not copy/paste into vim; pasted scripts often get corrupted (`apt-get` → `apget`, broken lines).
+
+**Option A — download the script only (recommended on the GPU host)**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/main/gpu-deployment/dependencies.sh -o ~/dependencies.sh
+chmod +x ~/dependencies.sh
+~/dependencies.sh
+```
+
+**Option B — clone the runbook (includes profiles for step 4)**
 
 ```bash
 git clone git@github.com:subconscious-systems/ol-runbook.git
@@ -70,14 +82,7 @@ kubectl get namespace sglang
 
 ## Step 2 — Connect Distr
 
-1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
-2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
-3. Navigate to the deployments page and click on New Deployment.
-4. Select 27b-deployment as the application.
-5. Enter deployment name and set Kubernetes Namespace to "sglang".
-6. Leave default Application Config, go to [profiles](/profiles) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-7. Click create deployment.
-8. Go back to GPU host and run the command Distr provides, should look like:
+In Distr, add a **Kubernetes deployment target** for this host and run the k3s agent install command:
 
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
