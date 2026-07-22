@@ -364,5 +364,13 @@ cat <<EOF
 
 [dep] Host bootstrap complete.
 
-Next — see ${SCRIPT_DIR}/README.md (steps 2–6).
+Next (Distr + profiles): continue with step 2 in the GPU deployment README.
 EOF
+if [[ -f "${SCRIPT_DIR}/README.md" ]]; then
+  printf '      %s\n' "${SCRIPT_DIR}/README.md (steps 2–6)"
+else
+  cat <<'EOF'
+      https://github.com/subconscious-systems/ol-runbook/blob/main/gpu-deployment/README.md
+      (profiles/*.yaml for Distr Apply are in that repo — copy or clone when you reach step 4)
+EOF
+fi
