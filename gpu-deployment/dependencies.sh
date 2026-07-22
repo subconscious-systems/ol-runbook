@@ -386,8 +386,5 @@ ensure_deployment_namespace
 
 cat <<EOF
 
-[dep] Host bootstrap complete.
-[dep] Namespace: ${NAMESPACE} (use this for Distr agent connect -n and Helm Apply)
-
-Next — see ${SCRIPT_DIR}/README.md (steps 2–6).
+Install finished.
 EOF
