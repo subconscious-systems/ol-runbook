@@ -1,13 +1,8 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
-# namespace: sglang-qwen36-27b
-# operation-timeout-minutes: 120
-# served-model: qwen3.6-27b
-#
+# Distr UI (not in this file): namespace + operation-timeout-minutes (120) + served-model qwen3.6-27b
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
-# Host bootstrap: ./dependencies.sh (once), then paste in Distr Apply.
-
-fullnameOverride: sglang-qwen36-27b
+# Host bootstrap: NAMESPACE=<same-as-distr> ./dependencies.sh
 
 images:
   distrPullSecret:

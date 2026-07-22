@@ -11,47 +11,56 @@ Install path for SGLang workers on a customer GPU host. Everything is in this fi
 | [Distr](https://app.distr.sh) account | Subconscious provisions the SGLang worker Helm application |
 | Distr registry access | Profile enables `distrPullSecret` for `registry.distr.sh/subconscious/timrun` |
 
+## Namespace (one per Distr deployment)
+
+Pick a Kubernetes namespace name once. Use the **same value** for:
+
+1. `NAMESPACE=... ./dependencies.sh` (step 1)
+2. Distr agent connect (`kubectl apply -n ...`)
+3. Distr **Customize Helm options → namespace** (step 4)
+
+Namespace is **not** in profile YAML. Examples:
+
+| Deployment | Suggested `NAMESPACE` |
+|---|---|
+| Qwen3.6-27B-FP8 | `sglang-qwen36-27b` |
+| Qwen3.6-7B-FP8 | `sglang-qwen36-7b` |
+
+Use a different namespace per model when both run on the same host.
+
 ## Install checklist
 
 | Step | Where | What |
 |---|---|---|
-| **1** | GPU host | `./dependencies.sh` — k3s, NVIDIA drivers, device plugin, **namespace** |
-| **2** | Distr UI | Connect k3s agent (`-n` = same namespace as step 1) |
+| **1** | GPU host | `NAMESPACE=<name> ./dependencies.sh` |
+| **2** | Distr UI | Connect k3s agent (`-n` = same namespace) |
 | **3** | Dashboard + Distr | Create worker API key → Distr Hub Secret `WORKER_API_KEY` |
 | **4** | Distr UI | Apply — paste `profiles/<model>.yaml`, same namespace + timeout |
 | **5** | AWS Console | NLB + target group per worker NodePort |
 | **6** | Dashboard | Register worker pool with NLB URLs + same `WORKER_API_KEY` |
 
-Helm values live in **`profiles/`** only (one YAML per model). There is no separate overrides folder.
+Helm values live in **`profiles/`** only (one YAML per model).
 
 ---
 
 ## Pick a model
 
-| Model | Paste into Distr | Namespace | Timeout | NodePorts |
-|---|---|---|---|---|
-| Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | `sglang-qwen36-27b` | 120m | 30001, 30002 |
-| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | `sglang-qwen36-7b` | 60m | 30003, 30004 |
+| Model | Profile | Timeout | NodePorts |
+|---|---|---|---|
+| Qwen3.6-27B-FP8 | `profiles/qwen36-27b.yaml` | 120m | 30001, 30002 |
+| Qwen3.6-7B-FP8 | `profiles/qwen36-7b.yaml` | 60m | 30003, 30004 |
 
-Copy the **entire file** into Distr Helm Values (step 4). Use the **same namespace** for steps 1, 2, and 4.
+Copy the **entire profile file** into Distr Helm Values (step 4).
 
 ---
 
 ## Step 1 — Bootstrap the GPU host
 
-Default namespace is **`sglang-qwen36-27b`**. For 7B only, set `NAMESPACE=sglang-qwen36-7b`.
-
 ```bash
 git clone git@github.com:subconscious-systems/ol-runbook.git
 cd ol-runbook/gpu-deployment
 chmod +x dependencies.sh
-./dependencies.sh
-```
-
-7B example:
-
-```bash
-NAMESPACE=sglang-qwen36-7b ./dependencies.sh
+NAMESPACE=sglang-qwen36-27b ./dependencies.sh
 ```
 
 May reboot once for NVIDIA drivers. Then verify:
@@ -59,19 +68,17 @@ May reboot once for NVIDIA drivers. Then verify:
 ```bash
 nvidia-smi
 kubectl get nodes
-kubectl get namespace sglang-qwen36-27b
+kubectl get namespace "${NAMESPACE}"
 ```
 
 ---
 
 ## Step 2 — Connect Distr
 
-In Distr, add a **Kubernetes deployment target** for this host and run the k3s agent install command.
-
-The Hub command must use the **same namespace** `dependencies.sh` created, e.g.:
+In Distr, add a **Kubernetes deployment target** for this host and run the k3s agent install command with the **same namespace**:
 
 ```bash
-kubectl apply -n sglang-qwen36-27b -f "https://app.distr.sh/api/v1/connect?..."
+kubectl apply -n "${NAMESPACE}" -f "https://app.distr.sh/api/v1/connect?..."
 ```
 
 ---
@@ -87,14 +94,14 @@ kubectl apply -n sglang-qwen36-27b -f "https://app.distr.sh/api/v1/connect?..."
 
 1. Open the SGLang worker Helm application in Distr.
 2. **Create Deployment** → paste the profile YAML from the table above.
-3. **Customize Helm options** — namespace (same as step 1) and timeout from the table; **120m** / **60m** on first Apply.
-4. **Apply** — waits for model download Job + image pull + worker pods Ready.
+3. **Customize Helm options** — namespace (same as step 1) and timeout from the table.
+4. **Apply** — waits for model download + image pull + worker pods Ready.
 
 Verify on the host:
 
 ```bash
-kubectl -n sglang-qwen36-27b get pods
-kubectl -n sglang-qwen36-27b get svc
+kubectl -n "${NAMESPACE}" get pods
+kubectl -n "${NAMESPACE}" get svc
 export WORKER_API_KEY='your-key'
 curl -sS -H "Authorization: Bearer ${WORKER_API_KEY}" http://127.0.0.1:30001/v1/models
 ```
