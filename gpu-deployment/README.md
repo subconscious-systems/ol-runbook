@@ -9,32 +9,6 @@ Install path for SGLang workers on a customer GPU host. Everything is in this fi
 | GPU EC2 instance | Ubuntu/Debian |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Subconscious provisions the SGLang worker Helm application |
-| Distr registry access | Profile enables `distrPullSecret` for `registry.distr.sh/subconscious/timrun` |
-
-## Namespace
-
-Use **`sglang`** for every profile and every Distr step:
-
-| Step | Where to set `sglang` |
-|---|---|
-| 1 | `./dependencies.sh` (creates the namespace) |
-| 2 | Distr agent connect: `kubectl apply -n sglang ...` |
-| 4 | Distr **Customize Helm options → namespace** |
-
-Namespace is **not** in profile YAML. Multiple models on one host share `sglang` (use different NodePorts per profile).
-
-## Install checklist
-
-| Step | Where | What |
-|---|---|---|
-| **1** | GPU host | `./dependencies.sh` |
-| **2** | Distr UI | Connect k3s agent (`-n sglang`) |
-| **3** | Dashboard + Distr | Create worker API key → Distr Hub Secret `WORKER_API_KEY` |
-| **4** | Distr UI | Apply — paste `profiles/<model>.yaml`, namespace `sglang` + timeout |
-| **5** | AWS Console | NLB + target group per worker NodePort |
-| **6** | Dashboard | Register worker pool with NLB URLs + same `WORKER_API_KEY` |
-
-Helm values live in **`profiles/`** only (one YAML per model).
 
 ---
 
@@ -51,7 +25,7 @@ Copy the **entire profile file** into Distr Helm Values (step 4).
 
 ## Step 1 — GPU host
 
-Download with **`curl`** — do not copy/paste the script into vim; pasted files often get corrupted (`apt-get` → `apget`, broken lines).
+Download dependencies script with **`curl`**, will install all the drivers and namespace for Distr to apply the model and runtime.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/main/gpu-deployment/dependencies.sh -o ~/dependencies.sh
