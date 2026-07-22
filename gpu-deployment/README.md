@@ -114,20 +114,3 @@ Model group from step 3 → **Create worker pool**:
 Same `WORKER_API_KEY` for all workers. Wait ~1 minute for sync.
 
 ---
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| Pods not Ready | `kubectl -n <namespace> logs deploy/...` |
-| 401 from worker | `WORKER_API_KEY` mismatch between Distr and dashboard |
-| NLB unhealthy | GPU security group / target group port |
-| Apply timeout | 120m (27B) or 60m (7B) |
-| Port conflict | 27B: 30001–30002; 7B: 30003–30004 on same host |
-
----
-
-## Related repos
-
-- **27b-deployment** (private) — Helm chart source published to Distr
-- [`api-gateway`](https://github.com/subconscious-systems/api-gateway) — Router and dashboard
