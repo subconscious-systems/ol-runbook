@@ -83,6 +83,26 @@ NLB-source rule does not cancel a broader existing rule.
 
 ## Configure and apply
 
+The interactive setup is the preferred path:
+
+```bash
+./gpu-deployment/terraform/aws-private-workers/setup.sh
+```
+
+Before planning, the wizard checks the selected worker VPC and DNS zone for
+target groups, NLBs, TLS listeners, and worker alias records with the expected
+names. Matching resources that are not already tracked are imported
+automatically. Existing NLB subnet sets are preserved with per-worker
+`subnet_ids` overrides so adoption does not force replacement. The wizard stops
+instead of adopting a resource from another VPC, an internet-facing or
+non-network load balancer, a non-TLS port 443 listener, or a DNS record pointing
+at another load balancer.
+
+An imported resource can still differ from the generated configuration.
+Always review the plan before applying changes to existing infrastructure.
+
+For manual configuration:
+
 ```bash
 cd gpu-deployment/terraform/aws-private-workers
 cp terraform.tfvars.example terraform.tfvars

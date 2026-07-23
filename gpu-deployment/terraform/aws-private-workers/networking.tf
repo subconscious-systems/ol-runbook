@@ -7,6 +7,18 @@ locals {
     var.tags,
   )
 
+  worker_nlb_subnet_ids = {
+    for name, worker in var.workers :
+    name => coalesce(worker.subnet_ids, var.worker_subnet_ids)
+  }
+  all_worker_subnet_ids = setunion(
+    var.worker_subnet_ids,
+    toset(flatten([
+      for subnet_ids in values(local.worker_nlb_subnet_ids) :
+      tolist(subnet_ids)
+    ])),
+  )
+
   gateway_vpc_cidrs = toset([
     for association in data.aws_vpc.gateway.cidr_block_associations :
     association.cidr_block if association.state == "associated"
@@ -17,7 +29,7 @@ locals {
   ])
 
   worker_route_subnet_ids = setunion(
-    var.worker_subnet_ids,
+    local.all_worker_subnet_ids,
     toset([data.aws_instance.worker.subnet_id]),
   )
   gateway_main_route_table_id = one(flatten([

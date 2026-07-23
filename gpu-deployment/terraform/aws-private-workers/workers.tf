@@ -47,7 +47,7 @@ resource "aws_lb" "worker" {
   name               = local.worker_nlb_names[each.key]
   internal           = true
   load_balancer_type = "network"
-  subnets            = sort(tolist(var.worker_subnet_ids))
+  subnets            = sort(tolist(local.worker_nlb_subnet_ids[each.key]))
   security_groups    = [local.nlb_security_group_id]
 
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing

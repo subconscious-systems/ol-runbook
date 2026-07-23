@@ -25,8 +25,9 @@ The wizard:
   1. lets you select the gateway EKS cluster, GPU instance, and Route 53 zone;
   2. asks for the model and worker domain;
   3. generates terraform.tfvars with discover-aws.sh;
-  4. runs terraform init, validate, and plan;
-  5. optionally runs terraform apply.
+  4. initializes and validates Terraform;
+  5. adopts matching existing worker resources and runs the plan;
+  6. optionally runs terraform apply.
 
 Options:
   --region REGION    AWS region. Defaults to AWS environment or CLI config.
@@ -105,6 +106,265 @@ AWS_GLOBAL_ARGS+=(--region "$REGION" --no-cli-pager)
 
 aws_read() {
   aws "${AWS_GLOBAL_ARGS[@]}" "$@"
+}
+
+# Terraform's AWS provider does not always pick up `aws login` / SSO
+# sessions from the CLI cache. Export resolved credentials into the
+# environment so init/plan/apply use the same identity as the wizard.
+export_aws_credentials_for_terraform() {
+  local creds
+  if ! creds="$(
+    aws "${AWS_GLOBAL_ARGS[@]}" configure export-credentials --format env
+  )"; then
+    echo "error: failed to export AWS credentials for Terraform. Run 'aws login' and retry." >&2
+    exit 1
+  fi
+  # Credentials are emitted as export FOO=... lines by the AWS CLI.
+  eval "$creds"
+  export AWS_REGION="$REGION"
+  export AWS_DEFAULT_REGION="$REGION"
+  if [[ -n "$PROFILE" ]]; then
+    export AWS_PROFILE="$PROFILE"
+  fi
+  # Avoid a long IMDS timeout on laptops when credentials are already set.
+  export AWS_EC2_METADATA_DISABLED=true
+}
+
+terraform_config_value() {
+  local expression="$1"
+  local console_output
+  local line
+  local value
+
+  if ! console_output="$(
+    printf '%s\n' "$expression" | terraform console 2>/dev/null
+  )"; then
+    printf 'error: unable to evaluate Terraform expression: %s\n' \
+      "$expression" >&2
+    exit 1
+  fi
+
+  value=""
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && value="$line"
+  done <<<"$console_output"
+  if [[ -z "$value" ]]; then
+    printf 'error: Terraform expression returned no value: %s\n' \
+      "$expression" >&2
+    exit 1
+  fi
+
+  # The expressions used here return simple strings or numbers. Terraform
+  # console quotes strings, so remove only their outer quotes.
+  if [[ "$value" == \"*\" ]]; then
+    value="${value#\"}"
+    value="${value%\"}"
+  fi
+  printf '%s\n' "$value"
+}
+
+terraform_state_has() {
+  terraform state show "$1" >/dev/null 2>&1
+}
+
+terraform_adopt() {
+  local address="$1"
+  local import_id="$2"
+  local description="$3"
+
+  if terraform_state_has "$address"; then
+    return
+  fi
+
+  printf 'Adopting existing %s into %s\n' "$description" "$address"
+  terraform import -input=false "$address" "$import_id"
+}
+
+resource_conflict() {
+  printf 'error: existing %s conflicts with the selected configuration: %s\n' \
+    "$1" "$2" >&2
+  exit 1
+}
+
+auto_adopt_existing_worker_resources() {
+  local worker_names=()
+  local worker_names_text
+  local worker_name
+  local worker_vpc_id
+  local worker_domain
+  local route53_zone
+  local route53_zone_id
+  local node_port
+  local target_group_name
+  local target_group_row
+  local target_group_arn
+  local target_group_vpc_id
+  local target_group_protocol
+  local target_group_port
+  local target_group_address
+  local nlb_name
+  local nlb_row
+  local nlb_arn
+  local nlb_vpc_id
+  local nlb_scheme
+  local nlb_type
+  local nlb_dns_name
+  local nlb_address
+  local listener_row
+  local listener_arn
+  local listener_protocol
+  local listener_address
+  local record_name
+  local record_row
+  local record_type
+  local record_alias
+  local expected_alias
+  local actual_alias
+  local record_address
+
+  worker_names_text="$(
+    terraform_config_value 'join(" ", keys(var.workers))'
+  )"
+  read -r -a worker_names <<<"$worker_names_text"
+  worker_vpc_id="$(terraform_config_value 'var.worker_vpc_id')"
+  worker_domain="$(terraform_config_value 'var.worker_domain')"
+  route53_zone="$(terraform_config_value 'var.route53_zone_name')"
+  route53_zone_id="$(
+    aws_read route53 list-hosted-zones-by-name \
+      --dns-name "$route53_zone" \
+      --query "HostedZones[?Name=='${route53_zone}.' && Config.PrivateZone==\`false\`]|[0].Id" \
+      --output text
+  )"
+  if [[ -z "$route53_zone_id" || "$route53_zone_id" == "None" ]]; then
+    resource_conflict "Route 53 configuration" \
+      "public zone $route53_zone was not found"
+  fi
+  route53_zone_id="${route53_zone_id##*/}"
+
+  echo
+  echo "Checking for existing worker resources to adopt..."
+
+  for worker_name in "${worker_names[@]}"; do
+    node_port="$(
+      terraform_config_value "var.workers[\"${worker_name}\"].node_port"
+    )"
+    target_group_name="$(
+      terraform_config_value \
+        "local.worker_target_group_names[\"${worker_name}\"]"
+    )"
+    target_group_address="aws_lb_target_group.worker[\"${worker_name}\"]"
+    target_group_row="$(
+      aws_read elbv2 describe-target-groups \
+        --query "TargetGroups[?TargetGroupName=='${target_group_name}'].[TargetGroupArn,VpcId,Protocol,Port]" \
+        --output text
+    )"
+
+    if [[ -n "$target_group_row" && "$target_group_row" != "None" ]]; then
+      IFS=$'\t' read -r \
+        target_group_arn \
+        target_group_vpc_id \
+        target_group_protocol \
+        target_group_port <<<"$target_group_row"
+
+      if [[ "$target_group_vpc_id" != "$worker_vpc_id" ]]; then
+        resource_conflict "target group $target_group_name" \
+          "VPC is $target_group_vpc_id, expected $worker_vpc_id"
+      fi
+      if [[ "$target_group_protocol" != "TCP" ||
+        "$target_group_port" != "$node_port" ]]; then
+        resource_conflict "target group $target_group_name" \
+          "protocol/port is $target_group_protocol/$target_group_port, expected TCP/$node_port"
+      fi
+      terraform_adopt \
+        "$target_group_address" \
+        "$target_group_arn" \
+        "target group $target_group_name"
+    fi
+
+    nlb_name="$(
+      terraform_config_value "local.worker_nlb_names[\"${worker_name}\"]"
+    )"
+    nlb_address="aws_lb.worker[\"${worker_name}\"]"
+    nlb_row="$(
+      aws_read elbv2 describe-load-balancers \
+        --query "LoadBalancers[?LoadBalancerName=='${nlb_name}'].[LoadBalancerArn,VpcId,Scheme,Type,DNSName]" \
+        --output text
+    )"
+    nlb_arn=""
+    nlb_dns_name=""
+
+    if [[ -n "$nlb_row" && "$nlb_row" != "None" ]]; then
+      IFS=$'\t' read -r \
+        nlb_arn \
+        nlb_vpc_id \
+        nlb_scheme \
+        nlb_type \
+        nlb_dns_name <<<"$nlb_row"
+
+      if [[ "$nlb_vpc_id" != "$worker_vpc_id" ]]; then
+        resource_conflict "load balancer $nlb_name" \
+          "VPC is $nlb_vpc_id, expected $worker_vpc_id"
+      fi
+      if [[ "$nlb_scheme" != "internal" || "$nlb_type" != "network" ]]; then
+        resource_conflict "load balancer $nlb_name" \
+          "scheme/type is $nlb_scheme/$nlb_type, expected internal/network"
+      fi
+      terraform_adopt "$nlb_address" "$nlb_arn" "NLB $nlb_name"
+
+      listener_address="aws_lb_listener.worker_tls[\"${worker_name}\"]"
+      listener_row="$(
+        aws_read elbv2 describe-listeners \
+          --load-balancer-arn "$nlb_arn" \
+          --query 'Listeners[?Port==`443`].[ListenerArn,Protocol]' \
+          --output text
+      )"
+      if [[ -n "$listener_row" && "$listener_row" != "None" ]]; then
+        IFS=$'\t' read -r listener_arn listener_protocol <<<"$listener_row"
+        if [[ "$listener_protocol" != "TLS" ]]; then
+          resource_conflict "listener on $nlb_name:443" \
+            "protocol is $listener_protocol, expected TLS"
+        fi
+        terraform_adopt \
+          "$listener_address" \
+          "$listener_arn" \
+          "TLS listener for $nlb_name"
+      fi
+    fi
+
+    record_name="${worker_name}.${worker_domain}"
+    record_address="aws_route53_record.worker[\"${worker_name}\"]"
+    record_row="$(
+      aws_read route53 list-resource-record-sets \
+        --hosted-zone-id "$route53_zone_id" \
+        --query "ResourceRecordSets[?Name=='${record_name}.' && Type=='A'].[Type,AliasTarget.DNSName]" \
+        --output text
+    )"
+    if [[ -n "$record_row" && "$record_row" != "None" ]]; then
+      IFS=$'\t' read -r record_type record_alias <<<"$record_row"
+      if [[ -z "$nlb_dns_name" ]]; then
+        resource_conflict "DNS record $record_name" \
+          "matching NLB $nlb_name was not found"
+      fi
+      if [[ -z "$record_alias" || "$record_alias" == "None" ]]; then
+        resource_conflict "DNS record $record_name" \
+          "record is not an alias to $nlb_name"
+      fi
+      expected_alias="$(
+        printf '%s' "${nlb_dns_name%.}" | tr '[:upper:]' '[:lower:]'
+      )"
+      actual_alias="$(
+        printf '%s' "${record_alias%.}" | tr '[:upper:]' '[:lower:]'
+      )"
+      if [[ "$actual_alias" != "$expected_alias" ]]; then
+        resource_conflict "DNS record $record_name" \
+          "alias is $record_alias, expected $nlb_dns_name"
+      fi
+      terraform_adopt \
+        "$record_address" \
+        "${route53_zone_id}_${record_name}_${record_type}" \
+        "DNS record $record_name"
+    fi
+  done
 }
 
 choose_option() {
@@ -282,21 +542,26 @@ mv "$temporary_tfvars" "$TFVARS_FILE"
 trap - EXIT
 
 cd "$SCRIPT_DIR"
+export_aws_credentials_for_terraform
 terraform fmt terraform.tfvars
 terraform init
 terraform validate
+auto_adopt_existing_worker_resources
 terraform plan
 
 if [[ "$PLAN_ONLY" == "true" ]]; then
   echo
-  echo "Plan complete. Run 'terraform apply' here when ready:"
-  printf '  cd %s\n  terraform apply\n' "$SCRIPT_DIR"
+  echo "Plan complete. Run apply when ready:"
+  printf '  cd %s\n' "$SCRIPT_DIR"
+  echo '  eval "$(aws configure export-credentials --format env)"'
+  echo '  terraform apply'
   exit 0
 fi
 
 echo
 read -r -p "Run terraform apply now? [y/N]: " apply_now
 if [[ "$apply_now" =~ ^[Yy]$ ]]; then
+  export_aws_credentials_for_terraform
   terraform apply
   echo
   echo "Worker endpoints:"
@@ -305,5 +570,8 @@ if [[ "$apply_now" =~ ^[Yy]$ ]]; then
   echo "Gateway allowlist suffix:"
   terraform output gateway_route_allowed_host_suffix
 else
-  echo "Plan complete. Run 'terraform apply' in this directory when ready."
+  echo "Plan complete. Run apply when ready:"
+  printf '  cd %s\n' "$SCRIPT_DIR"
+  echo '  eval "$(aws configure export-credentials --format env)"'
+  echo '  terraform apply'
 fi

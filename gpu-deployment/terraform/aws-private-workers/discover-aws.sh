@@ -182,6 +182,43 @@ tfvars_list() {
   IFS="$old_ifs"
 }
 
+tfvars_worker_entry() {
+  local worker_name="$1"
+  local node_port="$2"
+  local worker_vpc_id="$3"
+  local nlb_name="${worker_name}-NLB"
+  local nlb_row
+  local nlb_vpc_id
+  local nlb_subnet_ids
+
+  nlb_row="$(
+    aws_read elbv2 describe-load-balancers \
+      --query "LoadBalancers[?LoadBalancerName=='${nlb_name}'].[VpcId,join(\`,\`,AvailabilityZones[].SubnetId)]" \
+      --output text
+  )"
+
+  if [[ -z "$nlb_row" || "$nlb_row" == "None" ]]; then
+    printf '  "%s" = { node_port = %s }\n' "$worker_name" "$node_port"
+    return
+  fi
+
+  IFS=$'\t' read -r nlb_vpc_id nlb_subnet_ids <<<"$nlb_row"
+  if [[ "$nlb_vpc_id" != "$worker_vpc_id" ]]; then
+    printf 'error: existing NLB %s belongs to %s, expected %s\n' \
+      "$nlb_name" "$nlb_vpc_id" "$worker_vpc_id" >&2
+    exit 2
+  fi
+
+  printf '  # Preserve the subnet set of the existing %s during adoption.\n' \
+    "$nlb_name"
+  printf '  "%s" = {\n' "$worker_name"
+  printf '    node_port  = %s\n' "$node_port"
+  printf '    subnet_ids = [\n'
+  tfvars_list "$nlb_subnet_ids" 6
+  printf '    ]\n'
+  printf '  }\n'
+}
+
 generate_tfvars() {
   local missing=()
   local account_id
@@ -203,6 +240,11 @@ generate_tfvars() {
   local peering_ids=()
   local peering_id="null"
   local manage_vpc_routes="true"
+  local nlb_security_group_name="sglang-worker-private-nlbs"
+  local nlb_security_group_text
+  local nlb_security_group_ids=()
+  local existing_nlb_security_group_id="null"
+  local manage_security_group_rules="true"
   local certificate_text
   local certificate_arns=()
   local certificate_arn="null"
@@ -317,6 +359,28 @@ generate_tfvars() {
     fi
   fi
 
+  nlb_security_group_text="$(
+    aws_read ec2 describe-security-groups \
+      --filters \
+      "Name=vpc-id,Values=${worker_vpc_id}" \
+      "Name=group-name,Values=${nlb_security_group_name}" \
+      --query 'SecurityGroups[].GroupId' \
+      --output text
+  )"
+  if [[ -n "$nlb_security_group_text" && "$nlb_security_group_text" != "None" ]]; then
+    read -r -a nlb_security_group_ids <<<"$nlb_security_group_text"
+    if [[ ${#nlb_security_group_ids[@]} -eq 1 ]]; then
+      existing_nlb_security_group_id="\"${nlb_security_group_ids[0]}\""
+      # Existing reusable NLB SGs commonly already have the gateway/worker
+      # rules. Defaulting to false avoids duplicate-rule failures.
+      manage_security_group_rules="false"
+    else
+      printf 'error: multiple %s security groups found in %s: %s\n' \
+        "$nlb_security_group_name" "$worker_vpc_id" "$nlb_security_group_text" >&2
+      exit 2
+    fi
+  fi
+
   certificate_text="$(
     aws_read acm list-certificates \
       --certificate-statuses ISSUED \
@@ -367,10 +431,11 @@ existing_vpc_peering_connection_id = $peering_id
 # when this Terraform state should manage them.
 manage_vpc_routes = $manage_vpc_routes
 
-# GENERATED NOTE: replace null with an existing reusable private-NLB security
-# group ID only when adopting that group into this setup.
-existing_nlb_security_group_id = null
-manage_security_group_rules    = true
+# GENERATED NOTE: false is selected when a reusable private-NLB security group
+# already exists to avoid duplicate-rule failures. Import existing rules and
+# set true only when this Terraform state should manage them.
+existing_nlb_security_group_id = $existing_nlb_security_group_id
+manage_security_group_rules    = $manage_security_group_rules
 
 route53_zone_name = "$ROUTE53_ZONE"
 worker_domain     = "$WORKER_DOMAIN"
@@ -381,23 +446,17 @@ certificate_arn = $certificate_arn
 
 EOF
 
+  echo 'workers = {'
   if [[ "$MODEL" == "8b" ]]; then
-    cat <<'EOF'
-workers = {
-  "8b-a" = { node_port = 30003 }
-  "8b-b" = { node_port = 30004 }
-  "8b-c" = { node_port = 30005 }
-  "8b-d" = { node_port = 30006 }
-}
-EOF
+    tfvars_worker_entry "8b-a" 30003 "$worker_vpc_id"
+    tfvars_worker_entry "8b-b" 30004 "$worker_vpc_id"
+    tfvars_worker_entry "8b-c" 30005 "$worker_vpc_id"
+    tfvars_worker_entry "8b-d" 30006 "$worker_vpc_id"
   else
-    cat <<'EOF'
-workers = {
-  "27b-a" = { node_port = 30001 }
-  "27b-b" = { node_port = 30002 }
-}
-EOF
+    tfvars_worker_entry "27b-a" 30001 "$worker_vpc_id"
+    tfvars_worker_entry "27b-b" 30002 "$worker_vpc_id"
   fi
+  echo '}'
 
   cat <<'EOF'
 tags = {

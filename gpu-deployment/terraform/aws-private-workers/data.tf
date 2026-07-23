@@ -15,7 +15,7 @@ data "aws_subnet" "worker_instance" {
 }
 
 data "aws_subnet" "worker" {
-  for_each = var.worker_subnet_ids
+  for_each = local.all_worker_subnet_ids
   id       = each.value
 }
 
@@ -111,19 +111,28 @@ resource "terraform_data" "validated_inputs" {
     }
 
     precondition {
-      condition = (
-        length(distinct([for subnet in data.aws_subnet.worker : subnet.availability_zone]))
-        == length(data.aws_subnet.worker)
-      )
-      error_message = "worker_subnet_ids must contain at most one subnet per availability zone."
+      condition = alltrue([
+        for subnet_ids in values(local.worker_nlb_subnet_ids) :
+        length(distinct([
+          for subnet_id in subnet_ids :
+          data.aws_subnet.worker[subnet_id].availability_zone
+        ])) == length(subnet_ids)
+      ])
+      error_message = "Each worker's effective subnet IDs must contain at most one subnet per availability zone."
     }
 
     precondition {
-      condition = contains(
-        [for subnet in data.aws_subnet.worker : subnet.availability_zone],
-        data.aws_subnet.worker_instance.availability_zone,
-      )
-      error_message = "worker_subnet_ids must include the GPU instance availability zone."
+      condition = alltrue([
+        for subnet_ids in values(local.worker_nlb_subnet_ids) :
+        contains(
+          [
+            for subnet_id in subnet_ids :
+            data.aws_subnet.worker[subnet_id].availability_zone
+          ],
+          data.aws_subnet.worker_instance.availability_zone,
+        )
+      ])
+      error_message = "Each worker's effective subnet IDs must include the GPU instance availability zone."
     }
 
     precondition {

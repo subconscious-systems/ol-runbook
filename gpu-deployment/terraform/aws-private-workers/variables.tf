@@ -93,6 +93,7 @@ variable "workers" {
     node_port         = number
     target_group_name = optional(string)
     nlb_name          = optional(string)
+    subnet_ids        = optional(set(string))
   }))
 
   validation {
@@ -103,8 +104,9 @@ variable "workers" {
       && worker.node_port <= 32767
       && (worker.target_group_name == null || length(worker.target_group_name) <= 32)
       && (worker.nlb_name == null || length(worker.nlb_name) <= 32)
+      && (worker.subnet_ids == null || length(worker.subnet_ids) > 0)
     ])
-    error_message = "workers must be non-empty; keys must be DNS labels, ports must be in 30000-32767, and explicit AWS names must not exceed 32 characters."
+    error_message = "workers must be non-empty; keys must be DNS labels, ports must be in 30000-32767, explicit AWS names must not exceed 32 characters, and subnet overrides must be non-empty."
   }
 }
 
