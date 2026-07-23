@@ -333,6 +333,12 @@ auto_adopt_existing_worker_resources() {
 
     record_name="${worker_name}.${worker_domain}"
     record_address="aws_route53_record.worker[\"${worker_name}\"]"
+    # A tracked record belongs to this configuration. If its NLB was deleted
+    # out of band, Terraform will recreate the missing NLB and update the
+    # existing alias during the plan/apply cycle.
+    if terraform_state_has "$record_address"; then
+      continue
+    fi
     record_row="$(
       aws_read route53 list-resource-record-sets \
         --hosted-zone-id "$route53_zone_id" \
