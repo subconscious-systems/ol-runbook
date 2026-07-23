@@ -50,108 +50,27 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ## Step 3 — AWS: NLB per worker
 
-Use the Terraform root in
-[`terraform/aws-private-workers/`](terraform/aws-private-workers/). It creates
-the VPC peering and routes, security-group rules, one target group and internal
-NLB per worker, `/health` checks, TLS listeners, wildcard ACM certificate,
-Route 53 aliases, and the scoped gateway worker-egress NetworkPolicy output.
-
-### Information required
-
-Collect these values before running Terraform:
-
-- AWS region containing both VPCs.
-- Gateway EKS cluster name, VPC ID, and private subnet IDs.
-- Worker VPC ID and the subnets where internal NLBs may be created. Include the
-  GPU instance availability zone.
-- GPU EC2 instance ID and one security group attached to that instance.
-- Existing public Route 53 zone, such as `example.com`.
-- Worker DNS suffix, such as `workers.example.com`.
-- Worker names and NodePorts. The supplied profiles use `30001-30002` for 27B
-  and `30003-30006` for 8B.
-- Gateway namespace and Helm release name. These are used to generate the
-  correctly scoped egress NetworkPolicy.
-- Optional existing VPC peering ID, reusable NLB security-group ID, and issued
-  wildcard ACM certificate ARN.
-
-The applying AWS identity needs permission to manage EC2 networking, ELBv2,
-ACM, and Route 53. Terraform derives the effective route tables from the subnet
-IDs, including implicit main route-table associations.
-
-### Discover the AWS inputs
-
-Run the read-only discovery script with just a region to list the AWS account,
-VPCs, subnets, EKS clusters, EC2 instances, VPC peerings, public Route 53
-zones, and regional ACM certificates:
+The interactive setup handles AWS discovery, Terraform configuration, and the
+plan. Before running it, authenticate the AWS CLI (`aws login`) with permission
+to manage EC2 networking, ELBv2, ACM, and Route 53.
 
 ```bash
-./gpu-deployment/terraform/aws-private-workers/discover-aws.sh \
-  --region us-east-2
+./gpu-deployment/terraform/aws-private-workers/setup.sh
 ```
 
-### Generate `terraform.tfvars`
+Add `--profile <name>` or `--region <region>` when needed. The wizard lets you
+select the EKS cluster, GPU instance, Route 53 zone, model, worker domain, and
+gateway Helm identity. It then:
 
-After identifying the GPU instance and gateway EKS cluster, generate the exact
-`terraform.tfvars` file:
+- discovers both VPCs, subnets, security groups, existing peering, and ACM cert;
+- writes the complete `terraform.tfvars`;
+- runs `terraform init`, `validate`, and `plan`;
+- optionally runs `terraform apply`.
 
-```bash
-./gpu-deployment/terraform/aws-private-workers/discover-aws.sh \
-  --region us-east-2 \
-  --gpu-instance-id i-... \
-  --eks-cluster gateway-production \
-  --route53-zone example.com \
-  --worker-domain workers.example.com \
-  --model 8b \
-  --gateway-namespace api-gateway \
-  --gateway-release-name api-gateway \
-  --tfvars > gpu-deployment/terraform/aws-private-workers/terraform.tfvars
-```
+Review the plan before applying. Each worker should have one target group,
+internal NLB, TLS listener, and DNS record.
 
-`--tfvars` writes only valid HCL to stdout, so the redirected file is exactly
-what Terraform needs. The script resolves both VPCs, subnets, the GPU security
-group, existing peering, hosted zone, and wildcard certificate. You must provide
-the model (`8b` or `27b`), gateway namespace, and gateway Helm release name. If
-the GPU has multiple attached security groups, the script stops and tells you
-to rerun with `--worker-security-group <sg-id>`. Add `--profile <name>` when
-using a named AWS CLI profile.
-
-Open the generated file and review each `GENERATED NOTE`, especially whether
-Terraform should manage pre-existing VPC routes and whether additional worker
-subnets are wanted. No placeholder replacement is required when the command
-completes successfully.
-
-To find the gateway namespace and Helm release label when they are unknown:
-
-```bash
-kubectl get pods -A \
-  -L app.kubernetes.io/instance
-```
-
-Use the pod namespace for `--gateway-namespace` and its
-`app.kubernetes.io/instance` value for `--gateway-release-name`.
-
-### Review and apply
-
-```bash
-cd gpu-deployment/terraform/aws-private-workers
-terraform fmt -check terraform.tfvars
-terraform init
-terraform validate
-terraform plan
-terraform apply
-```
-
-Review the plan before approving it. It should create one target group, NLB,
-TLS listener, and DNS record for each entry in `workers`.
-
-After apply, print the endpoint URLs and host suffix:
-
-```bash
-terraform output worker_endpoints
-terraform output gateway_route_allowed_host_suffix
-```
-
-Add the emitted suffix to the gateway Helm values:
+After apply, add the suffix printed by the wizard to the gateway Helm values:
 
 ```yaml
 gateway:
@@ -169,11 +88,9 @@ terraform output -raw gateway_worker_egress_network_policy_yaml \
 
 Do not apply that policy by itself when no complete baseline policy selects the
 gateway pods, because it would isolate them to worker egress. Do not expose the
-GPU NodePorts publicly; Terraform permits them only from the private worker NLB
-security group.
+GPU NodePorts publicly.
 
-Complete input, import, certificate, verification, and troubleshooting details
-are in
+Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
 
 ---
