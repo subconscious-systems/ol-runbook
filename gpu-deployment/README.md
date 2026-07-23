@@ -78,8 +78,6 @@ gateway:
     - workers.example.com
 ```
 
-Do not expose the GPU NodePorts publicly.
-
 Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
 
