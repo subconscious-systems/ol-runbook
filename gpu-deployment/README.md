@@ -76,7 +76,7 @@ It then:
 Review `terraform.tfvars` before running `terraform apply`.  
 Each worker should have one target group, internal NLB, TLS listener, and DNS record. 
 
-After apply, add the suffix printed by the wizard to the gateway Helm values:
+After apply, add the suffix printed by the wizard to the Helm override values of the gateway Distr deployment:
 
 ```yaml
 gateway:
