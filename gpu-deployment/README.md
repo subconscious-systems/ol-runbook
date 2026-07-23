@@ -13,7 +13,7 @@ and private AWS routing automation live in this directory. Suggest cloning this 
 
 ## Step 1 — GPU Host Preparation
 
-Download with **`curl`** — do not copy/paste the script into vim; pasted files often get corrupted (`apt-get` → `apget`, broken lines).
+Download with **`curl`** onto GPU host and run.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/main/gpu-deployment/dependencies.sh -o ~/dependencies.sh
