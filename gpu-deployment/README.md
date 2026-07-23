@@ -67,7 +67,8 @@ It then:
 - runs `terraform init`, `validate`, and `plan`;
 - optionally runs `terraform apply`.
 
-Review `terraform.tfvars` before running `terraform apply`. Each worker should have one target group, internal NLB, TLS listener, and DNS record.
+Review `terraform.tfvars` before running `terraform apply`.  
+Each worker should have one target group, internal NLB, TLS listener, and DNS record.
 
 After apply, add the suffix printed by the wizard to the gateway Helm values:
 
