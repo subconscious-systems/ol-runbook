@@ -3,9 +3,11 @@
 This estimate covers the Subconscious Inference System **API Gateway only**.
 GPU instances, inference workers, and private worker NLBs are excluded.
 
-Use **approximately $680 per month** as the planning baseline for a gateway
-running a standard-support EKS version with Datadog Infrastructure Pro and APM.
-The AWS-only portion is approximately **$588 per month**.
+Use **approximately $1,045 per month** as the planning baseline for the current
+staged EKS 1.32 gateway with Datadog Infrastructure Pro and APM. EKS 1.32 is in
+extended support as of this estimate. The AWS-only portion is approximately
+**$953 per month**. A separately validated standard-support EKS release would
+reduce the total by approximately $365 per month.
 
 ## Assumptions
 
@@ -15,7 +17,7 @@ The AWS-only portion is approximately **$588 per month**.
 - On-Demand pricing with no free-tier, Spot, Reserved Instance, Savings Plan,
   private-pricing, tax, or AWS Support adjustments.
 - Two `m7g.xlarge` EKS nodes.
-- An EKS Kubernetes version in standard support.
+- EKS Kubernetes 1.32 in extended support (the current staged hop target).
 - Multi-AZ `db.t4g.medium` RDS for PostgreSQL with 50 GB gp3 storage.
 - Two `cache.t4g.small` ElastiCache for Valkey nodes.
 - One always-on `t3.large` bootstrap/Distr agent host.
@@ -28,7 +30,7 @@ The AWS-only portion is approximately **$588 per month**.
 
 | Resource | Monthly estimate | Basis |
 | --- | ---: | --- |
-| EKS control plane | $73.00 | Standard support at $0.10/hour |
+| EKS control plane | $438.00 | Extended support at $0.60/hour |
 | Two EKS nodes | $238.27 | 2 × `m7g.xlarge` |
 | RDS PostgreSQL | $100.65 | Multi-AZ `db.t4g.medium` plus 50 GB gp3 |
 | Bootstrap/Distr host | $60.74 | `t3.large` |
@@ -40,26 +42,27 @@ The AWS-only portion is approximately **$588 per month**.
 | Secrets Manager, Route 53, and Terraform state | $1.80 | Low-volume estimate |
 | Datadog Infrastructure Pro | $30.00 | 2 hosts × $15/host |
 | Datadog APM | $62.00 | 2 hosts × $31/host |
-| **Estimated total** | **$679.96** | Before usage-variable charges |
+| **Estimated total** | **$1,044.96** | Before usage-variable charges |
 
-Round the estimate to **$680 per month** for planning.
+Round the estimate to **$1,045 per month** for planning.
 
 ## EKS version cost warning
 
 EKS charges more when a Kubernetes version enters extended support. EKS 1.31
-entered extended support on November 26, 2025:
+entered extended support on November 26, 2025, and EKS 1.32 entered extended
+support on March 23, 2026:
 
 - Standard-support control plane: $0.10/hour, or about $73/month.
 - Extended-support control plane: $0.60/hour, or about $438/month.
 - Difference: **$365/month** or **$4,380/year** per cluster.
 
-Using EKS 1.31 raises the estimate from approximately **$680 to $1,045 per
+Both 1.31 and the staged 1.32 target therefore cost approximately **$1,045 per
 month**, without adding capacity. The current
 [`sample-gateway-infra.env`](sample-gateway-infra.env) sets
-`KUBERNETES_VERSION=1.31`, so applying it unchanged incurs that premium.
-Before deployment, select a compatible EKS version that remains in standard
-support and plan regular upgrades. Do not choose a version solely by number;
-check its current support dates first.
+`KUBERNETES_VERSION=1.32`; the 1.31→1.32 hop does **not** remove the extended
+support premium. Do not skip to a later version to reduce cost: use only a
+separately released and user-validated hop. Check current support dates during
+each upgrade and budget the premium until a standard-support hop is approved.
 
 ## Usage-variable and excluded costs
 

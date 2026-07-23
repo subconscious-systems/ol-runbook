@@ -30,7 +30,7 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | `scripts/ensure-host.sh` | Idempotent Docker/compose/kubectl via SSM |
 | `scripts/host-setup.sh` | Canonical host setup (cloud-init + SSM) |
 | `scripts/run-agent.sh` | Ensure host + Distr Docker connect via SSM |
-| `scripts/connect-k8s-agent.sh` | Ensure host + install Distr K8s agent into EKS via SSM |
+| `scripts/connect-k8s-agent.sh` | Ensure host + install Distr K8s agent into an explicit EKS cluster via SSM |
 | `scripts/connect.sh` | Break-glass SSM shell on this host (optional kubeconfig refresh) |
 | `scripts/rotate-app-secret.sh` | Rotate csrf / encryption via SSM + runner image |
 | `scripts/tests/test-rotate-app-secret.sh` | CLI contract unit tests (no AWS) |
@@ -45,7 +45,7 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | Re-run `./scripts/bootstrap.sh` | Terraform keeps the **same** instance (`user_data` ignored after create). Then SSM re-applies `scripts/host-setup.sh` (Docker/compose/kubectl). Distr agents are **not** torn down. |
 | Re-run `./scripts/ensure-host.sh` | Same host-setup via SSM only (no Terraform). |
 | Re-run `./scripts/run-agent.sh` | Ensures host setup, then re-runs Docker-agent connect. |
-| Re-run `./scripts/connect-k8s-agent.sh` | Ensures host setup, then re-applies K8s agent manifests into EKS. |
+| Re-run `./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME> '<Hub command>'` | Ensures host setup, then re-applies K8s agent manifests to the explicit EKS cluster and Hub-command gateway namespace. |
 | Re-run `./scripts/connect.sh` | Opens a new SSM session (optional kubeconfig refresh). |
 | Re-run `./scripts/rotate-app-secret.sh` | Non-interactive SSM rotate of csrf or encryption (see [secret-rotation.md](../secret-rotation.md)). |
 
@@ -81,7 +81,7 @@ Bootstrap does not write Hub config. When you paste the infra env (see [instruct
 | --- | --- |
 | AWS keys | **omit** (instance profile) |
 | `AWS_REGION` | same region as this bootstrap |
-| `GATEWAY_AUTO_DEPLOY` | soft-skips until the K8s agent target exists; use `true` on the second+ infra run |
+| `GATEWAY_AUTO_DEPLOY` | default `false`; use `true` only on the intentional second+ gateway rollout |
 
 (`CLUSTER_ENDPOINT_PUBLIC_ACCESS=true` is the template default. Leave `CLUSTER_ENDPOINT_PUBLIC_ACCESS_CIDRS` empty unless you need extra CIDRs; the runner fills this host’s `/32`.)
 

@@ -58,9 +58,11 @@ Next:
   4. After EKS exists, paste the Hub Kubernetes-agent connect command:
 
        ./scripts/connect-k8s-agent.sh \
-         'kubectl apply -n <DEPLOY_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
+         <INFRA_DEPLOY_NAME> \
+         'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
 
-     (Agent pods run in EKS; this host only runs kubectl over SSM.)
+     (The first argument is the EKS cluster name. Agent pods run in the gateway
+      namespace; this host only runs kubectl over SSM.)
 
   Optional interactive shell:
     ${SSM}

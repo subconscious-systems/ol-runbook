@@ -2,7 +2,7 @@
 
 Customer-facing architecture for deploying the Subconscious Inference System **API Gateway** on AWS with Distr.
 
-For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
+For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
 
 ## Architecture overview
 
@@ -45,7 +45,9 @@ Implications:
 
 - Hub hand-edits to gateway Helm overrides are **overwritten** on the next successful auto-deploy. Put lasting customizations on the infra env / fragment path, or set `GATEWAY_AUTO_DEPLOY=false` and manage values yourself.
 - `GATEWAY_CHART_VERSION` selects the Distr application **version** only (`latest` / `nochange` / a version name like `0.15.0`). It does not change how values YAML is built.
-- The first infra run often **soft-skips** auto-deploy until a Kubernetes deployment target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. A second infra run (after the K8s agent is connected) is the normal path to install the gateway.
+- The first infra run keeps `GATEWAY_AUTO_DEPLOY=false` until a Kubernetes
+  deployment target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. A second,
+  intentional infra run (after the K8s agent is connected) installs the gateway.
 
 ### Cluster secrets
 
@@ -136,7 +138,8 @@ Naming conventions: [FAQ.md](../../FAQ.md). Example infra env: [sample-gateway-i
 ## Next steps
 
 1. [instructions.md](instructions.md): end-to-end FDE + admin checklist
-2. [cost-estimate.md](cost-estimate.md): monthly AWS gateway planning estimate
-3. [bootstrap/](bootstrap/): create the Docker agent EC2
-4. [troubleshooting.md](troubleshooting.md): common hiccups and rollback notes
-5. [gpu-deployment/README.md](../../gpu-deployment/README.md): after the gateway is healthy
+2. [eks-upgrade.md](eks-upgrade.md): staged EKS 1.31→1.32 operation
+3. [cost-estimate.md](cost-estimate.md): monthly AWS gateway planning estimate
+4. [bootstrap/](bootstrap/): create the Docker agent EC2
+5. [troubleshooting.md](troubleshooting.md): common hiccups and rollback notes
+6. [gpu-deployment/README.md](../../gpu-deployment/README.md): after the gateway is healthy

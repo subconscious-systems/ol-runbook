@@ -26,7 +26,9 @@ Two different signals:
 1. **`Exited (1)`**: entrypoint failed before idle. Hub may loop “not in running state” because Distr re-runs `compose up`. Common causes: Terraform apply failure (including Datadog metric-tag 409 / dashboard tag policy). Secrets are ensured only **after** a successful apply.
 2. Health can pass while Terraform is still running; exit 1 afterward means apply (or a later step) failed.
 
-Missing K8s agent target does **not** hard-fail the runner anymore. Auto-deploy soft-skips.
+Missing K8s agent target does **not** hard-fail the runner. Keep
+`GATEWAY_AUTO_DEPLOY=false` until the target exists; if enabled early,
+auto-deploy soft-skips.
 
 #### Debug on the bootstrap EC2
 
@@ -56,9 +58,14 @@ Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit
 
 Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Your laptop is not on that path by default. Use `./scripts/connect.sh` and run `kubectl` **on the bootstrap host**. Day-0 dashboard admin should use the identity-bootstrap Job, not kubectl (see [FAQ.md](../../FAQ.md#how-is-the-initial-dashboard-admin-created)).
 
-### Expected soft-skip / second infra deploy
+### First run / second infra deploy
 
-First infra run builds the platform and prepares SM/ESO secrets. Auto-deploy of api-gateway skips until the K8s target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. After `connect-k8s-agent.sh`, trigger a **second** infra deploy with `GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_CHART_VERSION=latest`.
+First infra run builds the platform and prepares SM/ESO secrets with
+`GATEWAY_AUTO_DEPLOY=false`. Connect the K8s target with
+`connect-k8s-agent.sh <DEPLOY_NAME> '<Hub command>'`; the explicit first
+argument selects the EKS cluster and the Hub command supplies the separate
+gateway namespace. Then trigger a **second** infra deploy with
+`GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_CHART_VERSION=latest`.
 
 The first **empty** api-gateway Helm deploy (before the K8s agent) is **expected to fail / do nothing**.
 

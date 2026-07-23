@@ -56,27 +56,24 @@ if [[ -n "${DEPLOY_NAME}" ]]; then
     exit 2
   fi
 
-  NS_Q="$(printf '%q' "${DEPLOY_NAME}")"
+  CLUSTER_Q="$(printf '%q' "${DEPLOY_NAME}")"
   REGION_Q="$(printf '%q' "${REGION}")"
   REMOTE="set -euo pipefail
 export HOME=/root
 export KUBECONFIG=/root/.kube/config
 export AWS_REGION=${REGION_Q}
-CLUSTER=${NS_Q}
-NS=${NS_Q}
+CLUSTER=${CLUSTER_Q}
 
 echo \"[connect] update-kubeconfig cluster=\${CLUSTER} region=\${AWS_REGION}\"
 aws eks update-kubeconfig --name \"\${CLUSTER}\" --region \"\${AWS_REGION}\"
-echo \"[connect] checking namespace \${NS}\"
-kubectl get namespace \"\${NS}\"
 echo \"[connect] kubeconfig ready\"
 "
 
-  echo "[connect] refreshing kubeconfig for cluster/namespace ${DEPLOY_NAME}…"
+  echo "[connect] refreshing kubeconfig for cluster ${DEPLOY_NAME}…"
   bootstrap_ssm_run "${REMOTE}" 120 "connect-kubeconfig"
 fi
 
-NS_HINT="${DEPLOY_NAME:-<DEPLOY_NAME>}"
+NS_HINT="<GATEWAY_DISTR_DEPLOYMENT_NAME>"
 cat >&2 <<EOF
 [connect] SSM session → ${INSTANCE_ID} (${REGION})
 On the box:
@@ -88,7 +85,7 @@ On the box:
   docker ps -a --filter name=runner
   docker logs --tail 200 distr-*-runner-1
 
-  # gateway / cluster (namespace = DEPLOY_NAME)
+  # gateway namespace (separate from the infra DEPLOY_NAME / cluster)
   kubectl -n ${NS_HINT} get pods,deploy,svc
   kubectl -n ${NS_HINT} logs deploy/<name> --tail=200
   kubectl -n ${NS_HINT} describe pod/<name>
