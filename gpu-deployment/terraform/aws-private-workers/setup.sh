@@ -23,7 +23,7 @@ Usage:
 
 The wizard:
   1. lets you select the gateway EKS cluster, GPU instance, and Route 53 zone;
-  2. asks for the model, worker domain, and gateway Helm identity;
+  2. asks for the model and worker domain;
   3. generates terraform.tfvars with discover-aws.sh;
   4. runs terraform init, validate, and plan;
   5. optionally runs terraform apply.
@@ -105,16 +105,6 @@ AWS_GLOBAL_ARGS+=(--region "$REGION" --no-cli-pager)
 
 aws_read() {
   aws "${AWS_GLOBAL_ARGS[@]}" "$@"
-}
-
-prompt_required() {
-  local prompt="$1"
-  local value=""
-
-  while [[ -z "$value" ]]; do
-    read -r -p "$prompt: " value
-  done
-  printf '%s\n' "$value"
 }
 
 choose_option() {
@@ -213,20 +203,6 @@ else
 fi
 
 echo
-if command -v kubectl >/dev/null 2>&1; then
-  echo "Gateway namespace and Helm release candidates from the current cluster:"
-  kubectl get pods -A \
-    --request-timeout=5s \
-    -o custom-columns='NAMESPACE:.metadata.namespace,RELEASE:.metadata.labels.app\.kubernetes\.io/instance' \
-    --no-headers 2>/dev/null \
-    | sort -u \
-    | grep -v '<none>' \
-    || true
-  echo
-fi
-gateway_namespace="$(prompt_required "Gateway namespace")"
-gateway_release_name="$(prompt_required "Gateway Helm release name")"
-
 security_group_text="$(
   aws_read ec2 describe-instances \
     --instance-ids "$gpu_instance_id" \
@@ -266,8 +242,6 @@ printf '  GPU instance:      %s\n' "$gpu_instance_id"
 printf '  Route 53 zone:     %s\n' "$route53_zone"
 printf '  Worker domain:     %s\n' "$worker_domain"
 printf '  Model:             %s\n' "$model"
-printf '  Gateway namespace: %s\n' "$gateway_namespace"
-printf '  Gateway release:   %s\n' "$gateway_release_name"
 
 if [[ -e "$TFVARS_FILE" ]]; then
   read -r -p "terraform.tfvars already exists. Replace it? [y/N]: " replace
@@ -290,8 +264,6 @@ discover_args=(
   --route53-zone "$route53_zone"
   --worker-domain "$worker_domain"
   --model "$model"
-  --gateway-namespace "$gateway_namespace"
-  --gateway-release-name "$gateway_release_name"
   --tfvars
 )
 if [[ -n "$PROFILE" ]]; then
@@ -332,6 +304,9 @@ if [[ "$apply_now" =~ ^[Yy]$ ]]; then
   echo
   echo "Gateway allowlist suffix:"
   terraform output gateway_route_allowed_host_suffix
+  echo
+  echo "Merge this worker-egress rule into the gateway Helm values:"
+  terraform output -raw gateway_worker_egress_helm_values_yaml
 else
   echo "Plan complete. Run 'terraform apply' in this directory when ready."
 fi

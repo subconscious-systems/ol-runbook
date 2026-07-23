@@ -37,9 +37,6 @@ workers = {
   "8b-d" = { node_port = 30006 }
 }
 
-gateway_namespace    = "api-gateway"
-gateway_release_name = "api-gateway"
-
 tags = {
   Environment = "production"
   Project     = "subconscious-inference"

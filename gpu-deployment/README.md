@@ -59,8 +59,8 @@ to manage EC2 networking, ELBv2, ACM, and Route 53.
 ```
 
 Add `--profile <name>` or `--region <region>` when needed. The wizard lets you
-select the EKS cluster, GPU instance, Route 53 zone, model, worker domain, and
-gateway Helm identity. It then:
+select the EKS cluster, GPU instance, Route 53 zone, model, and worker domain.
+It then:
 
 - discovers both VPCs, subnets, security groups, existing peering, and ACM cert;
 - writes the complete `terraform.tfvars`;
@@ -78,17 +78,15 @@ gateway:
     - workers.example.com
 ```
 
-If the gateway chart's baseline `networkPolicy.enabled` is already true, apply
-the generated additive worker-egress policy:
+Merge the generated worker-egress rule into the same gateway Helm values:
 
 ```bash
-terraform output -raw gateway_worker_egress_network_policy_yaml \
-  | kubectl apply -f -
+terraform output -raw gateway_worker_egress_helm_values_yaml
 ```
 
-Do not apply that policy by itself when no complete baseline policy selects the
-gateway pods, because it would isolate them to worker egress. Do not expose the
-GPU NodePorts publicly.
+The chart adds this rule to its existing egress policy. If gateway egress policy
+enforcement is disabled, no extra Kubernetes action is needed. Do not expose
+the GPU NodePorts publicly.
 
 Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
