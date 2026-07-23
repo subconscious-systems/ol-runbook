@@ -2,7 +2,7 @@
 
 Customer-facing architecture for deploying the Subconscious Inference System **API Gateway** on AWS with Distr.
 
-For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
+For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
 
 ## Architecture overview
 
@@ -136,6 +136,7 @@ Naming conventions: [FAQ.md](../../FAQ.md). Example infra env: [sample-gateway-i
 ## Next steps
 
 1. [instructions.md](instructions.md): end-to-end FDE + admin checklist
-2. [bootstrap/](bootstrap/): create the Docker agent EC2
-3. [troubleshooting.md](troubleshooting.md): common hiccups and rollback notes
-4. [gpu-deployment/README.md](../../gpu-deployment/README.md): after the gateway is healthy
+2. [cost-estimate.md](cost-estimate.md): monthly AWS gateway planning estimate
+3. [bootstrap/](bootstrap/): create the Docker agent EC2
+4. [troubleshooting.md](troubleshooting.md): common hiccups and rollback notes
+5. [gpu-deployment/README.md](../../gpu-deployment/README.md): after the gateway is healthy
