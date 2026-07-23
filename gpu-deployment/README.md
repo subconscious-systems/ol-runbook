@@ -39,13 +39,14 @@ kubectl get namespace sglang
    | `DD_API_KEY` | **Datadog → Organization Settings → API Keys → New Key** |
    | `DD_APP_KEY` | **Datadog → Organization Settings → Application Keys → New Key** |
    | `WORKER_API_KEY` | **Subconscious Gateway Dashboard → Model Groups → Generate Worker API Key** |
-3. Navigate to the deployments page and click on New Deployment.
-4. Select gpu-deployment as the application.
-5. Enter deployment name and set Kubernetes Namespace to "sglang".
-6. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-7. Click Customize Helm options and set watcher to 2h.
-8. Click create deployment.
-9. Go back to GPU host and run the command Distr provides, should look like:
+   Keep `WORKER_API_KEY` safe, will need it to configure route in dashboard later.
+4. Navigate to the deployments page and click on New Deployment.
+5. Select gpu-deployment as the application.
+6. Enter deployment name and set Kubernetes Namespace to "sglang".
+7. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
+8. Click Customize Helm options and set watcher to 2h.
+9. Click create deployment.
+10. Go back to GPU host and run the command Distr provides, should look like:
 
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
@@ -88,16 +89,11 @@ Manual setup, existing-resource adoption, and troubleshooting details are in
 
 ---
 
-## Step 4 — Dashboard worker pool
+## Step 4 — Adding to Dashboard
 
-Model group from step 3 → **Create worker pool**. One line per worker; same `WORKER_API_KEY` for all.
+Create a new Model Group, same `WORKER_API_KEY` from Distr secrets for all.
 
-**27B** (`qwen3.6-27b`):
-
-```text
-27b-a | https://27b-a.<worker-domain> | <WORKER_API_KEY>
-27b-b | https://27b-b.<worker-domain> | <WORKER_API_KEY>
-```
+Example 
 
 **8B** (`qwen3-8b`):
 
