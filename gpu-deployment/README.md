@@ -32,15 +32,31 @@ kubectl get namespace sglang
 
 ## Step 2 — Distr Setup
 
-1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
-2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
-3. Navigate to the deployments page and click on New Deployment.
-4. Select 27b-deployment as the application.
-5. Enter deployment name and set Kubernetes Namespace to "sglang".
-6. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-7. Click Customize Helm options and set watcher to 2h.
-8. Click create deployment.
-9. Go back to GPU host and run the command Distr provides, should look like:
+1. Log into [Distr](https://app.distr.sh/) and open **Secrets**.
+2. In the gateway dashboard, generate a worker API key. Add it as the Distr Hub
+   Secret `WORKER_API_KEY`; keep the same value for the dashboard worker pool
+   in step 4.
+3. If Datadog is enabled for the gateway infrastructure, create these additional
+   Distr Hub Secrets:
+
+   | Secret name | Create the value in Datadog | Used by |
+   |---|---|---|
+   | `DD_API_KEY` | **Organization Settings → API Keys → New Key** | Datadog Agent ingestion and the infrastructure runner |
+   | `DD_APP_KEY` | **Organization Settings → Application Keys → New Key** | Terraform-managed dashboards, monitors, pipelines, and metric configuration |
+
+   The application key must belong to a Datadog user or service account allowed
+   to manage those resources. Enter both values directly in Distr so they remain
+   masked. Do not put either key in the worker profile, Helm Values, Application
+   Config, git, or gateway pods. The infrastructure deployment consumes them;
+   the `27b-deployment` worker application does not.
+4. Navigate to **Deployments** and click **New Deployment**.
+5. Select `27b-deployment` as the application.
+6. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
+7. Leave the default Application Config. Open [profiles](profiles/), choose the
+   model, and copy the complete profile into **App Config → Helm Values**.
+8. Click **Customize Helm options** and set the operation timeout to `2h`.
+9. Click **Create deployment**.
+10. On the GPU host, run the command Distr provides. It should look like:
 
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
