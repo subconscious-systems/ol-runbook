@@ -38,7 +38,7 @@ kubectl get namespace sglang
    |---|---|
    | `DD_API_KEY` | **Datadog → Organization Settings → API Keys → New Key** |
    | `DD_APP_KEY` | **Datadog → Organization Settings → Application Keys → New Key** |
-   | `WORKER_API_KEY` | **Subconscious Gateway Dashboard → Model Groups → Generate Worker API Key |
+   | `WORKER_API_KEY` | **Subconscious Gateway Dashboard → Model Groups → Generate Worker API Key** |
 3. Navigate to the deployments page and click on New Deployment.
 4. Select gpu-deployment as the application.
 5. Enter deployment name and set Kubernetes Namespace to "sglang".
