@@ -71,7 +71,7 @@ Route 53 aliases, and the scoped gateway worker-egress NetworkPolicy output.
 Collect these values before running Terraform:
 
 - AWS region containing both VPCs.
-- Gateway VPC ID and the gateway EKS private subnet IDs.
+- Gateway EKS cluster name, VPC ID, and private subnet IDs.
 - Worker VPC ID and the subnets where internal NLBs may be created. Include the
   GPU instance availability zone.
 - GPU EC2 instance ID and one security group attached to that instance.
@@ -88,23 +88,43 @@ The applying AWS identity needs permission to manage EC2 networking, ELBv2,
 ACM, and Route 53. Terraform derives the effective route tables from the subnet
 IDs, including implicit main route-table associations.
 
-Useful discovery commands:
+Run the read-only discovery script with just a region to list the AWS account,
+VPCs, subnets, EKS clusters, EC2 instances, VPC peerings, public Route 53
+zones, and regional ACM certificates:
 
 ```bash
-aws ec2 describe-vpcs \
-  --query 'Vpcs[].{Id:VpcId,Cidr:CidrBlock,Name:Tags[?Key==`Name`]|[0].Value}' \
-  --output table
-
-aws ec2 describe-subnets \
-  --filters Name=vpc-id,Values=<VPC_ID> \
-  --query 'Subnets[].{Id:SubnetId,AZ:AvailabilityZone,Cidr:CidrBlock}' \
-  --output table
-
-aws ec2 describe-instances \
-  --instance-ids <GPU_INSTANCE_ID> \
-  --query 'Reservations[0].Instances[0].{Subnet:SubnetId,SecurityGroups:SecurityGroups}' \
-  --output json
+./gpu-deployment/terraform/aws-private-workers/discover-aws.sh \
+  --region us-east-2
 ```
+
+After identifying the GPU instance and gateway EKS cluster, generate the exact
+`terraform.tfvars` file:
+
+```bash
+./gpu-deployment/terraform/aws-private-workers/discover-aws.sh \
+  --region us-east-2 \
+  --gpu-instance-id i-... \
+  --eks-cluster gateway-production \
+  --route53-zone example.com \
+  --worker-domain workers.example.com \
+  --model 8b \
+  --gateway-namespace api-gateway \
+  --gateway-release-name api-gateway \
+  --tfvars > gpu-deployment/terraform/aws-private-workers/terraform.tfvars
+```
+
+`--tfvars` writes only valid HCL to stdout, so the redirected file is exactly
+what Terraform needs. The script resolves both VPCs, subnets, the GPU security
+group, existing peering, hosted zone, and wildcard certificate. You must provide
+the model (`8b` or `27b`), gateway namespace, and gateway Helm release name. If
+the GPU has multiple attached security groups, the script stops and tells you
+to rerun with `--worker-security-group <sg-id>`. Add `--profile <name>` when
+using a named AWS CLI profile.
+
+Open the generated file and review each `GENERATED NOTE`, especially whether
+Terraform should manage pre-existing VPC routes and whether additional worker
+subnets are wanted. No placeholder replacement is required when the command
+completes successfully.
 
 ### Configure Terraform
 
