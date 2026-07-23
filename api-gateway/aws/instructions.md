@@ -13,37 +13,41 @@ sequenceDiagram
   actor FDE as Subconscious FDE
   actor Admin as Customer admin
   participant Distr as Distr Hub
-  participant Host as Bootstrap EC2
-  participant Runner as Infra runner
+  participant Host as Bootstrap EC2 Docker agent + infra runner
   participant AWS as AWS APIs
   participant EKS as EKS + K8s agent
   participant Dash as Gateway dashboard
 
-  Note over FDE,Distr: Vendor day-0
   FDE->>Distr: Customer org + app/artifact entitlements
 
-  Note over Admin,Host: Customer day-0
   Admin->>Admin: Choose names / DOMAIN_NAME / VPC_CIDR
   Admin->>AWS: bootstrap/scripts/bootstrap.sh
-  Admin->>Distr: Hub Secrets + infra Docker deploy env
+  AWS->>Host: Create EC2 + EIP + security group + IAM instance profile
+  Admin->>Distr: Hub Secrets
+  Admin->>Distr: Create api-gateway-infra docker deployment
   Admin->>Host: run-agent.sh connect URL
-  Distr->>Host: Pull Compose / start runner
-  Note over Admin,FDE: Likely FDE troubleshooting gate
+  Host->>Distr: Pull Compose / start runner
+  Note over Admin,FDE: Likely troubleshooting gate
+  Host->>Host: Run entrypoint.sh
 
-  Admin->>Distr: Trigger first infra deploy
-  Distr->>Runner: entrypoint
-  Runner->>AWS: terraform apply platform
-  Runner->>AWS: Ensure SM app secret + ESO wait
-  Runner-->>Distr: Auto-deploy soft-skip or partial
+  Host->>AWS: terraform apply - creates EKS, IAM, cluster secrets, etc.
+  Host->>AWS: Ensure SM app secret + ESO wait
+  Host-->>Distr: Auto-deploy skipped on first cycle
 
-  Admin->>Distr: Create api-gateway Helm deploy empty values
-  Note over Admin,Distr: First Helm deploy expected to fail
-  Admin->>EKS: connect-k8s-agent.sh kubectl apply
+  Admin->>Distr: Create api-gateway deployment, empty values
+  Note over Admin,Distr: First Helm deploy will fail
+  Admin->>Host: Run connect-k8s-agent.sh w/ kubectl apply command
+  Host->>EKS: kubectl apply - installs distr-agent pods
 
   Admin->>Distr: Second infra deploy auto-deploy true
-  Distr->>Runner: entrypoint again
-  Runner->>Distr: PUT gateway version + fresh valuesYaml
-  Distr->>EKS: helm upgrade api-gateway
+  Host->>Distr: Pull compose
+  Host->>Host: Run entrypoint.sh
+  Host->>AWS: terraform apply & wait - no changes
+  Host->>Host: Generate api-gateway yaml + deployment version
+  Host->>Distr: Autodeploy: PUT gateway version
+  EKS->>Distr: Pull latest updates (via polling)
+  EKS->>AWS: helm upgrade api-gateway
+  AWS->>Dash: Dashboard reachable at DOMAIN_NAME
   Note over Admin,FDE: Likely FDE troubleshooting gate
 
   Admin->>Dash: Login + invite FDE
