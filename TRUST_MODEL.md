@@ -71,7 +71,7 @@ You install agents inside your boundary; they pull desired state from Distr (egr
 
 ### 1. Docker agent provisions AWS (Terraform)
 
-**Day-0 bootstrap** ([`platforms/aws/bootstrap`](api-gateway-infra/platforms/aws/bootstrap)): someone with Terraform provisioning access in your account applies a small laptop Terraform that creates an EC2 host, security group (egress-only), and an **IAM instance profile** with platform-apply rights. No AWS access keys are written to Distr Hub, and there is no external vendor IAM profile—credentials never leave your account.
+**Day-0 bootstrap** ([`api-gateway/aws/bootstrap`](api-gateway/aws/bootstrap/)): someone with Terraform provisioning access in your account applies a small Terraform root (laptop or any Terraform-capable shell) that creates an EC2 host, security group (egress-only), and an **IAM instance profile** with platform-apply rights. No AWS access keys are written to Distr Hub, and there is no external vendor IAM profile - credentials never leave your account.
 
 You then install the Distr **Docker** agent on that host (connect URL from Hub). The agent pulls the infra Compose app and runs Terraform **as the instance role**, creating VPC/EKS/RDS/IAM/DNS and the other resources the `api-gateway` application needs; once the K8s agent is connected, a follow-on infra run can auto-deploy the gateway Helm release.
 

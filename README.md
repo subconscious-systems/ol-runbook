@@ -22,14 +22,28 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 
 | Doc | Description |
 | --- | --- |
+| [api-gateway/aws/README.md](api-gateway/aws/README.md) | AWS architecture, dual Distr apps, system diagram, prerequisites |
+| [api-gateway/aws/instructions.md](api-gateway/aws/instructions.md) | End-to-end FDE + customer admin setup checklist |
+| [api-gateway/aws/bootstrap/](api-gateway/aws/bootstrap/) | Day-0 Docker agent EC2 bootstrap (canonical) |
+| [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md) | AWS Secrets Manager + ESO cluster secrets |
+| [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md) | Rotate csrf / encryption, RDS/Valkey, org and worker keys |
+| [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md) | Common hiccups, rollback notes |
+| [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env |
 | [gpu-deployment/README.md](gpu-deployment/README.md) | GPU host bootstrap + Distr worker deploy (27B / 8B, NLB exposure) |
-| [TRUST_MODEL.md](TRUST_MODEL.md) | Security / platform trust model - Distr Assisted vs Fully Self-Managed, and the two deployment gates for your team |
-| [FAQ.md](FAQ.md) | Common questions (naming deployments, namespaces, releases, and related day-0 guidance) |
-| [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env (paste into the Distr Docker deployment) |
-| *Getting started* | Coming soon - end-to-end bootstrap by role |
-| *Troubleshooting* | Coming soon - failure modes and recovery notes |
+| [TRUST_MODEL.md](TRUST_MODEL.md) | Security / platform trust model - Distr Assisted vs Fully Self-Managed |
+| [FAQ.md](FAQ.md) | Naming deployments, namespaces, releases, and related day-0 guidance |
 
 
 ## Where detail lives
 
 Use this repo for customer-facing procedures and decision framing. Product and application repositories remain the source of truth for chart values, Terraform modules, and runtime internals once you are entitled to those artifacts via Distr.
+
+## Tests / CI
+
+Script contract tests live under `*/tests/test-*.sh` (for example `api-gateway/aws/bootstrap/scripts/tests/`). CI autodiscovers and runs them on every PR and push to main:
+
+```bash
+bash scripts/run-tests.sh
+```
+
+The **Release** workflow runs the same suite first (`needs: test`) before creating a GitHub Release for a `v*` tag (tag push or `workflow_dispatch` with a tag input).

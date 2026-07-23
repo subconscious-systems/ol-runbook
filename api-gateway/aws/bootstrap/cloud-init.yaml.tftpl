@@ -1,0 +1,29 @@
+#cloud-config
+# First-boot only. Day-2 / repair: ./scripts/ensure-host.sh (idempotent SSM).
+# Terraform never replaces the instance when this file changes.
+package_update: false
+package_upgrade: false
+
+write_files:
+  - path: /usr/local/bin/install-distr-docker-agent.sh
+    owner: root:root
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      if [[ $# -lt 1 ]]; then
+        echo "usage: $0 '<distr connect command>'" >&2
+        exit 2
+      fi
+      echo "[install-distr-docker-agent] running connect command…"
+      bash -lc "$*"
+      echo "[install-distr-docker-agent] done"
+
+  - path: /usr/local/sbin/api-gateway-infra-host-setup.sh
+    owner: root:root
+    permissions: "0755"
+    encoding: b64
+    content: ${host_setup_b64}
+
+runcmd:
+  - [/usr/local/sbin/api-gateway-infra-host-setup.sh]
