@@ -53,7 +53,7 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ---
 
-## Step 3 — Worker url with AWS
+## Step 3 — Worker URL with AWS
 
 The interactive setup handles AWS discovery, Terraform configuration, and the
 plan. Before running it, authenticate the AWS CLI (`aws login`) with permission
