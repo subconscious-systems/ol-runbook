@@ -1,7 +1,7 @@
 # GPU deployment
 
 Install path for SGLang workers on a customer GPU host. Profiles, host bootstrap,
-and private AWS routing automation live in this directory.
+and private AWS routing automation live in this directory. Suggest cloning this repo on a local device to run AWS setup.
 
 ## Prerequisites
 
