@@ -35,7 +35,7 @@ kubectl get namespace sglang
 1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
 2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
 3. Navigate to the deployments page and click on New Deployment.
-4. Select 27b-deployment as the application.
+4. Select gpu-deployment as the application.
 5. Enter deployment name and set Kubernetes Namespace to "sglang".
 6. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
 7. Click Customize Helm options and set watcher to 2h.
@@ -48,7 +48,7 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ---
 
-## Step 3 — AWS: NLB per worker
+## Step 3 — Worker url with AWS
 
 The interactive setup handles AWS discovery, Terraform configuration, and the
 plan. Before running it, authenticate the AWS CLI (`aws login`) with permission
@@ -68,7 +68,7 @@ It then:
 - optionally runs `terraform apply`.
 
 Review `terraform.tfvars` before running `terraform apply`.  
-Each worker should have one target group, internal NLB, TLS listener, and DNS record.
+Each worker should have one target group, internal NLB, TLS listener, and DNS record. 
 
 After apply, add the suffix printed by the wizard to the gateway Helm values:
 
