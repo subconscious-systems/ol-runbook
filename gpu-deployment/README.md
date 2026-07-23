@@ -72,8 +72,7 @@ Before running it, authenticate the AWS CLI (`aws login`) with permission to man
 ./gpu-deployment/terraform/aws-private-workers/setup.sh
 ```
 
-Add `--profile <name>` or `--region <region>` when needed. The wizard lets you
-select the EKS cluster, GPU instance, Route 53 zone, model, and worker domain.
+The wizard lets youselect the EKS cluster, GPU instance, Route 53 zone, model, and worker domain.  
 It then:
 
 - discovers both VPCs, subnets, security groups, existing peering, and ACM cert;
