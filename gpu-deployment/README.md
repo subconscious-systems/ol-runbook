@@ -60,43 +60,145 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ## Step 3 — AWS: NLB per worker
 
-Each worker gets a **NodePort** on the GPU instance (see table). Repeat for every worker.
+Use the Terraform root in
+[`terraform/aws-private-workers/`](terraform/aws-private-workers/). It creates
+the VPC peering and routes, security-group rules, one target group and internal
+NLB per worker, `/health` checks, TLS listeners, wildcard ACM certificate,
+Route 53 aliases, and the scoped gateway worker-egress NetworkPolicy output.
 
-### Preferred: Terraform
+### Information required
 
-The reusable Terraform setup creates the VPC peering, bidirectional routes,
-security-group rules, target groups, internal NLBs, wildcard certificate,
-Route 53 aliases, and outputs the scoped gateway worker-egress NetworkPolicy:
+Collect these values before running Terraform:
+
+- AWS region containing both VPCs.
+- Gateway VPC ID and the gateway EKS private subnet IDs.
+- Worker VPC ID and the subnets where internal NLBs may be created. Include the
+  GPU instance availability zone.
+- GPU EC2 instance ID and one security group attached to that instance.
+- Existing public Route 53 zone, such as `example.com`.
+- Worker DNS suffix, such as `workers.example.com`.
+- Worker names and NodePorts. The supplied profiles use `30001-30002` for 27B
+  and `30003-30006` for 8B.
+- Gateway namespace and Helm release name. These are used to generate the
+  correctly scoped egress NetworkPolicy.
+- Optional existing VPC peering ID, reusable NLB security-group ID, and issued
+  wildcard ACM certificate ARN.
+
+The applying AWS identity needs permission to manage EC2 networking, ELBv2,
+ACM, and Route 53. Terraform derives the effective route tables from the subnet
+IDs, including implicit main route-table associations.
+
+Useful discovery commands:
 
 ```bash
-cd terraform/aws-private-workers
-cp terraform.tfvars.example terraform.tfvars
-# Fill in the existing gateway VPC, GPU VPC/instance, private subnets,
-# Route 53 zone, worker domain, namespace, and gateway Helm release name.
-terraform init
-terraform plan
-terraform apply
-terraform output worker_endpoints
+aws ec2 describe-vpcs \
+  --query 'Vpcs[].{Id:VpcId,Cidr:CidrBlock,Name:Tags[?Key==`Name`]|[0].Value}' \
+  --output table
+
+aws ec2 describe-subnets \
+  --filters Name=vpc-id,Values=<VPC_ID> \
+  --query 'Subnets[].{Id:SubnetId,AZ:AvailabilityZone,Cidr:CidrBlock}' \
+  --output table
+
+aws ec2 describe-instances \
+  --instance-ids <GPU_INSTANCE_ID> \
+  --query 'Reservations[0].Instances[0].{Subnet:SubnetId,SecurityGroups:SecurityGroups}' \
+  --output json
 ```
 
-Follow the complete setup and verification guide in
+### Configure Terraform
+
+```bash
+cd gpu-deployment/terraform/aws-private-workers
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Fill in `terraform.tfvars`. A four-worker 8B configuration looks like:
+
+```hcl
+aws_region = "us-east-2"
+
+gateway_vpc_id = "vpc-..."
+gateway_subnet_ids = [
+  "subnet-gateway-private-a",
+  "subnet-gateway-private-b",
+]
+
+worker_vpc_id = "vpc-..."
+worker_subnet_ids = [
+  "subnet-worker-a",
+  "subnet-worker-b",
+]
+
+worker_instance_id                = "i-..."
+worker_instance_security_group_id = "sg-..."
+
+route53_zone_name = "example.com"
+worker_domain     = "workers.example.com"
+
+workers = {
+  "8b-a" = { node_port = 30003 }
+  "8b-b" = { node_port = 30004 }
+  "8b-c" = { node_port = 30005 }
+  "8b-d" = { node_port = 30006 }
+}
+
+gateway_namespace    = "api-gateway"
+gateway_release_name = "api-gateway"
+```
+
+Reuse existing shared resources when applicable:
+
+```hcl
+existing_vpc_peering_connection_id = "pcx-..."
+existing_nlb_security_group_id      = "sg-..."
+certificate_arn                    = "arn:aws:acm:REGION:ACCOUNT:certificate/..."
+```
+
+### Plan and apply
+
+```bash
+terraform init
+terraform fmt -check
+terraform validate
+terraform plan
+terraform apply
+```
+
+Review the plan before approving it. It should create one target group, NLB,
+TLS listener, and DNS record for each entry in `workers`.
+
+After apply, print the endpoint URLs and host suffix:
+
+```bash
+terraform output worker_endpoints
+terraform output gateway_route_allowed_host_suffix
+```
+
+Add the emitted suffix to the gateway Helm values:
+
+```yaml
+gateway:
+  routeAllowedHostSuffixes:
+    - workers.example.com
+```
+
+If the gateway chart's baseline `networkPolicy.enabled` is already true, apply
+the generated additive worker-egress policy:
+
+```bash
+terraform output -raw gateway_worker_egress_network_policy_yaml \
+  | kubectl apply -f -
+```
+
+Do not apply that policy by itself when no complete baseline policy selects the
+gateway pods, because it would isolate them to worker egress. Do not expose the
+GPU NodePorts publicly; Terraform permits them only from the private worker NLB
+security group.
+
+Complete input, import, certificate, verification, and troubleshooting details
+are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
-
-### Manual fallback
-
-If Terraform cannot be used:
-
-1. Peer the gateway and worker VPCs.
-2. Add gateway-to-worker and worker-to-gateway routes.
-3. Allow TLS 443 from the gateway VPC into a reusable NLB security group.
-4. Allow the GPU NodePort range only from that NLB security group.
-5. Create an **Instances/TCP** target group per NodePort.
-6. Set its health check to **HTTP**, traffic port, path `/health`, matcher `200`.
-7. Create an **internal** NLB with a TLS 443 listener and wildcard ACM certificate.
-8. Create a Route 53 alias such as `8b-a.workers.example.com`.
-9. Permit gateway, router, and adapter pod egress to the worker VPC on TCP 443.
-
-Never expose the NodePorts to the public internet.
 
 ---
 
