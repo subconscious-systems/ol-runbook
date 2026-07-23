@@ -1,0 +1,31 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PlatformApplyBroad",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:*",
+        "eks:*",
+        "elasticloadbalancing:*",
+        "autoscaling:*",
+        "rds:*",
+        "elasticache:*",
+        "iam:*",
+        "route53:*",
+        "acm:*",
+        "s3:*",
+        "secretsmanager:*",
+        "kms:*",
+        "logs:*",
+        "cloudwatch:*",
+        "ecr:*",
+        "sts:*",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

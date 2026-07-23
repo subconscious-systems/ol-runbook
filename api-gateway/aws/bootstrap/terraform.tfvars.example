@@ -1,0 +1,7 @@
+aws_region    = "us-east-2"
+name_prefix   = "api-gateway-infra"
+instance_type = "t3.large"
+
+# Leave empty to use the account default VPC + first public subnet.
+# vpc_id    = "vpc-xxxxxxxx"
+# subnet_id = "subnet-xxxxxxxx"
