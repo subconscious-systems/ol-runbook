@@ -56,17 +56,13 @@ Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit
 
 Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Your laptop is not on that path by default. Use `./scripts/connect.sh` and run `kubectl` **on the bootstrap host**. Day-0 dashboard admin should use the identity-bootstrap Job, not kubectl (see [FAQ.md](../../FAQ.md#how-is-the-initial-dashboard-admin-created)).
 
-### First Docker agent bring-up (FDE pairing gate)
-
-Entitlements, PAT scopes, Datadog keys, and first compose failures often show up here. Stay paired with the FDE until the runner is healthy before creating the Helm deployment.
-
 ### Expected soft-skip / second infra deploy
 
-First infra run builds the platform and prepares SM/ESO secrets. Auto-deploy of api-gateway often soft-skips until the K8s target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. After `connect-k8s-agent.sh`, trigger a **second** infra deploy with `GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_CHART_VERSION=latest`.
+First infra run builds the platform and prepares SM/ESO secrets. Auto-deploy of api-gateway skips until the K8s target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. After `connect-k8s-agent.sh`, trigger a **second** infra deploy with `GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_CHART_VERSION=latest`.
 
-The first **empty** api-gateway Helm deploy (before the K8s agent) is **expected to fail**.
+The first **empty** api-gateway Helm deploy (before the K8s agent) is **expected to fail / do nothing**.
 
-### Second infra / gateway auto-deploy (FDE pairing gate)
+### Second infra / gateway auto-deploy
 
 Fragment generation, ESO sync timing, Ingress/DNS, and Datadog asset conflicts often need a re-run or Hub/env tweak. Prefer fixing infra env fields. Hub hand-edits to gateway Helm overrides are overwritten on the next auto-deploy.
 
@@ -77,10 +73,6 @@ Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Use `./scripts/connect.s
 ### Naming limits
 
 Keep Distr deployment names **32 characters or fewer**. Release name, namespace, and K8s target must equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. See [FAQ.md](../../FAQ.md).
-
-### Fresh Terraform state only
-
-The infra Application starts from a **new** state key for `DEPLOY_NAME`. Do not migrate legacy operator-managed cluster state into this path.
 
 ## Secrets / bootstrap
 
@@ -97,8 +89,6 @@ Prefer **roll-forward** for schema when the running app can tolerate the current
 
 Use only for a bad reversible migration that is already applied and unsafe to leave in place.
 
-- Irreversible floor is baseline `0001`; do not revert below it.
-- Revert across a history-rewrite heal is unsupported.
 - Scale down or stop new-schema consumers first.
 - Confirm the `.down.sql` is present in the running gateway image.
 
@@ -111,20 +101,11 @@ Then restart/roll pods as needed and re-check dashboard login, `/readyz`, and au
 
 ### Helm rollback (distinct from DB revert)
 
-```bash
-helm -n "$NAMESPACE" history "$RELEASE"
-helm -n "$NAMESPACE" rollback "$RELEASE" <REVISION>
-```
+Do not use Helm rollback. It breaks the Distr kubernets agent. Use the Distr Hub to rollback the gateway Helm app desired version. This is why you must revert the DB first (where down migrations are present with the new version) and then push update the application.
 
-Helm creates a **new** resulting revision when rolling back to a historical one. Record old / target / resulting revisions separately.
+Work with your FDE in the event of a rollback with a DB migration. They may elect to push a hot-fix instead.
 
 ### RDS / bootstrap destroy notes
 
 - Platform RDS day-0 defaults typically include backup retention, deletion protection, and a final snapshot on destroy.
 - `terraform destroy` in [bootstrap/](bootstrap/) only destroys the Docker-agent EC2 host, **not** the platform VPC/EKS/RDS created by the infra runner.
-
-## TBD
-
-- Worker connectivity after [gpu-deployment](../../gpu-deployment/README.md)
-- Full platform destroy / teardown runbook
-- Private-only EKS API hardening

@@ -50,26 +50,29 @@ AWS access stays **first-party** in your account: an EC2 **instance profile** yo
 
 ## Decisions we need from you
 
-| Question | Why it matters |
+| Question | Details |
 | --- | --- |
 | **Q1** - May someone with Terraform rights in **your** account run our bootstrap (EC2 + instance profile), install a Distr Docker agent on that host, and let that agent **provision/update AWS platform resources** (VPC, EKS, RDS, IAM, DNS) via the instance role? | Create/destroy rights stay on **your** IAM role attached to a host **you** run. No AWS secrets in Distr; no external vendor profile. |
-| **Q2** - May long-running **egress-only** Distr **Kubernetes** agents (like a Datadog Agent) install/upgrade Helm for `api-gateway` / `gpu-worker` as long as you opt-in to each new revision? | Agents change workloads in your cluster but do not need inbound management paths; they pull from Distr. |
+| **Q2** - May long-running **egress-only** Distr **Kubernetes** agents (similar to how the Datadog Agent works) install/upgrade Helm for `api-gateway` / `gpu-worker` as long as you opt-in to each new revision? | Agents change workloads in your cluster but do not need inbound management paths; they pull chart updates from Distr and apply inside your cluster. |
 
 ### What that looks like
 
 - **Yes to both** - Assisted Self-Managed end-to-end. Bootstrap EC2 + instance profile → Docker agent runs platform Terraform → K8s agent applies gateway/worker Helm after your opt-ins.
-- **Yes to Q2 only** - You run platform Terraform yourselves; Distr K8s agents manage gateway/worker Helm only.
-- **No to both** - Fully Self-Managed: artifacts from Distr registry; your team applies Terraform and Helm.
+- **No to either** - Fully Self-Managed: artifacts from Distr registry; your team applies Terraform and Helm.
 
 More details below.
 
 ---
 
-## Assisted Self-Managed (recommended)
+## Assisted Self-Managed (highly recommended)
 
 You install agents inside your boundary; they pull desired state from Distr (egress only). Two agents, in order:
 
-### 1. Docker agent provisions AWS (Terraform)
+### Infrastructure Docker agent and gateway Kubernetes agent
+
+There are two Distr applications that work together:
+- **api-gateway-infra** - a Distr Docker application that provisions AWS infrastructure nad triggers autodeploy of the gateway Helm chart
+- **api-gateway** - a Distr Kubernetes application that deploys the gateway Helm chart
 
 **Day-0 bootstrap** ([`api-gateway/aws/bootstrap`](api-gateway/aws/bootstrap/)): someone with Terraform provisioning access in your account applies a small Terraform root (laptop or any Terraform-capable shell) that creates an EC2 host, security group (egress-only), and an **IAM instance profile** with platform-apply rights. No AWS access keys are written to Distr Hub, and there is no external vendor IAM profile - credentials never leave your account.
 
@@ -84,33 +87,20 @@ sequenceDiagram
   participant TF as Terraform apply
   participant AWS as AWS APIs
   participant GW as K8s agent<br/>(api-gateway)
+
   You->>AWS: bootstrap EC2 + instance profile
   You->>Host: install Docker agent (Hub connect URL)
+  Host-->>Hub: polls for updates to infra app
   You->>Hub: opt in to new infra deployment<br/>(approve / promote revision)
   Host->>Hub: pull infra app revision
   Host->>IAM: use instance role (no keys in Distr)
   Host->>TF: plan / apply
   TF->>AWS: create/update platform
-  opt optional: auto-deploy gateway
-    Host->>Hub: trigger api-gateway deployment
-    GW->>Hub: pull desired gateway revision
-    GW->>GW: helm upgrade api-gateway
-  end
-```
-
-### 2. Kubernetes agent deploys Helm
-
-Long-running Distr **Kubernetes** agents (same pattern as a Datadog Agent) apply Helm for `api-gateway` and `gpu-worker` after you opt in to each revision. Egress only; cluster RBAC scopes what they can change.
-
-```mermaid
-sequenceDiagram
-  participant You as Your platform team
-  participant Hub as Distr Hub
-  participant Agent as K8s agent<br/>(in your cluster)
-  participant API as Kubernetes API
-  You->>Hub: opt in to new gateway / workers deployment<br/>(approve / promote revision)
-  Agent->>Hub: pull desired Helm revision
-  Agent->>API: helm upgrade api-gateway / gpu-worker
+  AWS->>GW: creates EKS, IAM, cluster secrets, etc.
+  Host->>Host: generate api-gateway yaml + deployment version
+  Host->>Hub: trigger api-gateway deployment
+  GW->>Hub: pull desired gateway revision via polling
+  GW->>GW: helm upgrade api-gateway
 ```
 
 ---
@@ -144,7 +134,6 @@ flowchart LR
 
 ---
 
-## Please reply with
+## Recommendation
 
-1. **Q1** - Bootstrap EC2 + instance profile in your account; Docker agent on that host may provision AWS via the instance role: **yes** / **no**?
-2. **Q2** - Egress-only K8s agents for gateway / worker Helm: **yes** / **no**?
+We highly recommend Assisted Self-Managed (ASM) for most customers. It is much easier for your team and we can offer better support as the platform evolves. Only in the most controlled environments is fully self managed (FSM) the correct choice.

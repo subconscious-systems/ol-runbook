@@ -25,9 +25,9 @@ flowchart LR
   GwApp["Distr: api-gateway<br/>Helm Application"]
   Runner["Infra runner on EC2"]
   EKS["EKS + K8s agent"]
+
   InfraApp -->|"compose / runner image"| Runner
   Runner -->|"terraform apply"| EKS
-  Runner -->|"emit Helm fragment<br/>fresh valuesYaml"| Runner
   Runner -->|"ensure SM app secret + ESO wait"| EKS
   Runner -->|"PUT /deployments<br/>version + values"| GwApp
   GwApp -->|"helm upgrade via K8s agent"| EKS
@@ -62,42 +62,58 @@ Never put AWS access keys in Hub. Never put Datadog keys into gateway Helm wirin
 ## System diagram
 
 ```mermaid
-flowchart TB
-  CodingAgent["End-user coding agent"]
-  DashboardClient["Dashboard client"]
+flowchart LR
+  subgraph Clients["Clients"]
+    DashboardClient["Dashboard client"]
+    CodingAgent["End-user coding agent"]
+  end
 
-  subgraph DistrHub ["Distr Hub"]
+  subgraph AWS["Customer AWS"]
+    subgraph Ingress["Ingress"]
+      R53["Route 53<br/>DNS"]
+      ACM["ACM<br/>TLS cert"]
+      ALB["ALB<br/>internet-facing"]
+      R53 -.->|"resolves DOMAIN_NAME"| ALB
+      ACM -.->|"certificate-arn"| ALB
+    end
+
+    subgraph Compute["Compute"]
+      direction LR
+      EC2["api-gateway-infra runner<br/>bootstrap EC2 / Docker agent"]
+      EKSBox["api-gateway in EKS<br/>K8s agent + Helm"]
+      EC2 -->|"terraform / ESO / values"| EKSBox
+    end
+
+    subgraph Data["Data & secrets"]
+      direction LR
+      SM["AWS Secrets Manager"]
+      Valkey["ElastiCache Valkey"]
+      RDS["RDS Postgres"]
+    end
+
+    ALB --> EKSBox
+    EC2 -->|"ensure app secret"| SM
+    EKSBox --> Valkey
+    EKSBox --> RDS
+    EKSBox --> SM
+  end
+
+  subgraph DistrHub["Distr Hub"]
+    direction LR
     InfraDocker["api-gateway-infra<br/>Docker Application"]
     GwHelm["api-gateway<br/>Helm Application"]
   end
 
-  subgraph AWS ["Customer AWS"]
-    EC2["api-gateway-infra runner<br/>on bootstrap EC2<br/>Docker agent"]
-    EKSBox["api-gateway<br/>in EKS<br/>K8s agent + Helm"]
-    ALB["ALB"]
-    ACM["ACM"]
-    R53["Route 53"]
-    SM["AWS Secrets Manager"]
-    Valkey["ElastiCache Valkey"]
-    RDS["RDS Postgres"]
-  end
-
-  InfraDocker --> EC2
-  GwHelm --> EKSBox
-  EC2 -->|"terraform + auto-deploy PUT"| GwHelm
-  EC2 --> EKSBox
-  EC2 --> SM
-  EKSBox --> SM
-  EKSBox --> Valkey
-  EKSBox --> RDS
-  R53 --> ALB
-  ACM --> ALB
-  ALB --> EKSBox
-  CodingAgent -->|"/v1/chat/completions"| ALB
-  DashboardClient -->|"/dashboard"| ALB
+  DashboardClient -->|"HTTPS /dashboard"| ALB
+  CodingAgent -->|"HTTPS /v1/chat/completions"| ALB
+  InfraDocker -->|"compose / runner image"| EC2
+  EC2 -->|"auto-deploy PUT"| GwHelm
+  GwHelm -->|"helm via K8s agent"| EKSBox
 ```
 
-Ingress uses ACM (certificate) and Route 53 (DNS) in front of an internet-facing ALB that targets the gateway in EKS.
+Request path: both clients open `https://DOMAIN_NAME/...` to the same internet-facing ALB (dashboard and `/v1` share that hostname). Route 53 only answers DNS for the name; ACM only provides the TLS cert ARN the ALB uses. The ALB then targets gateway pods in EKS, which talk to Secrets Manager, Valkey, and Postgres.
+
+Control path: One time bootstrap on the EC2 where the Docker agent runs. Then polls Distr Hub for updates. Same pattern for K8s agent. The infra runner applies platform Terraform / ESO / Helm values, ensures the Secrets Manager app secret, and can `PUT` the gateway Distr deployment. The gateway Helm app then upgrades via the Kubernetes agent.
 
 ## Prerequisites
 
@@ -111,9 +127,9 @@ Ingress uses ACM (certificate) and Route 53 (DNS) in front of an internet-facing
 | Distr | Customer org access; ability to create a customer PAT |
 | Bootstrap shell | Laptop with AWS CLI is easiest; any shell that can run Terraform against the account also works (for example an SSM session / bastion) |
 | Bootstrap IAM | Enough to create EC2, EIP, security group, IAM role + instance profile + policy attach (often AdministratorAccess-equivalent on day-0) |
-| Platform IAM | Instance profile from [bootstrap/policies/platform-apply.json](bootstrap/policies/platform-apply.json): broad `ec2` / `eks` / `elasticloadbalancing` / `autoscaling` / `rds` / `elasticache` / `iam` / `route53` / `acm` / `s3` / `secretsmanager` / `kms` / `logs` / `cloudwatch` / `ecr` / `sts` plus SSM GetParameter* (intentionally broad for day-0; narrowing is later hardening) |
+| Platform IAM | Instance profile from [bootstrap/policies/platform-apply.json](bootstrap/policies/platform-apply.json): broad `ec2` / `eks` / `elasticloadbalancing` / `autoscaling` / `rds` / `elasticache` / `iam` / `route53` / `acm` / `s3` / `secretsmanager` / `kms` / `logs` / `cloudwatch` / `ecr` / `sts` plus SSM GetParameter*  |
 | Tooling | AWS CLI, Terraform ≥ 1.6, [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for SSM break-glass scripts |
-| Vendor (FDE) | Application + artifact entitlements **before** any agent pull; otherwise registry pulls fail with `entitlement required` |
+| Vendor | Application + artifact entitlements **before** any agent pull; otherwise registry pulls fail with `entitlement required` |
 
 Naming conventions: [FAQ.md](../../FAQ.md). Example infra env: [sample-gateway-infra.env](sample-gateway-infra.env).
 
