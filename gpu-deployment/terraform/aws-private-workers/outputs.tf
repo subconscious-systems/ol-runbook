@@ -18,33 +18,6 @@ output "gateway_route_allowed_host_suffix" {
   value       = var.worker_domain
 }
 
-output "gateway_worker_egress_helm_values_yaml" {
-  description = "Merge this Helm values snippet into the gateway release to permit worker-VPC TCP 443 egress when its egress NetworkPolicy is enabled."
-  value = yamlencode({
-    networkPolicy = {
-      egress = {
-        additionalRules = [
-          for cidr in sort(tolist(local.worker_vpc_cidrs)) : {
-            to = [
-              {
-                ipBlock = {
-                  cidr = cidr
-                }
-              }
-            ]
-            ports = [
-              {
-                protocol = "TCP"
-                port     = 443
-              }
-            ]
-          }
-        ]
-      }
-    }
-  })
-}
-
 output "worker_endpoints" {
   description = "Worker endpoint details for the API gateway dashboard."
   value = {

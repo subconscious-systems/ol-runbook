@@ -78,15 +78,7 @@ gateway:
     - workers.example.com
 ```
 
-Merge the generated worker-egress rule into the same gateway Helm values:
-
-```bash
-terraform output -raw gateway_worker_egress_helm_values_yaml
-```
-
-The chart adds this rule to its existing egress policy. If gateway egress policy
-enforcement is disabled, no extra Kubernetes action is needed. Do not expose
-the GPU NodePorts publicly.
+Do not expose the GPU NodePorts publicly.
 
 Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).

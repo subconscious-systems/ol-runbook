@@ -304,9 +304,6 @@ if [[ "$apply_now" =~ ^[Yy]$ ]]; then
   echo
   echo "Gateway allowlist suffix:"
   terraform output gateway_route_allowed_host_suffix
-  echo
-  echo "Merge this worker-egress rule into the gateway Helm values:"
-  terraform output -raw gateway_worker_egress_helm_values_yaml
 else
   echo "Plan complete. Run 'terraform apply' in this directory when ready."
 fi
