@@ -21,33 +21,40 @@ sequenceDiagram
   FDE->>Distr: Customer org + app/artifact entitlements
 
   Admin->>Admin: Choose names / DOMAIN_NAME / VPC_CIDR
+  Admin->>Admin: Clone the ol-runbook
   Admin->>AWS: bootstrap/scripts/bootstrap.sh
   AWS->>Host: Create EC2 + EIP + security group + IAM instance profile
-  Admin->>Distr: Hub Secrets
+  Admin->>Distr: Add Distr Hub Secrets (DD_*, DISTR_TOKEN)
   Admin->>Distr: Create api-gateway-infra docker deployment
   Admin->>Host: run-agent.sh connect URL
   Host->>Distr: Pull Compose / start runner
-  Note over Admin,FDE: Likely troubleshooting gate
   Host->>Host: Run entrypoint.sh
 
-  Host->>AWS: terraform apply - creates EKS, IAM, cluster secrets, etc.
+  Host->>AWS: terraform apply
+  AWS->>EKS: creates EKS, IAM, cluster secrets, etc.
   Host->>AWS: Ensure SM app secret + ESO wait
   Host-->>Distr: Auto-deploy skipped on first cycle
 
+  Note over Admin,FDE: Likely troubleshooting gate
+
   Admin->>Distr: Create api-gateway deployment, empty values
-  Note over Admin,Distr: First Helm deploy will fail
   Admin->>Host: Run connect-k8s-agent.sh w/ kubectl apply command
-  Host->>EKS: kubectl apply - installs distr-agent pods
+  Host->>AWS: kubectl apply
+  AWS->>EKS: installs distr-agent pods
+  EKS-->>Distr: Begins polling for helm updates
+
+  Note over Admin,FDE: Likely troubleshooting gate
 
   Admin->>Distr: Second infra deploy auto-deploy true
   Host->>Distr: Pull compose
   Host->>Host: Run entrypoint.sh
-  Host->>AWS: terraform apply & wait - no changes
+  Host->>AWS: terraform apply & wait
+  AWS->>EKS: no changes
   Host->>Host: Generate api-gateway yaml + deployment version
   Host->>Distr: Autodeploy: PUT gateway version
-  EKS->>Distr: Pull latest updates (via polling)
+  EKS-->>Distr: Pull latest updates (via polling)
   EKS->>AWS: helm upgrade api-gateway
-  AWS->>Dash: Dashboard reachable at DOMAIN_NAME
+  AWS-->>Dash: Dashboard reachable at DOMAIN_NAME
   Note over Admin,FDE: Likely FDE troubleshooting gate
 
   Admin->>Dash: Login + invite FDE
@@ -79,7 +86,16 @@ Deployment **targets** are not entitlements. The admin creates those when connec
   - `VPC_CIDR`: non-overlapping `/16`
 - [ ] Public Route 53 zone exists (`DNS_ZONE_NAME`); `DOMAIN_NAME` is free
 - [ ] Datadog API key + application key ready
-- [ ] Ability to create a Distr customer PAT
+- [ ] Create a Distr PAT
+
+Make sure naming conventions follow this pattern:
+
+| What | Name |
+| --- | --- |
+| Infra Distr Docker deployment (`api-gateway-infra`) | `{readable-slug}-api-gateway-infra` |
+| Gateway Distr Helm deployment (`api-gateway`) | `{readable-slug}-api-gateway` |
+| Kubernetes namespace | `{readable-slug}-api-gateway` |
+| Helm release name | `{readable-slug}-api-gateway` |
 
 ### 3. Admin: Clone the runbook
 
@@ -108,18 +124,17 @@ In the customer Distr org, create Hub Secrets (masked values):
 
 | Hub secret key | Notes |
 | --- | --- |
-| `DISTR_TOKEN` | Customer PAT (not a vendor publish token) |
+| `DISTR_TOKEN` | Customer PAT |
 | `DD_API_KEY` | Required when Datadog is enabled |
 | `DD_APP_KEY` | Required when Datadog is enabled |
 | `{gw}_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Optional; 12+ chars. `{gw}` = `GATEWAY_DISTR_DEPLOYMENT_NAME` |
 
-Do **not** create AWS access-key Hub Secrets. Cluster DB/Redis/crypto material is not hand-created as Hub `{gw}_GATEWAY_*` keys. See [gateway-secrets.md](gateway-secrets.md).
+See [gateway-secrets.md](gateway-secrets.md) for more details.
 
-### 6. Admin: Infra Docker deployment
+### 6. Admin: api-gateway-infra Docker deployment
 
 - [ ] Create the **api-gateway-infra** Docker deployment in Hub
 - [ ] Paste env from [sample-gateway-infra.env](sample-gateway-infra.env), adapting names/region/domain/CIDR to your settings
-- [ ] Keep `{{.Secrets.…}}` refs for secrets; do not paste plaintext PAT/DD keys into env
 - [ ] Save the Docker-agent **connect URL** from Hub for the next step
 
 ### 7. Admin: Connect the Distr Docker agent
@@ -135,16 +150,14 @@ This installs the Distr Docker agent on the bootstrapped EC2. The agent pulls Co
 
 **Likely FDE troubleshooting gate.** Entitlements, image pull, and first compose failures are common here. Do not proceed until the agent/runner is healthy. See [troubleshooting.md](troubleshooting.md).
 
-Trigger the **first** infra deploy from Hub once the agent is connected (platform Terraform + SM/ESO). Auto-deploy of the gateway may soft-skip until the K8s target exists; that is expected.
+Trigger the **first** infra deploy from Hub once the agent is connected (platform Terraform + SM/ESO). Auto-deploy of the gateway will skip until the K8s target exists.
 
-### 8. Admin: Create the api-gateway Helm deployment (expected fail)
+### 8. Admin: Create the api-gateway Helm deployment
 
 - [ ] Create the **api-gateway** Helm deployment object
 - [ ] Deployment / target name = `GATEWAY_DISTR_DEPLOYMENT_NAME`
 - [ ] Leave Helm values empty
-- [ ] Deploy and copy the Hub `kubectl apply -n … -f "https://…"` connect command
-
-**NOTE:** this first deploy is **expected to fail**. The Kubernetes agent is not connected yet and platform secrets/values are not fully wired.
+- [ ] Deploy and copy the Hub `kubectl apply -n … -f "https://…"` connect command - needed for the next step
 
 ### 9. Admin: Connect the Distr Kubernetes agent
 
@@ -168,7 +181,7 @@ The runner regenerates the Helm fragment, ensures SM/ESO secrets, and `PUT`s the
 ### 11. Admin: Dashboard login and invite
 
 - [ ] Open the URL from the api-gateway deploy / `DOMAIN_NAME`
-- [ ] Log in with the bootstrap admin password (identity-bootstrap Job when the Hub secret was provided)
+- [ ] Log in with the bootstrap admin password `{gw}_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD`
 - [ ] Invite the FDE via invite link
 
 If identity bootstrap was skipped, use break-glass `ops-cli identity bootstrap` (see troubleshooting).
