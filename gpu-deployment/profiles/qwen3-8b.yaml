@@ -3,12 +3,22 @@
 # Weights: Qwen/Qwen3-8B-FP8
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 60, served-model qwen3-8b
 # NodePorts 30003–30006 — four workers, one GPU each (tp=1).
-# Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
+# Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard), DD_API_KEY (Datadog Agent)
+# Chart version: 0.9.0+ (Datadog Agent + GPU monitoring)
 # Host bootstrap: ./dependencies.sh
 
 images:
   distrPullSecret:
     enabled: true
+
+datadog:
+  enabled: true
+  worker:
+    env: sglang
+    service: sglang-worker-qwen3-8b
+  datadog:
+    apiKeyExistingSecret: datadog-secret
+    site: datadoghq.com
 
 worker:
   progressDeadlineSeconds: 7200
@@ -106,5 +116,8 @@ models:
 secrets:
   create: true
   workerSecretName: worker-secrets
+  datadogSecretName: datadog-secret
   worker:
     SGLANG_WORKER_API_KEY: "{{.Secrets.WORKER_API_KEY}}"
+  datadog:
+    DD_API_KEY: "{{.Secrets.DD_API_KEY}}"

@@ -10,6 +10,7 @@ and private AWS routing automation live in this directory. Suggest cloning this 
 | GPU EC2 instance | Ubuntu/Debian, 4× GPU for profiles below |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Will need to setup deployment |
+| SGLang chart **0.9.0+** | Installs Datadog Agent with GPU monitoring when profiles enable it |
 
 ## Step 1 — GPU Host Preparation
 
@@ -32,25 +33,36 @@ kubectl get namespace sglang
 
 ## Step 2 — Distr Setup
 
-1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
-2. Create three secrets:
-   Keep `WORKER_API_KEY` safe, will need it to configure route in dashboard later.
-   | Secret name | Location |
-   |---|---|
-   | `DD_API_KEY` | **Datadog → Organization Settings → API Keys → New Key** |
-   | `DD_APP_KEY` | **Datadog → Organization Settings → Application Keys → New Key** |
-   | `WORKER_API_KEY` | **Subconscious Gateway Dashboard → Model Groups → Generate Worker API Key** |
-3. Navigate to the deployments page and click on New Deployment.
-4. Select gpu-deployment as the application.
-5. Enter deployment name and set Kubernetes Namespace to "sglang".
-6. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-7. Click Customize Helm options and set watcher to 2h.
-8. Click create deployment.
-9. Go back to GPU host and run the command Distr provides, should look like:
+1. Log into [Distr](https://app.distr.sh/) and open **Secrets**.
+2. Create these Hub Secrets (keep `WORKER_API_KEY` — you need it again in step 4):
+
+   | Secret name | Create the value | Used by |
+   |---|---|---|
+   | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | Worker pods + dashboard worker pool |
+   | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | Datadog Agent on the GPU host (GPU Health) |
+
+   `DD_APP_KEY` is only for the **gateway infra** Distr app (Terraform). Do not put it in worker Helm values.
+3. Navigate to **Deployments** → **New Deployment**.
+4. Select the SGLang / gpu-deployment application and choose app version **0.9.0 or newer**.
+5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
+6. Open [profiles](profiles/), pick the model, and paste the **entire** profile into **App Config → Helm Values** (full replace). Profiles enable Datadog (`datadog.enabled: true`) and bind `DD_API_KEY`.
+7. **Customize Helm options** — set the operation timeout (`60` for 8B, `120` for 27B).
+8. Click **Create deployment**.
+9. On the GPU host, run the connect command Distr provides. It should look like:
 
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 ```
+
+After Apply succeeds, confirm the Agent and workers:
+
+```bash
+kubectl -n sglang get pods
+# Expect worker pods plus a Datadog Agent pod (gpuMonitoring enabled)
+kubectl -n sglang get pods -l app.kubernetes.io/name=datadog
+```
+
+GPU Health appears in Datadog under **Infrastructure → GPU Monitoring** once the Agent is Running (metrics such as `gpu.utilization`).
 
 ---
 
