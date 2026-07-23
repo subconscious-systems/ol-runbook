@@ -1,7 +1,7 @@
 # GPU deployment
 
 Install path for SGLang workers on a customer GPU host. Profiles, host bootstrap,
-and private AWS routing automation live in this directory.
+and private AWS routing automation live in this directory. Suggest cloning this repo on a local device to run AWS setup.
 
 ## Prerequisites
 
@@ -9,9 +9,9 @@ and private AWS routing automation live in this directory.
 |---|---|
 | GPU EC2 instance | Ubuntu/Debian, 4× GPU for profiles below |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
-| [Distr](https://app.distr.sh) account | Subconscious provisions the SGLang worker Helm application |
+| [Distr](https://app.distr.sh) account | Will need to setup deployment |
 
-## Step 1 — GPU host
+## Step 1 — GPU Host Preparation
 
 Download with **`curl`** — do not copy/paste the script into vim; pasted files often get corrupted (`apt-get` → `apget`, broken lines).
 
@@ -20,17 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/mai
 chmod +x ~/dependencies.sh
 ~/dependencies.sh
 ```
-
-Or clone the runbook (includes profiles for step 4):
-
-```bash
-git clone git@github.com:subconscious-systems/ol-runbook.git
-cd ol-runbook/gpu-deployment
-chmod +x dependencies.sh
-./dependencies.sh
-```
-
-May reboot once for NVIDIA drivers. Then verify:
+May reboot for NVIDIA drivers. Run script again after reboot. Script should print "install finished". Then verify:
 
 ```bash
 nvidia-smi
@@ -40,7 +30,7 @@ kubectl get namespace sglang
 
 ---
 
-## Step 2 — Connect Distr
+## Step 2 — Distr Setup
 
 1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
 2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
@@ -60,43 +50,48 @@ kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 
 ## Step 3 — AWS: NLB per worker
 
-Each worker gets a **NodePort** on the GPU instance (see table). Repeat for every worker.
-
-### Preferred: Terraform
-
-The reusable Terraform setup creates the VPC peering, bidirectional routes,
-security-group rules, target groups, internal NLBs, wildcard certificate,
-Route 53 aliases, and outputs the scoped gateway worker-egress NetworkPolicy:
+The interactive setup handles AWS discovery, Terraform configuration, and the
+plan. Before running it, authenticate the AWS CLI (`aws login`) with permission
+to manage EC2 networking, ELBv2, ACM, and Route 53.
 
 ```bash
-cd terraform/aws-private-workers
-cp terraform.tfvars.example terraform.tfvars
-# Fill in the existing gateway VPC, GPU VPC/instance, private subnets,
-# Route 53 zone, worker domain, namespace, and gateway Helm release name.
-terraform init
-terraform plan
-terraform apply
-terraform output worker_endpoints
+./gpu-deployment/terraform/aws-private-workers/setup.sh
 ```
 
-Follow the complete setup and verification guide in
+Add `--profile <name>` or `--region <region>` when needed. The wizard lets you
+select the EKS cluster, GPU instance, Route 53 zone, model, worker domain, and
+gateway Helm identity. It then:
+
+- discovers both VPCs, subnets, security groups, existing peering, and ACM cert;
+- writes the complete `terraform.tfvars`;
+- runs `terraform init`, `validate`, and `plan`;
+- optionally runs `terraform apply`.
+
+Review the plan before applying. Each worker should have one target group,
+internal NLB, TLS listener, and DNS record.
+
+After apply, add the suffix printed by the wizard to the gateway Helm values:
+
+```yaml
+gateway:
+  routeAllowedHostSuffixes:
+    - workers.example.com
+```
+
+If the gateway chart's baseline `networkPolicy.enabled` is already true, apply
+the generated additive worker-egress policy:
+
+```bash
+terraform output -raw gateway_worker_egress_network_policy_yaml \
+  | kubectl apply -f -
+```
+
+Do not apply that policy by itself when no complete baseline policy selects the
+gateway pods, because it would isolate them to worker egress. Do not expose the
+GPU NodePorts publicly.
+
+Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
-
-### Manual fallback
-
-If Terraform cannot be used:
-
-1. Peer the gateway and worker VPCs.
-2. Add gateway-to-worker and worker-to-gateway routes.
-3. Allow TLS 443 from the gateway VPC into a reusable NLB security group.
-4. Allow the GPU NodePort range only from that NLB security group.
-5. Create an **Instances/TCP** target group per NodePort.
-6. Set its health check to **HTTP**, traffic port, path `/health`, matcher `200`.
-7. Create an **internal** NLB with a TLS 443 listener and wildcard ACM certificate.
-8. Create a Route 53 alias such as `8b-a.workers.example.com`.
-9. Permit gateway, router, and adapter pod egress to the worker VPC on TCP 443.
-
-Never expose the NodePorts to the public internet.
 
 ---
 
