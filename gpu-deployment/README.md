@@ -35,18 +35,15 @@ kubectl get namespace sglang
 
 1. Log into [Distr](https://app.distr.sh/) and open **Secrets**.
 2. Create these Hub Secrets (keep `WORKER_API_KEY` — you need it again in step 4):
-
    | Secret name | Create the value | Used by |
    |---|---|---|
    | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | Worker pods + dashboard worker pool |
    | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | Datadog Agent on the GPU host (GPU Health) |
-
-   `DD_APP_KEY` is only for the **gateway infra** Distr app (Terraform). Do not put it in worker Helm values.
 3. Navigate to **Deployments** → **New Deployment**.
 4. Select the SGLang / gpu-deployment application and choose app version **0.9.0 or newer**.
 5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
-6. Open [profiles](profiles/), pick the model, and paste the **entire** profile into **App Config → Helm Values** (full replace). Profiles enable Datadog (`datadog.enabled: true`) and bind `DD_API_KEY`.
-7. **Customize Helm options** — set the operation timeout (`60` for 8B, `120` for 27B).
+6. Open [profiles](profiles/), pick the model, and paste the **entire** profile into **App Config → Helm Values** (full replace). Make sure to change DataDog URL to your correct region.
+7. **Customize Helm options** — set the operation timeout to 120m.
 8. Click **Create deployment**.
 9. On the GPU host, run the connect command Distr provides. It should look like:
 
