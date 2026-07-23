@@ -1,12 +1,22 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
-# Distr UI (not in this file): namespace + operation-timeout-minutes (120) + served-model qwen3.6-27b
-# Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard)
-# Host bootstrap: NAMESPACE=<same-as-distr> ./dependencies.sh
+# Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model qwen3.6-27b
+# Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard), DD_API_KEY (Datadog Agent)
+# Chart version: 0.9.0+ (Datadog Agent + GPU monitoring)
+# Host bootstrap: ./dependencies.sh
 
 images:
   distrPullSecret:
     enabled: true
+
+datadog:
+  enabled: true
+  worker:
+    env: sglang
+    service: sglang-worker-qwen36-27b
+  datadog:
+    apiKeyExistingSecret: datadog-secret
+    site: datadoghq.com
 
 worker:
   progressDeadlineSeconds: 7200
@@ -95,5 +105,8 @@ models:
 secrets:
   create: true
   workerSecretName: worker-secrets
+  datadogSecretName: datadog-secret
   worker:
     SGLANG_WORKER_API_KEY: "{{.Secrets.WORKER_API_KEY}}"
+  datadog:
+    DD_API_KEY: "{{.Secrets.DD_API_KEY}}"
