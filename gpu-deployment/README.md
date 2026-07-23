@@ -34,19 +34,19 @@ kubectl get namespace sglang
 
 1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
 2. Create three secrets:
+   Keep `WORKER_API_KEY` safe, will need it to configure route in dashboard later.
    | Secret name | Location |
    |---|---|
    | `DD_API_KEY` | **Datadog → Organization Settings → API Keys → New Key** |
    | `DD_APP_KEY` | **Datadog → Organization Settings → Application Keys → New Key** |
    | `WORKER_API_KEY` | **Subconscious Gateway Dashboard → Model Groups → Generate Worker API Key** |
-   Keep `WORKER_API_KEY` safe, will need it to configure route in dashboard later.
-4. Navigate to the deployments page and click on New Deployment.
-5. Select gpu-deployment as the application.
-6. Enter deployment name and set Kubernetes Namespace to "sglang".
-7. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
-8. Click Customize Helm options and set watcher to 2h.
-9. Click create deployment.
-10. Go back to GPU host and run the command Distr provides, should look like:
+3. Navigate to the deployments page and click on New Deployment.
+4. Select gpu-deployment as the application.
+5. Enter deployment name and set Kubernetes Namespace to "sglang".
+6. Leave default Application Config, go to [profiles](profiles/) and find the correct profile. Copy and paste exactly from the profile file into the Helm Values section in the App Config section of Distr.
+7. Click Customize Helm options and set watcher to 2h.
+8. Click create deployment.
+9. Go back to GPU host and run the command Distr provides, should look like:
 
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
