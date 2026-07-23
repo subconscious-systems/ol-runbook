@@ -78,6 +78,8 @@ The applying AWS identity needs permission to manage EC2 networking, ELBv2,
 ACM, and Route 53. Terraform derives the effective route tables from the subnet
 IDs, including implicit main route-table associations.
 
+### Discover the AWS inputs
+
 Run the read-only discovery script with just a region to list the AWS account,
 VPCs, subnets, EKS clusters, EC2 instances, VPC peerings, public Route 53
 zones, and regional ACM certificates:
@@ -86,6 +88,8 @@ zones, and regional ACM certificates:
 ./gpu-deployment/terraform/aws-private-workers/discover-aws.sh \
   --region us-east-2
 ```
+
+### Generate `terraform.tfvars`
 
 After identifying the GPU instance and gateway EKS cluster, generate the exact
 `terraform.tfvars` file:
@@ -116,60 +120,22 @@ Terraform should manage pre-existing VPC routes and whether additional worker
 subnets are wanted. No placeholder replacement is required when the command
 completes successfully.
 
-### Configure Terraform
+To find the gateway namespace and Helm release label when they are unknown:
+
+```bash
+kubectl get pods -A \
+  -L app.kubernetes.io/instance
+```
+
+Use the pod namespace for `--gateway-namespace` and its
+`app.kubernetes.io/instance` value for `--gateway-release-name`.
+
+### Review and apply
 
 ```bash
 cd gpu-deployment/terraform/aws-private-workers
-cp terraform.tfvars.example terraform.tfvars
-```
-
-Fill in `terraform.tfvars`. A four-worker 8B configuration looks like:
-
-```hcl
-aws_region = "us-east-2"
-
-gateway_vpc_id = "vpc-..."
-gateway_subnet_ids = [
-  "subnet-gateway-private-a",
-  "subnet-gateway-private-b",
-]
-
-worker_vpc_id = "vpc-..."
-worker_subnet_ids = [
-  "subnet-worker-a",
-  "subnet-worker-b",
-]
-
-worker_instance_id                = "i-..."
-worker_instance_security_group_id = "sg-..."
-
-route53_zone_name = "example.com"
-worker_domain     = "workers.example.com"
-
-workers = {
-  "8b-a" = { node_port = 30003 }
-  "8b-b" = { node_port = 30004 }
-  "8b-c" = { node_port = 30005 }
-  "8b-d" = { node_port = 30006 }
-}
-
-gateway_namespace    = "api-gateway"
-gateway_release_name = "api-gateway"
-```
-
-Reuse existing shared resources when applicable:
-
-```hcl
-existing_vpc_peering_connection_id = "pcx-..."
-existing_nlb_security_group_id      = "sg-..."
-certificate_arn                    = "arn:aws:acm:REGION:ACCOUNT:certificate/..."
-```
-
-### Plan and apply
-
-```bash
+terraform fmt -check terraform.tfvars
 terraform init
-terraform fmt -check
 terraform validate
 terraform plan
 terraform apply
