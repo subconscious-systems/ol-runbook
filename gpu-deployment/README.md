@@ -33,7 +33,12 @@ kubectl get namespace sglang
 ## Step 2 — Distr Setup
 
 1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
-2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
+2. Create three secrets:
+   | Secret name | Location |
+   |---|---|
+   | `DD_API_KEY` | **Datadog → Organization Settings → API Keys → New Key** |
+   | `DD_APP_KEY` | **Datadog → Organization Settings → Application Keys → New Key** |
+   | `WORKER_API_KEY` | **Subconscious Gateway Dashboard → Model Groups → Generate Worker API Key |
 3. Navigate to the deployments page and click on New Deployment.
 4. Select gpu-deployment as the application.
 5. Enter deployment name and set Kubernetes Namespace to "sglang".
