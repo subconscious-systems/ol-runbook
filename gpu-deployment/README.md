@@ -9,9 +9,9 @@ and private AWS routing automation live in this directory.
 |---|---|
 | GPU EC2 instance | Ubuntu/Debian, 4× GPU for profiles below |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
-| [Distr](https://app.distr.sh) account | Subconscious provisions the SGLang worker Helm application |
+| [Distr](https://app.distr.sh) account | Will need to setup deployment |
 
-## Step 1 — GPU host
+## Step 1 — GPU Host Preparation
 
 Download with **`curl`** — do not copy/paste the script into vim; pasted files often get corrupted (`apt-get` → `apget`, broken lines).
 
@@ -20,17 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/mai
 chmod +x ~/dependencies.sh
 ~/dependencies.sh
 ```
-
-Or clone the runbook (includes profiles for step 4):
-
-```bash
-git clone git@github.com:subconscious-systems/ol-runbook.git
-cd ol-runbook/gpu-deployment
-chmod +x dependencies.sh
-./dependencies.sh
-```
-
-May reboot once for NVIDIA drivers. Then verify:
+May reboot for NVIDIA drivers. Run script again after reboot. Script should print "install finished". Then verify:
 
 ```bash
 nvidia-smi
@@ -40,7 +30,7 @@ kubectl get namespace sglang
 
 ---
 
-## Step 2 — Connect Distr
+## Step 2 — Distr Setup
 
 1. Log into [Distr](https://app.distr.sh/) and click on the secrets page.
 2. Add a secret called WORKER_API_KEY, go to gateway dashboard to generate value, store this somewhere safe, will need it to configure path.
