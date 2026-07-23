@@ -11,7 +11,7 @@ It creates:
 - HTTP `/health` target checks against each worker NodePort;
 - an ACM wildcard certificate, unless an existing certificate is supplied;
 - Route 53 aliases such as `8b-a.workers.example.com`;
-- a scoped gateway worker-egress NetworkPolicy, emitted as YAML output.
+- a gateway Helm values snippet allowing worker-VPC HTTPS egress.
 
 It does not create the gateway VPC, EKS cluster, GPU instance, k3s, SGLang
 deployment, gateway Helm release, or gateway dashboard records.
@@ -157,19 +157,17 @@ gateway:
     - workers.example.com
 ```
 
-When the gateway chart's baseline `networkPolicy.enabled` is already true,
-apply the generated additive policy:
+Print and merge the worker-egress snippet into the gateway Helm values:
 
 ```bash
-terraform output -raw gateway_worker_egress_network_policy_yaml \
-  | kubectl apply -f -
+terraform output -raw gateway_worker_egress_helm_values_yaml
 ```
 
-The generated policy selects only gateway, router, and adapter pods and adds
-worker-VPC TCP 443. Kubernetes policies are additive, so the chart's existing
-DNS, database, Kubernetes API, telemetry, and provider egress remains intact.
-Do not apply this standalone policy when no complete baseline policy selects
-those pods; by itself it would isolate them to worker egress.
+The snippet populates `networkPolicy.egress.additionalRules`. When gateway
+egress policy enforcement is enabled, the chart adds worker-VPC TCP 443 to its
+existing DNS, database, Kubernetes API, telemetry, and provider rules. When
+egress enforcement is disabled, pod egress is already unrestricted and the
+additional rule has no effect. No standalone NetworkPolicy is applied.
 
 Create one SGLang-worker dashboard endpoint per Terraform output:
 

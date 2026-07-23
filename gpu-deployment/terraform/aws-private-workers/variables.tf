@@ -160,22 +160,6 @@ variable "node_port_max" {
   default     = 32767
 }
 
-variable "gateway_namespace" {
-  description = "Namespace containing the API gateway Helm release."
-  type        = string
-}
-
-variable "gateway_release_name" {
-  description = "Value of app.kubernetes.io/instance on gateway, router, and adapter pods."
-  type        = string
-}
-
-variable "gateway_network_policy_name" {
-  description = "Name used in the generated worker-egress NetworkPolicy YAML."
-  type        = string
-  default     = "private-worker-egress"
-}
-
 variable "tags" {
   description = "Additional tags applied to AWS resources."
   type        = map(string)

@@ -18,53 +18,29 @@ output "gateway_route_allowed_host_suffix" {
   value       = var.worker_domain
 }
 
-output "gateway_worker_egress_network_policy_yaml" {
-  description = "Scoped additive NetworkPolicy YAML; apply it to permit gateway/router/adapter TCP 443 egress to worker VPC CIDRs."
+output "gateway_worker_egress_helm_values_yaml" {
+  description = "Merge this Helm values snippet into the gateway release to permit worker-VPC TCP 443 egress when its egress NetworkPolicy is enabled."
   value = yamlencode({
-    apiVersion = "networking.k8s.io/v1"
-    kind       = "NetworkPolicy"
-    metadata = {
-      name      = var.gateway_network_policy_name
-      namespace = var.gateway_namespace
-      labels = {
-        "app.kubernetes.io/instance"   = var.gateway_release_name
-        "app.kubernetes.io/managed-by" = "terraform-output"
-        "app.kubernetes.io/name"       = "api-gateway"
-      }
-    }
-    spec = {
-      podSelector = {
-        matchExpressions = [
-          {
-            key      = "app.kubernetes.io/instance"
-            operator = "In"
-            values   = [var.gateway_release_name]
-          },
-          {
-            key      = "app.kubernetes.io/component"
-            operator = "In"
-            values   = ["gateway", "router", "adapter"]
-          },
+    networkPolicy = {
+      egress = {
+        additionalRules = [
+          for cidr in sort(tolist(local.worker_vpc_cidrs)) : {
+            to = [
+              {
+                ipBlock = {
+                  cidr = cidr
+                }
+              }
+            ]
+            ports = [
+              {
+                protocol = "TCP"
+                port     = 443
+              }
+            ]
+          }
         ]
       }
-      policyTypes = ["Egress"]
-      egress = [
-        for cidr in sort(tolist(local.worker_vpc_cidrs)) : {
-          to = [
-            {
-              ipBlock = {
-                cidr = cidr
-              }
-            }
-          ]
-          ports = [
-            {
-              protocol = "TCP"
-              port     = 443
-            }
-          ]
-        }
-      ]
     }
   })
 }

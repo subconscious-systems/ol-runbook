@@ -13,8 +13,6 @@ EKS_CLUSTER_NAME=""
 ROUTE53_ZONE=""
 WORKER_DOMAIN=""
 MODEL=""
-GATEWAY_NAMESPACE=""
-GATEWAY_RELEASE_NAME=""
 WORKER_SECURITY_GROUP_ID=""
 TFVARS_MODE=false
 
@@ -40,8 +38,6 @@ Options:
   --worker-domain DOMAIN       Show issued ACM certificates for the wildcard
                                worker domain, for example workers.example.com.
   --model MODEL                Worker profile for generated tfvars: 8b or 27b.
-  --gateway-namespace NAME     Kubernetes namespace containing the gateway.
-  --gateway-release-name NAME  Gateway Helm release/instance label.
   --worker-security-group ID   Select an attached GPU security group when the
                                instance has more than one.
   --tfvars                     Print only complete terraform.tfvars HCL to
@@ -58,8 +54,6 @@ Examples:
     --route53-zone example.com \
     --worker-domain workers.example.com \
     --model 8b \
-    --gateway-namespace api-gateway \
-    --gateway-release-name api-gateway \
     --tfvars > terraform.tfvars
 EOF
 }
@@ -120,22 +114,6 @@ while [[ $# -gt 0 ]]; do
         exit 2
       }
       MODEL="$2"
-      shift 2
-      ;;
-    --gateway-namespace)
-      [[ $# -ge 2 ]] || {
-        echo "error: --gateway-namespace requires a value" >&2
-        exit 2
-      }
-      GATEWAY_NAMESPACE="$2"
-      shift 2
-      ;;
-    --gateway-release-name)
-      [[ $# -ge 2 ]] || {
-        echo "error: --gateway-release-name requires a value" >&2
-        exit 2
-      }
-      GATEWAY_RELEASE_NAME="$2"
       shift 2
       ;;
     --worker-security-group)
@@ -234,8 +212,6 @@ generate_tfvars() {
   [[ -n "$ROUTE53_ZONE" ]] || missing+=(--route53-zone)
   [[ -n "$WORKER_DOMAIN" ]] || missing+=(--worker-domain)
   [[ -n "$MODEL" ]] || missing+=(--model)
-  [[ -n "$GATEWAY_NAMESPACE" ]] || missing+=(--gateway-namespace)
-  [[ -n "$GATEWAY_RELEASE_NAME" ]] || missing+=(--gateway-release-name)
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     printf 'error: --tfvars also requires:' >&2
@@ -423,11 +399,7 @@ workers = {
 EOF
   fi
 
-  cat <<EOF
-
-gateway_namespace    = "$GATEWAY_NAMESPACE"
-gateway_release_name = "$GATEWAY_RELEASE_NAME"
-
+  cat <<'EOF'
 tags = {
   Project = "subconscious-inference"
 }
@@ -641,7 +613,7 @@ EOF
 
   cat <<'EOF'
 
-# Add workers, gateway_namespace, and gateway_release_name from your deployment.
+# Add the workers map for the selected 8B or 27B profile.
 EOF
 else
   section "Next command"
