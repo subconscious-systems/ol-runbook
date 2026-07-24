@@ -2,7 +2,7 @@
 #
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model qwen3.6-27b
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard), DD_API_KEY (Datadog Agent)
-# Chart version: 0.9.0+ (Datadog Agent + GPU monitoring)
+# Chart version: 0.10.0+ (digest-pinned worker image + automatic pre-pull)
 # Host bootstrap: ./dependencies.sh
 
 images:
@@ -28,8 +28,10 @@ worker:
     type: NodePort
   image:
     repository: registry.distr.sh/subconscious/timrun
-    tag: sm_89-v1
+    tag: sm_89-v2
     pullPolicy: IfNotPresent
+    prePull:
+      enabled: true
   servedModelName: qwen3.6-27b
   modelPath: /models/hf/Qwen3.6-27B-FP8
   contextLength: 16384
