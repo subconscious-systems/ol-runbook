@@ -8,63 +8,6 @@ Expect two FDE pairing / debug gates: (1) first Docker agent + infra runner
 bring-up with gateway auto-deploy disabled, (2) second infra deploy / intentional
 gateway auto-deploy.
 
-## Sequence overview
-
-```mermaid
-sequenceDiagram
-  actor FDE as Subconscious FDE
-  actor Admin as Customer admin
-  participant Distr as Distr Hub
-  participant Host as Bootstrap EC2 Docker agent + infra runner
-  participant AWS as AWS APIs
-  participant EKS as EKS + K8s agent
-  participant Dash as Gateway dashboard
-
-  FDE->>Distr: Customer org + app/artifact entitlements
-
-  Admin->>Admin: Choose names / DOMAIN_NAME / VPC_CIDR
-  Admin->>Admin: Clone the ol-runbook
-  Admin->>AWS: bootstrap/scripts/bootstrap.sh
-  AWS->>Host: Create EC2 + EIP + security group + IAM instance profile
-  Admin->>Distr: Add Distr Hub Secrets (DD_*, DISTR_TOKEN)
-  Admin->>Distr: Create api-gateway-infra docker deployment
-  Admin->>Host: run-agent.sh connect URL
-  Host->>Distr: Pull Compose / start runner
-  Host->>Host: Run entrypoint.sh
-
-  Host->>AWS: terraform apply
-  AWS->>EKS: creates EKS, IAM, cluster secrets, etc.
-  Host->>AWS: Ensure SM app secret + ESO wait
-  Host-->>Distr: Auto-deploy disabled on first cycle
-
-  Note over Admin,FDE: Likely troubleshooting gate
-
-  Admin->>Distr: Create api-gateway deployment, empty values
-  Admin->>Host: Run connect-k8s-agent.sh w/ kubectl apply command
-  Host->>AWS: kubectl apply
-  AWS->>EKS: installs distr-agent pods
-  EKS-->>Distr: Begins polling for helm updates
-
-  Note over Admin,FDE: Likely troubleshooting gate
-
-  Admin->>Distr: Second infra deploy auto-deploy true
-  Host->>Distr: Pull compose
-  Host->>Host: Run entrypoint.sh
-  Host->>AWS: terraform apply & wait
-  AWS->>EKS: no changes
-  Host->>Host: Generate api-gateway yaml + deployment version
-  Host->>Distr: Autodeploy: PUT gateway version
-  EKS-->>Distr: Pull latest updates (via polling)
-  EKS->>AWS: helm upgrade api-gateway
-  AWS-->>Dash: Dashboard reachable at DOMAIN_NAME
-  Note over Admin,FDE: Likely FDE troubleshooting gate
-
-  Admin->>Dash: Login + invite FDE
-  FDE->>Dash: Cloud-GPU API key as worker
-  Admin->>Dash: Test chat
-  Admin->>AWS: Verify SM + ESO gateway-secrets
-```
-
 ## Checklist
 
 ### 1. FDE: Vendor portal entitlements
@@ -211,6 +154,63 @@ If identity bootstrap was skipped, use break-glass `ops-cli identity bootstrap` 
 - [ ] Confirm ESO synced Kubernetes Secrets (`gateway-secrets`, and related) in namespace `GATEWAY_DISTR_DEPLOYMENT_NAME`
 
 See [gateway-secrets.md](gateway-secrets.md).
+
+## Sequence overview
+
+```mermaid
+sequenceDiagram
+  actor FDE as Subconscious FDE
+  actor Admin as Customer admin
+  participant Distr as Distr Hub
+  participant Host as Bootstrap EC2 Docker agent + infra runner
+  participant AWS as AWS APIs
+  participant EKS as EKS + K8s agent
+  participant Dash as Gateway dashboard
+
+  FDE->>Distr: Customer org + app/artifact entitlements
+
+  Admin->>Admin: Choose names / DOMAIN_NAME / VPC_CIDR
+  Admin->>Admin: Clone the ol-runbook
+  Admin->>AWS: bootstrap/scripts/bootstrap.sh
+  AWS->>Host: Create EC2 + EIP + security group + IAM instance profile
+  Admin->>Distr: Add Distr Hub Secrets (DD_*, DISTR_TOKEN)
+  Admin->>Distr: Create api-gateway-infra docker deployment
+  Admin->>Host: run-agent.sh connect URL
+  Host->>Distr: Pull Compose / start runner
+  Host->>Host: Run entrypoint.sh
+
+  Host->>AWS: terraform apply
+  AWS->>EKS: creates EKS, IAM, cluster secrets, etc.
+  Host->>AWS: Ensure SM app secret + ESO wait
+  Host-->>Distr: Auto-deploy disabled on first cycle
+
+  Note over Admin,FDE: Likely troubleshooting gate
+
+  Admin->>Distr: Create api-gateway deployment, empty values
+  Admin->>Host: Run connect-k8s-agent.sh w/ kubectl apply command
+  Host->>AWS: kubectl apply
+  AWS->>EKS: installs distr-agent pods
+  EKS-->>Distr: Begins polling for helm updates
+
+  Note over Admin,FDE: Likely troubleshooting gate
+
+  Admin->>Distr: Second infra deploy auto-deploy true
+  Host->>Distr: Pull compose
+  Host->>Host: Run entrypoint.sh
+  Host->>AWS: terraform apply & wait
+  AWS->>EKS: no changes
+  Host->>Host: Generate api-gateway yaml + deployment version
+  Host->>Distr: Autodeploy: PUT gateway version
+  EKS-->>Distr: Pull latest updates (via polling)
+  EKS->>AWS: helm upgrade api-gateway
+  AWS-->>Dash: Dashboard reachable at DOMAIN_NAME
+  Note over Admin,FDE: Likely FDE troubleshooting gate
+
+  Admin->>Dash: Login + invite FDE
+  FDE->>Dash: Cloud-GPU API key as worker
+  Admin->>Dash: Test chat
+  Admin->>AWS: Verify SM + ESO gateway-secrets
+```
 
 ## After this
 
