@@ -10,7 +10,7 @@ and private AWS routing automation live in this directory. Suggest cloning this 
 | GPU EC2 instance | Ubuntu/Debian, 4× GPU for profiles below |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Will need to setup deployment |
-| SGLang chart **0.9.0+** | Installs Datadog Agent with GPU monitoring when profiles enable it |
+| SGLang chart **0.10.0+** | Pins the reviewed worker image and pre-pulls it before worker replacement |
 
 The gateway [EKS upgrade](../api-gateway/aws/eks-upgrade.md) does not alter these
 separate k3s worker clusters. After every EKS hop, however, the operator must
@@ -45,7 +45,7 @@ kubectl get namespace sglang
    | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | Worker pods + dashboard worker pool |
    | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | Datadog Agent on the GPU host (GPU Health) |
 3. Navigate to **Deployments** → **New Deployment**.
-4. Select the SGLang / gpu-deployment application and choose app version **0.9.0 or newer**.
+4. Select the SGLang / gpu-deployment application and choose app version **0.10.0 or newer**.
 5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
 6. Open [profiles](profiles/), pick the model, and paste the **entire** profile into **App Config → Helm Values** (full replace). Make sure to change DataDog URL to your correct region.
 7. **Customize Helm options** — set the operation timeout to 120m.
@@ -55,6 +55,11 @@ kubectl get namespace sglang
 ```bash
 kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
 ```
+
+For updates, select the newer application version on the existing deployment
+and Apply. The application version supplies the immutable worker digest, and
+the profile pre-pulls it before Recreate replaces healthy workers. Do not add a
+`releaseImages` override, manually pull with `crictl`, or recreate the GPU host.
 
 After Apply succeeds, confirm the Agent and workers:
 

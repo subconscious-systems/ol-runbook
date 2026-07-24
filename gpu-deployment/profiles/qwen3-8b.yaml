@@ -1,10 +1,10 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
 # Weights: Qwen/Qwen3-8B-FP8
-# Distr UI (not in this file): namespace sglang, operation-timeout-minutes 60, served-model qwen3-8b
+# Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model qwen3-8b
 # NodePorts 30003–30006 — four workers, one GPU each (tp=1).
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard), DD_API_KEY (Datadog Agent)
-# Chart version: 0.9.0+ (Datadog Agent + GPU monitoring)
+# Chart version: 0.10.0+ (digest-pinned worker image + automatic pre-pull)
 # Host bootstrap: ./dependencies.sh
 
 images:
@@ -30,8 +30,10 @@ worker:
     type: NodePort
   image:
     repository: registry.distr.sh/subconscious/timrun
-    tag: sm_89-v1
+    tag: sm_89-v2
     pullPolicy: IfNotPresent
+    prePull:
+      enabled: true
   servedModelName: qwen3-8b
   modelPath: /models/hf/Qwen3-8B-FP8
   contextLength: 16384
@@ -57,6 +59,8 @@ worker:
       --reasoning-parser qwen3
       --tool-call-parser qwen3_coder
       --trust-remote-code
+      --subconscious-x-mode
+      --page-size 1
   modelDownload:
     enabled: true
     hfRepo: Qwen/Qwen3-8B-FP8
