@@ -12,6 +12,11 @@ and private AWS routing automation live in this directory. Suggest cloning this 
 | [Distr](https://app.distr.sh) account | Will need to setup deployment |
 | SGLang chart **0.9.0+** | Installs Datadog Agent with GPU monitoring when profiles enable it |
 
+The gateway [EKS upgrade](../api-gateway/aws/eks-upgrade.md) does not alter these
+separate k3s worker clusters. After every EKS hop, however, the operator must
+smoke the gateway-to-worker route (`/health`) and authenticated inference before
+declaring the gateway upgrade healthy.
+
 ## Step 1 — GPU Host Preparation
 
 Download with **`curl`** onto GPU host and run.

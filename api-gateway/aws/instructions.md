@@ -2,9 +2,11 @@
 
 End-to-end Assisted Self-Managed setup on AWS. Roles are labeled so one person can play both **FDE** (Subconscious Forward Deployed Engineer) and **Admin** (customer initial admin) during a demo.
 
-Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md).
+Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md).
 
-Expect two FDE pairing / debug gates: (1) first Docker agent + infra runner bring-up, (2) second infra deploy / gateway auto-deploy. The first empty Helm deploy failure is anticipated.
+Expect two FDE pairing / debug gates: (1) first Docker agent + infra runner
+bring-up with gateway auto-deploy disabled, (2) second infra deploy / intentional
+gateway auto-deploy.
 
 ## Sequence overview
 
@@ -33,7 +35,7 @@ sequenceDiagram
   Host->>AWS: terraform apply
   AWS->>EKS: creates EKS, IAM, cluster secrets, etc.
   Host->>AWS: Ensure SM app secret + ESO wait
-  Host-->>Distr: Auto-deploy skipped on first cycle
+  Host-->>Distr: Auto-deploy disabled on first cycle
 
   Note over Admin,FDE: Likely troubleshooting gate
 
@@ -150,7 +152,9 @@ This installs the Distr Docker agent on the bootstrapped EC2. The agent pulls Co
 
 **Likely FDE troubleshooting gate.** Entitlements, image pull, and first compose failures are common here. Do not proceed until the agent/runner is healthy. See [troubleshooting.md](troubleshooting.md).
 
-Trigger the **first** infra deploy from Hub once the agent is connected (platform Terraform + SM/ESO). Auto-deploy of the gateway will skip until the K8s target exists.
+Trigger the **first** infra deploy from Hub once the agent is connected
+(platform Terraform + SM/ESO). Keep `GATEWAY_AUTO_DEPLOY=false` until the K8s
+target exists.
 
 ### 8. Admin: Create the api-gateway Helm deployment
 
@@ -164,10 +168,15 @@ Trigger the **first** infra deploy from Hub once the agent is connected (platfor
 ```bash
 cd api-gateway/aws/bootstrap
 ./scripts/connect-k8s-agent.sh \
+  <DEPLOY_NAME> \
   'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
 ```
 
-This runs `kubectl` over SSM on the bootstrap host and installs `distr-agent` pods **in EKS** (not on the EC2). Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
+The first argument is the infra `DEPLOY_NAME`, which is also the EKS cluster
+name. The gateway namespace is parsed separately from the Hub command and must
+equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The script runs `kubectl` over SSM on the
+bootstrap host and installs `distr-agent` pods **in EKS** (not on the EC2).
+Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
 
 ### 10. Admin: Second infra deploy (gateway auto-deploy)
 

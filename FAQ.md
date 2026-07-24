@@ -36,7 +36,10 @@ You need:
 - The published **api-gateway Helm Application** in Distr (leave `DISTR_GATEWAY_APPLICATION_ID` as the default unless forking)
 - For auto-deploy: a Kubernetes deployment **target** named `GATEWAY_DISTR_DEPLOYMENT_NAME` (after the K8s agent connects) and `GATEWAY_CHART_VERSION` set (see below)
 
-Practical greenfield path: first infra deploy (platform + secrets; auto-deploy may soft-skip) → connect K8s agent → second infra deploy with `GATEWAY_CHART_VERSION=latest`. See [instructions.md](api-gateway/aws/instructions.md).
+Practical greenfield path: first infra deploy with `GATEWAY_AUTO_DEPLOY=false`
+(platform + secrets) → connect K8s agent → second infra deploy with
+`GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_CHART_VERSION=latest`. See
+[instructions.md](api-gateway/aws/instructions.md).
 
 ## How do I choose the gateway chart version?
 
@@ -119,7 +122,7 @@ App csrf and credential encryption: copy-paste from [api-gateway/aws/secret-rota
 | `DATADOG_ENABLED` / `DATADOG_ENV` | Sample path: on; env facet for titles/monitors/filters |
 | `DATADOG_DASHBOARD_TAGS` | Optional; default `team:api-gateway` |
 | `DATADOG_MONITORS_DRAFT` | Draft vs published monitors only |
-| `GATEWAY_AUTO_DEPLOY` | Default true; soft-skips until K8s target exists |
+| `GATEWAY_AUTO_DEPLOY` | Default false; enable only for a separate gateway rollout |
 | `GATEWAY_CHART_VERSION` | `latest` (default), `nochange`, or `0.n.n` |
 | `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES` | Provider DNS suffixes; `svc.cluster.local` always added |
 | `DISTR_GATEWAY_APPLICATION_ID` | Defaulted to Subconscious-published api-gateway app |

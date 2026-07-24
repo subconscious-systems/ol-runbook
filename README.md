@@ -24,6 +24,7 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | [api-gateway/aws/README.md](api-gateway/aws/README.md)                               | AWS architecture, dual Distr apps, system diagram, prerequisites       |
 | [api-gateway/aws/instructions.md](api-gateway/aws/instructions.md)                   | End-to-end FDE + customer admin setup checklist                        |
+| [api-gateway/aws/eks-upgrade.md](api-gateway/aws/eks-upgrade.md)                     | Staged EKS 1.31→1.32 operation, health gates, soak, and rollback       |
 | [api-gateway/aws/cost-estimate.md](api-gateway/aws/cost-estimate.md)                 | Monthly AWS gateway estimate without GPU workers                       |
 | [api-gateway/aws/bootstrap/](api-gateway/aws/bootstrap/)                             | Day-0 Docker agent EC2 bootstrap (canonical)                           |
 | [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md)             | AWS Secrets Manager + ESO cluster secrets                              |

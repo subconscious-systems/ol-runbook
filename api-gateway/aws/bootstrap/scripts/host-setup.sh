@@ -4,6 +4,7 @@ set -euo pipefail
 
 STATUS_DIR=/opt/api-gateway-infra
 COMPOSE_VERSION="${COMPOSE_VERSION:-v2.32.4}"
+KUBECTL_VERSION="${KUBECTL_VERSION:-v1.32.13}"
 COMPOSE_PLUGIN=/usr/libexec/docker/cli-plugins/docker-compose
 
 mkdir -p "${STATUS_DIR}"
@@ -50,13 +51,18 @@ fi
 
 docker compose version
 
-if ! command -v kubectl >/dev/null 2>&1; then
-  log "installing-kubectl"
-  curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+installed_kubectl_version=""
+if command -v kubectl >/dev/null 2>&1; then
+  installed_kubectl_version="$(kubectl version --client --output=json 2>/dev/null \
+    | jq -r '.clientVersion.gitVersion // empty')"
+fi
+if [[ "${installed_kubectl_version}" != "${KUBECTL_VERSION}" ]]; then
+  log "installing-kubectl-${KUBECTL_VERSION}"
+  curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     -o /usr/local/bin/kubectl
   chmod +x /usr/local/bin/kubectl
 else
-  log "kubectl-present"
+  log "kubectl-${KUBECTL_VERSION}-present"
 fi
 kubectl version --client --output=yaml >/dev/null
 
