@@ -128,13 +128,14 @@ Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
 
 The runner regenerates the Helm fragment, ensures SM/ESO secrets, and `PUT`s the gateway deployment with correct values.
 
-**Likely FDE troubleshooting gate.** When healthy, the dashboard should be reachable at `https://<DOMAIN_NAME>/dashboard`.
+**Likely FDE troubleshooting gate.** When healthy, the dashboard should be reachable at `https://<DOMAIN_NAME>/` (redirects to `/dashboard`) or `https://<DOMAIN_NAME>/dashboard`.
 
 ### 11. Admin: Dashboard login and invite
 
-- [ ] Open the URL from the api-gateway deploy / `DOMAIN_NAME`
+- [ ] Open the URL from the api-gateway deploy / `DOMAIN_NAME` (base URL or `/dashboard`)
 - [ ] Log in with the bootstrap admin password `{gw}_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD`
 - [ ] Invite the FDE via invite link
+- [ ] Optional day-2: enable Okta or Entra SSO ([sso-okta.md](../sso-okta.md), [sso-entra.md](../sso-entra.md)), then invite users before they use **Sign in with SSO**
 
 If identity bootstrap was skipped, use break-glass `ops-cli identity bootstrap` (see troubleshooting).
 

@@ -88,6 +88,21 @@ Not by Terraform. Prefer the api-gateway chart **identity-bootstrap** Job:
 
 Idempotent for existing users (password is **not** rotated on re-run). Break-glass: `ops-cli identity bootstrap` with cluster access. See [troubleshooting.md](api-gateway/aws/troubleshooting.md).
 
+The gateway base URL (`https://<DOMAIN_NAME>/`) redirects to `/dashboard`. Day-0
+login uses the bootstrap password; day-2 operators can use corporate SSO after
+you enable OIDC and invite them (see below).
+
+## How do I enable dashboard SSO (Okta / Entra ID)?
+
+Dashboard login supports OpenID Connect (OIDC). Inference APIs still use org API
+keys. Invite users (or create accounts) before first SSO login — there is no open
+JIT provisioning.
+
+- Okta: [api-gateway/sso-okta.md](api-gateway/sso-okta.md)
+- Microsoft Entra ID: [api-gateway/sso-entra.md](api-gateway/sso-entra.md)
+
+Password login remains available as break-glass for the bootstrap admin.
+
 ## How do I tag Datadog so I can filter dashboards and metrics?
 
 Set `DATADOG_ENV` (defaults to `DEPLOY_NAME` when empty). That value is applied as:
