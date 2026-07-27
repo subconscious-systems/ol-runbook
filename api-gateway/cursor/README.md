@@ -44,7 +44,7 @@ Hooks install **user-wide** under `~/.cursor` only (API key stays out of git wor
 | --- | --- |
 | `~/.cursor/hooks/subconscious-hook.sh` | Fail-open hook script |
 | `~/.cursor/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
-| `~/.cursor/hooks.json` | Merges `beforeSubmitPrompt`, `afterAgentResponse`, `stop` |
+| `~/.cursor/hooks.json` | Merges `beforeSubmitPrompt`, `afterAgentResponse`, `stop`, `subagentStart`, `subagentStop` |
 
 ## Fingerprint contract
 
@@ -68,5 +68,9 @@ Fixture (must match gateway unit tests):
 | `beforeSubmitPrompt` | `turn_open` (+ `prompt_fp`) |
 | `afterAgentResponse` | `turn_heartbeat` |
 | `stop` | `turn_close` |
+| `subagentStart` | `turn_open` (child conversation, `generation_id`=subagent_id, `parent_conversation_id` set, `prompt_fp`=hash of task) |
+| `subagentStop` | `turn_close` (child conversation) |
 
 Same Cursor `conversation_id` across multiple user sends upserts one Conversations row. Each send opens a new generation window (`generation_id` + `prompt_fp`).
+
+Subagents (Task tool) get their own conversation row linked to the parent via `parent_conversation_id`; the subagent run is the `generation_id`. `subagentStart`→`turn_open` / `subagentStop`→`turn_close` follow the same soft-bind contract.

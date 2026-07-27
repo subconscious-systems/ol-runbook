@@ -52,9 +52,42 @@ WORKSPACE="$(printf '%s' "$INPUT" | jq -r '(.workspace_roots // [])[0] // empty'
 if [[ -n "$WORKSPACE" ]]; then
   WORKSPACE="$(basename "$WORKSPACE")"
 fi
+# Subagent (Task tool) lifecycle fields. Cursor's subagentStart carries
+# parent_conversation_id explicitly; subagentStop does not, but the same
+# parent id is required to link the child turn_close to the parent conversation.
+SUBAGENT_ID="$(printf '%s' "$INPUT" | jq -r '.subagent_id // empty' 2>/dev/null || true)"
+SUBAGENT_PARENT_CONV="$(printf '%s' "$INPUT" | jq -r '.parent_conversation_id // empty' 2>/dev/null || true)"
 
-if [[ -z "$CONVERSATION_ID" || -z "$GENERATION_ID" ]]; then
-  fail_open
+# PARENT_CONVERSATION_ID is only set for subagent events; initialize empty here
+# so the jq payload build always has a value (set -u safe). The subagent guard
+# below overwrites it for subagentStart/subagentStop.
+PARENT_CONVERSATION_ID=""
+
+# Subagent events: the subagent is its own conversation window. Cursor's payload
+# gives us the parent's conversation_id (base field) and parent_conversation_id
+# (explicit), plus subagent_id as the unique subagent handle. We use subagent_id
+# as both the child conversation_id and the generation_id so the gateway creates
+# a distinct child conversation row linked to the parent via parent_conversation_id.
+if [[ "$HOOK_EVENT" == "subagentStart" ]]; then
+  # subagentStart carries parent_conversation_id; we need it to link the child.
+  if [[ -z "$SUBAGENT_ID" || -z "$SUBAGENT_PARENT_CONV" ]]; then
+    fail_open
+  fi
+  PARENT_CONVERSATION_ID="$SUBAGENT_PARENT_CONV"
+  CONVERSATION_ID="$SUBAGENT_ID"
+  GENERATION_ID="$SUBAGENT_ID"
+elif [[ "$HOOK_EVENT" == "subagentStop" ]]; then
+  # subagentStop does not carry parent_conversation_id; we only need the
+  # subagent handle to close its generation window.
+  if [[ -z "$SUBAGENT_ID" ]]; then
+    fail_open
+  fi
+  CONVERSATION_ID="$SUBAGENT_ID"
+  GENERATION_ID="$SUBAGENT_ID"
+else
+  if [[ -z "$CONVERSATION_ID" || -z "$GENERATION_ID" ]]; then
+    fail_open
+  fi
 fi
 
 # Must match observability::normalize_prompt_for_fingerprint + prompt_fingerprint.
@@ -92,6 +125,22 @@ case "$HOOK_EVENT" in
       RESPONSE_FP="$(sha256_hex "$(normalize_prompt "$RESPONSE_TEXT")")"
     fi
     ;;
+  subagentStart)
+    EVENT="turn_open"
+    # No user prompt fingerprint for a subagent spawn; hash the task description
+    # so the gateway's turn_open prompt_fp requirement is satisfied. The gateway
+    # soft-binds later LLM requests that share this fingerprint, so a subagent
+    # using its own task text as the first user message will correlate.
+    SUBAGENT_TASK="$(printf '%s' "$INPUT" | jq -r '.task // empty' 2>/dev/null || true)"
+    if [[ -n "$SUBAGENT_TASK" ]]; then
+      PROMPT_FP="$(sha256_hex "$(normalize_prompt "$SUBAGENT_TASK")")"
+    else
+      PROMPT_FP="$(sha256_hex "$SUBAGENT_ID")"
+    fi
+    ;;
+  subagentStop)
+    EVENT="turn_close"
+    ;;
   *)
     fail_open
     ;;
@@ -106,6 +155,7 @@ PAYLOAD="$(jq -n \
   --arg model "$MODEL" \
   --arg workspace "$WORKSPACE" \
   --arg hook_event_name "$HOOK_EVENT" \
+  --arg parent_conversation_id "$PARENT_CONVERSATION_ID" \
   '{
     event: $event,
     conversation_id: $conversation_id,
@@ -114,7 +164,8 @@ PAYLOAD="$(jq -n \
     response_fp: (if $response_fp == "" then null else $response_fp end),
     model: (if $model == "" then null else $model end),
     workspace: (if $workspace == "" then null else $workspace end),
-    hook_event_name: (if $hook_event_name == "" then null else $hook_event_name end)
+    hook_event_name: (if $hook_event_name == "" then null else $hook_event_name end),
+    parent_conversation_id: (if $parent_conversation_id == "" then null else $parent_conversation_id end)
   } | with_entries(select(.value != null))'
 )"
 

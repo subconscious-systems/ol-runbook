@@ -117,7 +117,9 @@ merge_hooks_json() {
     ) |
     .hooks.beforeSubmitPrompt = ((.hooks.beforeSubmitPrompt // []) + [{"command": $cmd, "timeout": 2}]) |
     .hooks.afterAgentResponse = ((.hooks.afterAgentResponse // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.stop = ((.hooks.stop // []) + [{"command": $cmd, "timeout": 2}])
+    .hooks.stop = ((.hooks.stop // []) + [{"command": $cmd, "timeout": 2}]) |
+    .hooks.subagentStart = ((.hooks.subagentStart // []) + [{"command": $cmd, "timeout": 2}]) |
+    .hooks.subagentStop = ((.hooks.subagentStop // []) + [{"command": $cmd, "timeout": 2}])
   ' "$HOOKS_JSON" >"$tmp"
   mv "$tmp" "$HOOKS_JSON"
 }
