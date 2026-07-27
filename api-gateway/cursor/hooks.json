@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "command": "HOOK_SH_PATH",
+        "timeout": 2
+      }
+    ],
+    "afterAgentResponse": [
+      {
+        "command": "HOOK_SH_PATH",
+        "timeout": 2
+      }
+    ],
+    "stop": [
+      {
+        "command": "HOOK_SH_PATH",
+        "timeout": 2
+      }
+    ]
+  }
+}

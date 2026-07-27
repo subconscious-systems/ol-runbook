@@ -36,6 +36,54 @@ Optional request correlation: send `x-request-id`. The gateway preserves it
 through routing and usage events and returns it on responses. If omitted, it
 generates a `req_...` ID.
 
+## Conversations (automatic agent correlation)
+
+The dashboard **Conversations** view groups related coding-agent requests when
+the client already sends native session or trace headers. No custom gateway
+header configuration is required for Claude Code, Codex, OpenCode, Pi, Portkey,
+or LiteLLM.
+
+| Client | Native signal used for grouping |
+| --- | --- |
+| Claude Code | `x-claude-code-session-id` (Messages `metadata.user_id` session fallback) |
+| Codex | `thread-id` / session metadata / `prompt_cache_key` |
+| OpenCode | `x-session-affinity` (+ `x-parent-session-id` for parent link) |
+| Pi | `x-session-id` |
+| Portkey / LiteLLM | `x-portkey-trace-id` / `x-litellm-trace-id` / `x-litellm-session-id` |
+| Cursor | Install hooks via [`api-gateway/cursor/`](api-gateway/cursor/) (`POST /v1/agent-hooks` + prompt fingerprint soft-bind). Optional hard path: body `metadata.cursorConversationId`. |
+
+Bare SDK traffic without those signals stays on **Requests** only. Cursor hooks do
+not modify model HTTP; they announce each agent handoff so the gateway can group
+subsequent requests on that API key. See [`api-gateway/cursor/README.md`](api-gateway/cursor/README.md).
+
+For correlated traffic, the gateway’s OpenTelemetry / Datadog `trace_id` is the
+conversation UUID as 32 lowercase hex characters (no dashes). Filter on that
+value in Datadog APM to see the full agent run. Uncorrelated requests keep a
+per-request `trace_id`.
+
+### Gateway Conversations vs Datadog Agent Observability Sessions
+
+**Gateway Conversations** (this product) groups coding-agent HTTP turns in the
+dashboard and stores usage/savings. **Datadog Agent Observability Sessions** are
+a separate Datadog product for instrumenting the agent runtime (Agent → Tool →
+LLM trees, often with prompts/completions). The gateway is an inference proxy
+and does not replace Datadog Sessions.
+
+When LLM Observability export is enabled (`observability.llmObs` / 
+`SUBCONSCIOUS_GATEWAY_LLM_OBS_ENABLED` with an OTLP endpoint), correlated
+inferences emit a metadata-only GenAI LLM span with
+`gen_ai.conversation.id` set to the gateway conversation UUID. Datadog maps
+that attribute to `session_id`, so gateway LLM spans can **join** a Datadog
+session that your agent instrumentation also tags with the same id. Spans stay
+metadata-only (no prompts or completions).
+
+Advanced optional overrides (not required for Conversations):
+
+- `x-subconscious-trace-id` — manual grouping key
+- `x-subconscious-client` — force `claude_code` / `codex` / `opencode` / `pi` / `cursor`
+
+Do not reuse one static `x-subconscious-trace-id` across unrelated processes.
+
 ## Error contract
 
 JSON errors and streaming SSE error events use the same envelope:
@@ -136,8 +184,10 @@ Not supported (rejected with `invalid_request_error`):
 
 Codex `namespace` tool wrappers are flattened into ordinary function tools
 (hosted tools nested inside a namespace are skipped). Harmless Codex controls
-with no chat equivalent (`include`, `service_tier`, `prompt_cache_key`, and
-Responses stream options) are accepted but not forwarded.
+with no chat equivalent (`include`, `service_tier`, and Responses stream
+options) are accepted but not forwarded. `prompt_cache_key` is accepted and may
+be used as a Codex session fallback for Conversations correlation; it is not
+forwarded upstream.
 
 Configure Codex in `~/.codex/config.toml` (provider settings must be user-level):
 
