@@ -32,6 +32,8 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 | [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md)             | Rotate csrf / encryption, RDS/Valkey, org and worker keys              |
 | [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md)             | Common hiccups, rollback notes                                         |
 | [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env                            |
+| [api-gateway/sso-okta.md](api-gateway/sso-okta.md)                                   | Dashboard OIDC SSO with Okta                                           |
+| [api-gateway/sso-entra.md](api-gateway/sso-entra.md)                                 | Dashboard OIDC SSO with Microsoft Entra ID                             |
 | [gpu-deployment/README.md](gpu-deployment/README.md)                                 | GPU host bootstrap + Distr worker deploy (27B / 8B, NLB exposure)      |
 | [TRUST_MODEL.md](TRUST_MODEL.md)                                                     | Security / platform trust model - Distr Assisted vs Fully Self-Managed |
 | [FAQ.md](FAQ.md)                                                                     | Naming deployments, namespaces, releases, and related day-0 guidance   |

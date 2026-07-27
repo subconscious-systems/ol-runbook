@@ -22,7 +22,7 @@ The infra runner ensures the `app` secret after a successful Terraform apply (ge
 
 | Secret | Keys (representative) |
 | --- | --- |
-| `gateway-secrets` | `SUBCONSCIOUS_GATEWAY_DATABASE_URL`, `SUBCONSCIOUS_GATEWAY_REDIS_URL`, router/encryption/CSRF (+ previous), optional bootstrap password |
+| `gateway-secrets` | `SUBCONSCIOUS_GATEWAY_DATABASE_URL`, `SUBCONSCIOUS_GATEWAY_REDIS_URL`, router/encryption/CSRF (+ previous), optional bootstrap password, optional OIDC client secret |
 | `router-secrets` | `SGL_ROUTER_API_KEY` (+ previous), `SGL_ROUTER_CONTROL_PLANE_ADMIN_KEY` (+ previous) |
 | `worker-secrets` | `SGLANG_WORKER_API_KEY` (placeholder) |
 
@@ -35,6 +35,7 @@ Create these Hub Secrets yourself (masked). Reference them from the infra Docker
 | `DISTR_TOKEN` | Infra runner (customer PAT) |
 | `DD_API_KEY` / `DD_APP_KEY` | Infra / Datadog when enabled (not gateway pods) |
 | `{gw}_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | First dashboard admin (`{gw}` = `GATEWAY_DISTR_DEPLOYMENT_NAME`) |
+| `{gw}_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Dashboard SSO client secret when `DASHBOARD_OIDC_ENABLED=true` (Okta / Entra) |
 
 Do **not**:
 
