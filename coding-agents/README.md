@@ -18,6 +18,8 @@ cp env.example .env
 ./codex/install.sh install
 ./opencode/install.sh install
 ./pi/install.sh install
+./copilot/install.sh install   # VS Code: API key entered via UI after install
+./copilot/install.sh install      # GitHub Copilot in VS Code
 ```
 
 ## Shared env file
@@ -43,6 +45,7 @@ override the env file values.
 | **[Codex](codex/)** | `POST /v1/responses` | Native `thread-id` / session metadata | `codex/install.sh` | `codex/run.sh` |
 | **[OpenCode](opencode/)** | `POST /v1/chat/completions` | Native `x-session-affinity` / `x-session-id` | `opencode/install.sh` | `opencode/run.sh` |
 | **[Pi](pi/)** | `POST /v1/chat/completions` | `x-session-id` / `x-session-affinity` (compat flags) | `pi/install.sh` | — |
+| **[Copilot (VS Code)](copilot/)** | `POST /v1/chat/completions` | `x-subconscious-client: copilot` header only — no conversation grouping | `copilot/install.sh` | — |
 
 ## Layout
 
@@ -68,7 +71,10 @@ coding-agents/
 │   ├── install.sh
 │   ├── run.sh
 │   └── README.md
-└── pi/
+├── pi/
+│   ├── install.sh
+│   └── README.md
+└── copilot/
     ├── install.sh
     └── README.md
 ```
