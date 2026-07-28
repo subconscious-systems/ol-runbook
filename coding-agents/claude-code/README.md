@@ -20,74 +20,13 @@ correlation.
 | `ANTHROPIC_SMALL_FAST_MODEL` | Model used for lightweight tasks (set to same as `ANTHROPIC_MODEL`) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Context window for auto-compaction (default `150000`) |
 
-## Quick start
-
-```bash
-cd ol-runbook/coding-agents/claude-code
-chmod +x install.sh
-
-# Write env file to ~/.claude/subconscious-gateway.env (mode 600)
-./install.sh install \
-  --gateway-url 'https://your-gateway.example' \
-  --api-key 'sk-gw-...'
-
-# Launch claude with the gateway env loaded
-./install.sh use
-
-# Pass arguments through to claude
-./install.sh use -- --continue
-./install.sh use -- -p "fix the bug"
-```
-
-## Use in your current shell
-
-Instead of launching claude directly, you can source the env into your
-current shell and run `claude` yourself:
-
-```bash
-# Load gateway env
-source <(./install.sh env)
-
-# Verify
-echo $ANTHROPIC_BASE_URL
-
-# Run claude
-claude
-```
-
-## Unset env from your current shell
-
-```bash
-source <(./install.sh unset)
-```
-
-This removes all `ANTHROPIC_*` and `CLAUDE_CODE_*` variables that the
-gateway setup exported.
-
-## Check status
-
-```bash
-./install.sh status
-```
-
-## Uninstall
-
-```bash
-./install.sh uninstall
-```
-
-This removes the env file. To also clear the env from your current shell:
-
-```bash
-source <(./install.sh unset)
-```
-
-## Ephemeral runner (no persistent config)
+## Quick start (ephemeral — no persistent config)
 
 `run.sh` launches Claude Code using env vars only — nothing is written to
 `~/.claude/` config files.
 
 ```bash
+cd ol-runbook/coding-agents/claude-code
 cp ../env.example ../.env      # one-time setup (shared at coding-agents/ level)
 ./run.sh                        # uses GATEWAY_URL/API_KEY from ../.env
 ./run.sh --continue              # pass args through to claude
@@ -97,6 +36,42 @@ Or source it to just export env:
 
 ```bash
 source run.sh
+```
+
+## Install (persistent config)
+
+```bash
+cd ol-runbook/coding-agents/claude-code
+chmod +x install.sh
+
+# Write env file to ~/.claude/subconscious-gateway.env (mode 600)
+./install.sh install \
+  --gateway-url 'https://your-gateway.example' \
+  --api-key 'sk-gw-...'
+```
+
+## Launch
+
+After install, launch claude with the gateway env loaded:
+
+```bash
+./install.sh use                    # launches claude
+./install.sh use -- --continue      # pass args through to claude
+./install.sh use -- -p "fix the bug"
+```
+
+Or load the env into your current shell without launching:
+
+```bash
+source <(./install.sh env)          # load   ANTHROPIC_* / CLAUDE_CODE_*
+source <(./install.sh unset)        # remove ANTHROPIC_* / CLAUDE_CODE_*
+```
+
+Check status / uninstall:
+
+```bash
+./install.sh status
+./install.sh uninstall
 ```
 
 ## What gets installed

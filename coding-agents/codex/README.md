@@ -12,14 +12,33 @@ sessions). The gateway uses these to group requests into conversations.
 
 The install script also sets `wire_api = "responses"` so Codex uses the
 gateway's `POST /v1/responses` endpoint, and `env_key = "SUBCONSCIOUS_API_KEY"`
-for authentication.
+for authentication. Web search is disabled (`web_search = "disabled"`) so
+Codex doesn't send hosted tools the gateway can't execute.
 
 ## Requirements
 
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
-## Install
+## Quick start (ephemeral — no persistent config)
+
+`run.sh` launches Codex with `-c` flags + a temp model catalog — nothing is
+written to `~/.codex/config.toml`. The temp catalog is cleaned up on exit.
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env      # one-time setup (shared at coding-agents/ level)
+./codex/run.sh                        # uses GATEWAY_URL/API_KEY from .env
+./codex/run.sh -- --resume            # pass args through to codex
+```
+
+Or source it to just export env:
+
+```bash
+source codex/run.sh
+```
+
+## Install (persistent config)
 
 ```bash
 cd ol-runbook/coding-agents/codex
@@ -98,6 +117,7 @@ Then set these in your `~/.codex/config.toml`:
 model = "gw-glm-5.2"
 model_provider = "subconscious"
 model_catalog_json = "~/.codex/model-catalog.json"
+web_search = "disabled"
 
 [model_providers.subconscious]
 name = "Subconscious Gateway"
@@ -129,28 +149,11 @@ codex \
 > **Note:** Without `model_catalog_json`, Codex will still work but prints a
 > warning and uses degraded defaults (wrong context window, no auto-compact).
 
-## Ephemeral runner (no persistent config)
-
-`run.sh` launches Codex with `-c` flags + a temp model catalog — nothing is
-written to `~/.codex/config.toml`. The temp catalog is cleaned up on exit.
-
-```bash
-cp ../env.example ../.env      # one-time setup (shared at coding-agents/ level)
-./run.sh                        # uses GATEWAY_URL/API_KEY from ../.env
-./run.sh -- --resume            # pass args through to codex
-```
-
-Or source it to just export env:
-
-```bash
-source run.sh
-```
-
 ## What gets installed
 
 | Path | Purpose |
 | --- | --- |
-| `~/.codex/config.toml` | Provider config pointing to your gateway with `wire_api = "responses"` |
+| `~/.codex/config.toml` | Provider config pointing to your gateway with `wire_api = "responses"` and `web_search = "disabled"` |
 | `~/.codex/model-catalog.json` | Model metadata catalog (context window, tool support) so Codex doesn't print a "Model metadata not found" warning |
 | `~/.codex/subconscious.env` | `SUBCONSCIOUS_API_KEY` env var (mode 600) |
 
