@@ -180,20 +180,27 @@ Not supported (rejected with `invalid_request_error`):
 
 - opaque encrypted reasoning
 - `store: true`, `previous_response_id`
-- hosted tools such as web search, MCP/remote compaction, top-level `web_search`
+
+Hosted tools (`web_search`, `code_interpreter`, `mcp`, `file_search`,
+`computer_use_preview`, `image_generation`) are silently skipped at any level —
+Codex sends `web_search` by default, so rejecting it would block the entire
+request. Unknown tool types are still rejected.
 
 Codex `namespace` tool wrappers are flattened into ordinary function tools
-(hosted tools nested inside a namespace are skipped). Harmless Codex controls
+(hosted tools nested inside a namespace are also skipped). Harmless Codex controls
 with no chat equivalent (`include`, `service_tier`, and Responses stream
 options) are accepted but not forwarded. `prompt_cache_key` is accepted and may
 be used as a Codex session fallback for Conversations correlation; it is not
 forwarded upstream.
 
-Configure Codex in `~/.codex/config.toml` (provider settings must be user-level):
+Configure Codex in `~/.codex/config.toml` (provider settings must be user-level).
+Codex also needs a model catalog JSON file to suppress the "model metadata not
+found" warning — without it, Codex uses degraded defaults:
 
 ```toml
-model = "subconscious/glm-5.2"
+model = "gw-glm-5.2"
 model_provider = "subconscious"
+model_catalog_json = "~/.codex/model-catalog.json"
 
 [model_providers.subconscious]
 name = "Subconscious Gateway"
@@ -203,12 +210,45 @@ env_key = "SUBCONSCIOUS_API_KEY"
 stream_idle_timeout_ms = 300000
 ```
 
+```json title="~/.codex/model-catalog.json"
+{
+  "models": [
+    {
+      "slug": "gw-glm-5.2",
+      "display_name": "Subconscious GLM 5.2",
+      "description": "Subconscious API Gateway GLM 5.2",
+      "context_window": 200000,
+      "max_context_window": 200000,
+      "auto_compact_token_limit": 180000,
+      "effective_context_window_percent": 95,
+      "supported_reasoning_levels": [],
+      "shell_type": "shell_command",
+      "visibility": "list",
+      "supported_in_api": true,
+      "priority": 0,
+      "availability_nux": null,
+      "upgrade": null,
+      "base_instructions": "You are Codex, a coding agent.",
+      "supports_reasoning_summaries": false,
+      "support_verbosity": false,
+      "default_verbosity": null,
+      "apply_patch_tool_type": "freeform",
+      "truncation_policy": { "mode": "tokens", "limit": 10000 },
+      "supports_parallel_tool_calls": true,
+      "experimental_supported_tools": []
+    }
+  ]
+}
+```
+
 ```sh
 export SUBCONSCIOUS_API_KEY="sk-gw-..."
 codex
 ```
 
-Replace `base_url` with your deployed gateway origin plus `/v1`.
+Replace `base_url` with your deployed gateway origin plus `/v1`. The
+`model_catalog_json` key must be at the root level of `config.toml`, not
+nested under `[model_providers.*]`.
 
 ## Claude Code — `POST /v1/messages`
 

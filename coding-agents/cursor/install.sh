@@ -48,8 +48,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_SRC="${SCRIPT_DIR}/hook.sh"
 HOOKS_TEMPLATE="${SCRIPT_DIR}/hooks.json"
 
-GATEWAY_URL=""
-API_KEY=""
+# Load shared env from coding-agents/.env (gitignored) or env.example.
+SHARED_ENV="${SCRIPT_DIR}/../.env"
+[[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
+if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
+
+GATEWAY_URL="${GATEWAY_URL:-}"
+API_KEY="${API_KEY:-}"
 COMMAND=""
 
 usage() {

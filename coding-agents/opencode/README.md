@@ -23,8 +23,16 @@ regardless of session-header heuristics.
 ## Install
 
 ```bash
-cd ol-runbook/coding-agents/opencode
-chmod +x install.sh
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste your GATEWAY_URL + API_KEY
+
+cd opencode
+./install.sh install
+```
+
+Or with explicit flags:
+
+```bash
 ./install.sh install \
   --gateway-url 'https://your-gateway.example' \
   --api-key 'sk-...'
@@ -39,6 +47,20 @@ Check status / uninstall:
 ```bash
 ./install.sh status
 ./install.sh uninstall
+```
+
+## Ephemeral runner (no persistent config)
+
+If you don't want to write anything to `~/.opencode/`, use `run.sh` instead.
+It exports `SUBCONSCIOUS_API_KEY` and `OPENCODE_CONFIG_CONTENT` as env vars
+and launches opencode — nothing is written to disk.
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste your GATEWAY_URL + API_KEY
+
+./opencode/run.sh             # launch opencode
+./opencode/run.sh -- auth     # pass args through
 ```
 
 ## Manual setup

@@ -31,15 +31,22 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load shared env from coding-agents/.env (gitignored) or env.example.
+SHARED_ENV="${SCRIPT_DIR}/../.env"
+[[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
+if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
+
 CLAUDE_DIR="${HOME}/.claude"
 ENV_FILE="${CLAUDE_DIR}/subconscious-gateway.env"
 DEFAULT_MODEL="gw-glm-5.2"
 DEFAULT_COMPACT_WINDOW="150000"
 
-GATEWAY_URL=""
-API_KEY=""
-MODEL="${DEFAULT_MODEL}"
-COMPACT_WINDOW="${DEFAULT_COMPACT_WINDOW}"
+GATEWAY_URL="${GATEWAY_URL:-}"
+API_KEY="${API_KEY:-}"
+MODEL="${MODEL:-$DEFAULT_MODEL}"
+COMPACT_WINDOW="${COMPACT_WINDOW:-$DEFAULT_COMPACT_WINDOW}"
 COMMAND=""
 
 usage() {

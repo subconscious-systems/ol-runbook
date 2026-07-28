@@ -82,6 +82,23 @@ This removes the env file. To also clear the env from your current shell:
 source <(./install.sh unset)
 ```
 
+## Ephemeral runner (no persistent config)
+
+`run.sh` launches Claude Code using env vars only — nothing is written to
+`~/.claude/` config files.
+
+```bash
+cp ../env.example ../.env      # one-time setup (shared at coding-agents/ level)
+./run.sh                        # uses GATEWAY_URL/API_KEY from ../.env
+./run.sh --continue              # pass args through to claude
+```
+
+Or source it to just export env:
+
+```bash
+source run.sh
+```
+
 ## What gets installed
 
 | Path | Purpose |

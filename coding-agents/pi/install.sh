@@ -37,10 +37,17 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load shared env from coding-agents/.env (gitignored) or env.example.
+SHARED_ENV="${SCRIPT_DIR}/../.env"
+[[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
+if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
+
 COMMAND=""
-GATEWAY_URL=""
-API_KEY=""
-MODEL="${PI_MODEL:-gw-glm-5.2}"
+GATEWAY_URL="${GATEWAY_URL:-}"
+API_KEY="${API_KEY:-}"
+MODEL="${MODEL:-gw-glm-5.2}"
 
 usage() {
   cat <<'EOF'
