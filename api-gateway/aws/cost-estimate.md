@@ -4,9 +4,9 @@ This estimate covers the Subconscious Inference System **API Gateway only**.
 GPU instances, inference workers, and private worker NLBs are excluded.
 
 Use **approximately $680 per month** as the planning baseline for the current
-staged EKS 1.35 gateway with Datadog Infrastructure Pro and APM. EKS 1.35
-standard support ends March 27, 2027 UTC. The AWS-only portion is
-approximately **$588 per month**. After 1.35 enters extended support, the total
+draft EKS 1.36 gateway with Datadog Infrastructure Pro and APM. EKS 1.36
+standard support ends August 2, 2027 UTC. The AWS-only portion is
+approximately **$588 per month**. After 1.36 enters extended support, the total
 increases by approximately $365 per month.
 
 ## Assumptions
@@ -17,7 +17,7 @@ increases by approximately $365 per month.
 - On-Demand pricing with no free-tier, Spot, Reserved Instance, Savings Plan,
   private-pricing, tax, or AWS Support adjustments.
 - Two `m7g.xlarge` EKS nodes.
-- EKS Kubernetes 1.35 in standard support (the current staged hop target).
+- EKS Kubernetes 1.36 in standard support (the blocked draft hop target).
 - Multi-AZ `db.t4g.medium` RDS for PostgreSQL with 50 GB gp3 storage.
 - Two `cache.t4g.small` ElastiCache for Valkey nodes.
 - One always-on `t3.large` bootstrap/Distr agent host.
@@ -48,20 +48,20 @@ Round the estimate to **$680 per month** for planning.
 
 ## EKS version cost warning
 
-EKS charges more when a Kubernetes version enters extended support. EKS 1.34
-enters extended support after December 2, 2026 UTC, and EKS 1.35 enters
-extended support after March 27, 2027 UTC:
+EKS charges more when a Kubernetes version enters extended support. EKS 1.35
+enters extended support after March 27, 2027 UTC, and EKS 1.36 enters extended
+support after August 2, 2027 UTC:
 
 - Standard-support control plane: $0.10/hour, or about $73/month.
 - Extended-support control plane: $0.60/hour, or about $438/month.
 - Difference: **$365/month** or **$4,380/year** per cluster.
 
-The staged 1.35 target therefore costs approximately **$680 per month** during
+The draft 1.36 target therefore costs approximately **$680 per month** during
 standard support and approximately **$1,045 per month** after its
 standard-support window closes, without adding capacity. The current
 [`sample-gateway-infra.env`](sample-gateway-infra.env) sets
-`KUBERNETES_VERSION=1.35`; the 1.34→1.35 hop avoids the 1.34
-extended-support premium until the 1.35 standard-support end date. Do not skip
+`KUBERNETES_VERSION=1.36`; the 1.35→1.36 hop avoids the 1.35
+extended-support premium until the 1.36 standard-support end date. Do not skip
 to a later
 version to reduce cost: use only a
 separately released and user-validated hop. Check current support dates during
