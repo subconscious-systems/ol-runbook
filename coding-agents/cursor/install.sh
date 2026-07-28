@@ -4,7 +4,7 @@
 # /v1/chat/completions requests are grouped into Conversations.
 #
 # Quick start:
-#   ./install.sh install --gateway-url https://your-gateway.example --api-key sk-gw-...
+#   ./install.sh --gateway-url https://your-gateway.example --api-key sk-gw-...
 #   ./install.sh status                 # show current hook config
 #   ./install.sh uninstall              # remove hooks
 #
@@ -55,14 +55,16 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
-COMMAND=""
+COMMAND="install"
 
 usage() {
   cat <<'EOF'
 Usage:
-  install.sh install --gateway-url URL --api-key KEY
+  install.sh [install] --gateway-url URL --api-key KEY
   install.sh uninstall
   install.sh status
+
+`install` is the default subcommand and may be omitted.
 
 Installs Cursor hooks (user-wide under ~/.cursor) that POST
 turn_open/turn_heartbeat/turn_close to POST /v1/agent-hooks so the gateway
@@ -97,11 +99,6 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-
-if [[ -z "$COMMAND" ]]; then
-  usage >&2
-  exit 1
-fi
 
 CURSOR_DIR="${HOME}/.cursor"
 HOOKS_JSON="${CURSOR_DIR}/hooks.json"

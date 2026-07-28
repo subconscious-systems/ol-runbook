@@ -4,7 +4,7 @@
 # so the gateway can correlate OpenCode requests into Conversations.
 #
 # Quick start:
-#   ./install.sh install --gateway-url https://your-gateway.example --api-key sk-gw-...
+#   ./install.sh --gateway-url https://your-gateway.example --api-key sk-gw-...
 #   ./install.sh status                 # show current config
 #   ./install.sh uninstall              # revert to default opencode config
 #
@@ -49,7 +49,7 @@ SHARED_ENV="${SCRIPT_DIR}/../.env"
 [[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
 if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
-COMMAND=""
+COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-gw-glm-5.2}"
@@ -57,9 +57,11 @@ MODEL="${MODEL:-gw-glm-5.2}"
 usage() {
   cat <<'EOF'
 Usage:
-  install.sh install --gateway-url URL --api-key KEY [--model MODEL]
+  install.sh [install] --gateway-url URL --api-key KEY [--model MODEL]
   install.sh uninstall
   install.sh status
+
+`install` is the default subcommand and may be omitted.
 
 Writes an opencode.json that points opencode at your Subconscious gateway with
 x-subconscious-client: opencode and x-session-affinity/x-session-id session
@@ -98,11 +100,6 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-
-if [[ -z "$COMMAND" ]]; then
-  usage >&2
-  exit 1
-fi
 
 OPENCODE_DIR="${HOME}/.opencode"
 OPENCODE_CONFIG="${OPENCODE_DIR}/opencode.json"

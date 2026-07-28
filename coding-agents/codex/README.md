@@ -43,10 +43,12 @@ source codex/run.sh
 ```bash
 cd ol-runbook/coding-agents/codex
 chmod +x install.sh
-./install.sh install \
+./install.sh \
   --gateway-url 'https://your-gateway.example' \
   --api-key 'sk-gw-...'
 ```
+
+`install` is the default subcommand and may be omitted.
 
 This writes `~/.codex/config.toml` and `~/.codex/subconscious.env`
 (mode 600).

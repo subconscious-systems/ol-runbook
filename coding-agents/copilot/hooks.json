@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "HOOK_SH_PATH",
+        "timeoutSec": 2
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "HOOK_SH_PATH",
+        "timeoutSec": 2
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "HOOK_SH_PATH",
+        "timeoutSec": 2
+      }
+    ],
+    "SubagentStart": [
+      {
+        "type": "command",
+        "command": "HOOK_SH_PATH",
+        "timeoutSec": 2
+      }
+    ],
+    "SubagentStop": [
+      {
+        "type": "command",
+        "command": "HOOK_SH_PATH",
+        "timeoutSec": 2
+      }
+    ]
+  }
+}

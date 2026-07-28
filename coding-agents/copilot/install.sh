@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
 # ── Subconscious API Gateway — GitHub Copilot in VS Code setup ────────────────
-# Point GitHub Copilot Chat in VS Code at your gateway by writing a Custom
-# Endpoint provider into VS Code's user-wide chatLanguageModels.json.
+# Point GitHub Copilot Chat in VS Code at your gateway and install hooks for
+# conversation correlation.
 #
 # Quick start:
-#   ./install.sh                        # reads GATEWAY_URL from ../.env
-#   ./install.sh --gateway-url https://your-gateway.example
-#   ./install.sh status                 # show current config
-#   ./install.sh uninstall              # remove the Subconscious provider entry
+#   ./install.sh                        # reads GATEWAY_URL + API_KEY from ../.env
+#   ./install.sh --gateway-url https://your-gateway.example --api-key sk-gw-...
+#   ./install.sh status                 # show current config + hooks
+#   ./install.sh uninstall              # remove provider + hooks
 #
-# `install` is the default subcommand. The API key is NOT passed on the command
-# line — VS Code requires it to be entered through its UI (the script writes a
-# stable ${input:chat.lm.secret.*} reference, and you paste the key once via
-# Manage Language Models). `status` and `uninstall` are still available.
+# `install` is the default subcommand. It does two things:
+#   1. Writes a Custom Endpoint provider into VS Code's chatLanguageModels.json
+#   2. Installs VS Code agent hooks (~/.copilot/hooks/) for conversation correlation
+#
+# The API key for the model provider is NOT passed on the command line — VS Code
+# requires it to be entered through its UI (the script writes a stable
+# ${input:chat.lm.secret.*} reference, and you paste the key once via Manage
+# Language Models). The API key for the hooks is read from .env or --api-key
+# and stored in ~/.copilot/subconscious-hooks.env (mode 600).
 #
 # Assumes VS Code is installed globally (Code or Code - Insiders). Restart
-# VS Code after install so it reloads chatLanguageModels.json.
+# VS Code after install so it reloads chatLanguageModels.json and hooks.
 #
 # ── What this does under the hood ────────────────────────────────────────────
 # Writes a Custom Endpoint provider entry into chatLanguageModels.json:
@@ -42,16 +47,20 @@
 #     }
 #   ]
 #
-# The x-subconscious-client: copilot header tags the traffic source so the
-# gateway can identify it. Copilot has no native session headers and VS Code's
-# Custom Endpoint provider exposes no per-request hook surface, so requests
-# are NOT grouped into the dashboard Conversations view — they are metered and
-# traced, but land as uncorrelated. See README.md for the full caveat.
+# And installs VS Code agent hooks (~/.copilot/hooks/) that POST
+# turn_open / turn_close to /v1/agent-hooks with a SHA-256 prompt fingerprint.
+# The gateway soft-binds later LLM requests that share that fingerprint to
+# group them into a Conversation. The x-subconscious-client: copilot header
+# (sent by both the hook script and the model requestHeaders) tells the
+# gateway to classify the traffic as Copilot.
+# hooks reference: https://code.visualstudio.com/docs/agent-customization/hooks
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK_SRC="${SCRIPT_DIR}/hook.sh"
+HOOKS_TEMPLATE="${SCRIPT_DIR}/hooks.json"
 
 # Load shared env from coding-agents/.env (gitignored) or env.example.
 SHARED_ENV="${SCRIPT_DIR}/../.env"
@@ -62,6 +71,7 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 # explicit `install` subcommand. `status` / `uninstall` still work.
 COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
+API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-gw-glm-5.2}"
 MAX_INPUT_TOKENS="${MAX_INPUT_TOKENS:-200000}"
 MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-16000}"
@@ -74,31 +84,46 @@ VSCODE_APP="${VSCODE_APP:-}"  # auto-detected: Code | Code - Insiders | VSCodium
 # writes a stable secret id so you only enter the key once.
 SECRET_ID="chat.lm.secret.subconscious-gateway"
 
+# Hooks are installed user-wide under ~/.copilot (VS Code user hooks dir).
+COPILOT_DIR="${HOME}/.copilot"
+HOOKS_DIR="${COPILOT_DIR}/hooks"
+HOOK_DST="${HOOKS_DIR}/subconscious-hook.sh"
+HOOKS_JSON="${HOOKS_DIR}/subconscious-hooks.json"
+ENV_FILE="${COPILOT_DIR}/subconscious-hooks.env"
+MARKER="subconscious-hook.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
-  install.sh [install] [--gateway-url URL] [--model MODEL]
+  install.sh [install] [--gateway-url URL] [--api-key KEY] [--model MODEL]
   install.sh uninstall
   install.sh status
 
-`install` is the default subcommand. The API key is NOT passed on the command
-line — VS Code requires it to be entered through its UI (the script writes a
-stable ${input:chat.lm.secret.*} reference into chatLanguageModels.json, and
-you paste the key once via Manage Language Models).
+`install` is the default subcommand. It writes a "Subconscious Gateway"
+Custom Endpoint provider into VS Code's user-wide chatLanguageModels.json
+AND installs VS Code agent hooks for conversation correlation.
 
-Writes a "Subconscious Gateway" Custom Endpoint provider into VS Code's
-user-wide chatLanguageModels.json. Reads GATEWAY_URL and MODEL from the shared
-coding-agents/.env by default. Restart VS Code after install.
+The API key for the model provider is NOT passed on the command line — VS Code
+requires it to be entered through its UI (the script writes a stable
+${input:chat.lm.secret.*} reference into chatLanguageModels.json, and you
+paste the key once via Manage Language Models).
+
+The API key for the hooks is read from coding-agents/.env or --api-key and
+stored in ~/.copilot/subconscious-hooks.env (mode 600).
+
+Reads GATEWAY_URL, API_KEY, and MODEL from the shared coding-agents/.env by
+default. Restart VS Code after install.
 
 Options:
   --gateway-url URL         Gateway origin (default: $GATEWAY_URL from .env)
+  --api-key KEY             Gateway API key for hooks (default: $API_KEY from .env)
   --model MODEL             Model id (default: gw-glm-5.2)
   --max-input-tokens N      Model context window input tokens (default: 200000)
   --max-output-tokens N     Model max output tokens (default: 16000)
   --vscode-app APP          Code, Code - Insiders, or VSCodium (auto-detected)
 
-Requires: jq. Restart VS Code after install, then enter your API key once via
-Manage Language Models.
+Requires: jq, curl, openssl (or shasum). Restart VS Code after install, then
+enter your model API key once via Manage Language Models.
 EOF
 }
 
@@ -110,6 +135,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --gateway-url)
       GATEWAY_URL="${2:-}"
+      shift 2
+      ;;
+    --api-key)
+      API_KEY="${2:-}"
       shift 2
       ;;
     --model)
@@ -145,12 +174,16 @@ MARKER='Subconscious Gateway'
 
 require_cmds() {
   local missing=0
-  for c in jq; do
+  for c in jq curl; do
     if ! command -v "$c" >/dev/null 2>&1; then
       echo "missing required command: $c" >&2
       missing=1
     fi
   done
+  if ! command -v openssl >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+    echo "missing required command: openssl or shasum" >&2
+    missing=1
+  fi
   if [[ "$missing" -ne 0 ]]; then
     exit 1
   fi
@@ -289,20 +322,74 @@ uninstall_config() {
   fi
 }
 
+# ── Hooks installation ────────────────────────────────────────────────────────
+
+write_hooks_env() {
+  umask 077
+  cat >"$ENV_FILE" <<EOF
+# Generated by ol-runbook/coding-agents/copilot/install.sh — do not commit secrets.
+export SUBCONSCIOUS_GATEWAY_URL='${GATEWAY_URL}'
+export SUBCONSCIOUS_API_KEY='${API_KEY}'
+EOF
+  chmod 600 "$ENV_FILE"
+}
+
+install_hook_script() {
+  mkdir -p "$HOOKS_DIR"
+  cp "$HOOK_SRC" "$HOOK_DST"
+  chmod +x "$HOOK_DST"
+}
+
+write_hooks_json() {
+  sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
+}
+
+uninstall_hooks() {
+  rm -f "$HOOK_DST" "$HOOKS_JSON" "$ENV_FILE"
+}
+
+hooks_status() {
+  echo "hooks dir: $HOOKS_DIR"
+  if [[ -x "$HOOK_DST" ]]; then
+    echo "hook script: $HOOK_DST (executable)"
+  else
+    echo "hook script: missing"
+  fi
+  if [[ -f "$HOOKS_JSON" ]]; then
+    echo "hooks json: $HOOKS_JSON (present)"
+  else
+    echo "hooks json: missing"
+  fi
+  if [[ -f "$ENV_FILE" ]]; then
+    echo "hooks env: $ENV_FILE (present)"
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    echo "gateway: ${SUBCONSCIOUS_GATEWAY_URL:-unset}"
+    if [[ -n "${SUBCONSCIOUS_API_KEY:-}" ]]; then
+      echo "hooks api key: set (${#SUBCONSCIOUS_API_KEY} chars)"
+    else
+      echo "hooks api key: unset"
+    fi
+  else
+    echo "hooks env: missing"
+  fi
+}
+
 status() {
   local user_dir="$1"
-  local models_json="${user_dir}/chatLanguageModels.json"
   echo "scope: user"
   echo "vscode user dir: $user_dir"
+  local models_json="${user_dir}/chatLanguageModels.json"
   echo "config: $models_json"
   if [[ -f "$models_json" ]] && grep -qi "$MARKER" "$models_json" 2>/dev/null; then
-    echo "status: installed"
-    echo "provider: $(jq -r --arg name "$PROVIDER_NAME" '.[] | select(.name == $name) | .name' "$models_json" 2>/dev/null || echo 'unknown')"
+    echo "model provider: installed"
     echo "model: $(jq -r --arg name "$PROVIDER_NAME" '.[] | select(.name == $name) | .models[0].id' "$models_json" 2>/dev/null || echo 'unknown')"
     echo "url: $(jq -r --arg name "$PROVIDER_NAME" '.[] | select(.name == $name) | .models[0].url' "$models_json" 2>/dev/null || echo 'unknown')"
   else
-    echo "status: not installed"
+    echo "model provider: not installed"
   fi
+  echo ""
+  hooks_status
 }
 
 case "$COMMAND" in
@@ -312,26 +399,38 @@ case "$COMMAND" in
       echo "--gateway-url is required for install (or set GATEWAY_URL in .env)" >&2
       exit 1
     fi
+    if [[ -z "$API_KEY" ]]; then
+      echo "--api-key is required for hooks (or set API_KEY in .env)" >&2
+      exit 1
+    fi
     USER_DIR="$(detect_vscode_dir)"
     WRITTEN="$(write_config "$USER_DIR")"
     echo "Installed Subconscious Copilot provider into $WRITTEN"
+    install_hook_script
+    write_hooks_env
+    write_hooks_json
+    echo "Installed Subconscious Copilot hooks into $COPILOT_DIR"
     echo ""
-    echo "IMPORTANT: VS Code requires the API key to be stored in its secret"
-    echo "store — a plaintext key in the JSON is silently dropped. You must"
-    echo "enter the key once through the VS Code UI:"
+    echo "IMPORTANT: VS Code requires the model API key to be stored in its"
+    echo "secret store — a plaintext key in the JSON is silently dropped."
+    echo "Enter the key once through the VS Code UI:"
     echo ""
     echo "  1. Restart VS Code (fully quit, not just reload)."
     echo "  2. Open Chat → model picker (gear) → Manage Language Models."
     echo "  3. Find 'Subconscious Gateway' → click the key icon to set the API key."
     echo "  4. Paste your gateway API key (sk-gw-...)."
     echo ""
-    echo "After that, select 'Subconscious ${MODEL}' from the model picker."
-    echo "The script writes a stable secret id (${SECRET_ID}) so you only do this once."
+    echo "The hooks use a separate API key from ~/.copilot/subconscious-hooks.env."
+    echo "Both keys can be the same gateway API key."
+    echo ""
+    echo "After restart, select 'Subconscious ${MODEL}' from the model picker."
     ;;
   uninstall)
     require_cmds
     USER_DIR="$(detect_vscode_dir)"
     uninstall_config "$USER_DIR"
+    uninstall_hooks
+    echo "Removed Subconscious Copilot hooks from $COPILOT_DIR"
     echo "Restart VS Code for the change to take effect."
     ;;
   status)

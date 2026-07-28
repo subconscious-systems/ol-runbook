@@ -13,13 +13,12 @@ cd ol-runbook/coding-agents
 cp env.example .env
 
 # Install any agent (reads GATEWAY_URL + API_KEY from .env)
-./cursor/install.sh install
-./claude-code/install.sh install
-./codex/install.sh install
-./opencode/install.sh install
-./pi/install.sh install
-./copilot/install.sh install   # VS Code: API key entered via UI after install
-./copilot/install.sh install      # GitHub Copilot in VS Code
+./cursor/install.sh
+./claude-code/install.sh
+./codex/install.sh
+./opencode/install.sh
+./pi/install.sh
+./copilot/install.sh   # VS Code: API key entered via UI after install
 ```
 
 ## Shared env file
@@ -45,7 +44,7 @@ override the env file values.
 | **[Codex](codex/)** | `POST /v1/responses` | Native `thread-id` / session metadata | `codex/install.sh` | `codex/run.sh` |
 | **[OpenCode](opencode/)** | `POST /v1/chat/completions` | Native `x-session-affinity` / `x-session-id` | `opencode/install.sh` | `opencode/run.sh` |
 | **[Pi](pi/)** | `POST /v1/chat/completions` | `x-session-id` / `x-session-affinity` (compat flags) | `pi/install.sh` | — |
-| **[Copilot (VS Code)](copilot/)** | `POST /v1/chat/completions` | `x-subconscious-client: copilot` header only — no conversation grouping | `copilot/install.sh` | — |
+| **[Copilot (VS Code)](copilot/)** | `POST /v1/chat/completions` | Hook script + prompt fingerprint soft-bind | `copilot/install.sh` | — |
 
 ## Layout
 
@@ -76,5 +75,7 @@ coding-agents/
 │   └── README.md
 └── copilot/
     ├── install.sh
+    ├── hook.sh
+    ├── hooks.json
     └── README.md
 ```

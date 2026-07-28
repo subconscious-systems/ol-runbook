@@ -4,7 +4,7 @@
 # writes them to ~/.claude/subconscious-gateway.env and `use` launches claude.
 #
 # Quick start:
-#   ./install.sh install --gateway-url https://your-gateway.example --api-key sk-gw-...
+#   ./install.sh --gateway-url https://your-gateway.example --api-key sk-gw-...
 #   ./install.sh use                    # launches claude with gateway env loaded
 #   ./install.sh use -- --continue      # pass args through to claude
 #
@@ -47,17 +47,19 @@ GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-$DEFAULT_MODEL}"
 COMPACT_WINDOW="${COMPACT_WINDOW:-$DEFAULT_COMPACT_WINDOW}"
-COMMAND=""
+COMMAND="install"
 
 usage() {
   cat <<'EOF'
 Usage:
-  install.sh install --gateway-url URL --api-key KEY [--model MODEL] [--compact-window N]
+  install.sh [install] --gateway-url URL --api-key KEY [--model MODEL] [--compact-window N]
   install.sh use [-- CLAUDE_ARGS...]
   install.sh env
   install.sh unset
   install.sh uninstall
   install.sh status
+
+`install` is the default subcommand and may be omitted.
 
 Commands:
   install     Write ~/.claude/subconscious-gateway.env with gateway settings
@@ -113,11 +115,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$COMMAND" ]]; then
-  usage >&2
-  exit 1
-fi
-
 write_env() {
   mkdir -p "$CLAUDE_DIR"
   umask 077
@@ -135,7 +132,7 @@ EOF
 print_env_exports() {
   if [[ ! -f "$ENV_FILE" ]]; then
     echo "env file not found: $ENV_FILE" >&2
-    echo "run: ./install.sh install --gateway-url URL --api-key KEY" >&2
+    echo "run: ./install.sh --gateway-url URL --api-key KEY" >&2
     return 1
   fi
   cat "$ENV_FILE"
@@ -168,7 +165,7 @@ status() {
     echo "compact window: ${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-unset}"
   else
     echo "env file: missing"
-    echo "run: ./install.sh install --gateway-url URL --api-key KEY"
+    echo "run: ./install.sh --gateway-url URL --api-key KEY"
   fi
 }
 
@@ -193,7 +190,7 @@ case "$COMMAND" in
   use)
     if [[ ! -f "$ENV_FILE" ]]; then
       echo "env file not found: $ENV_FILE" >&2
-      echo "run: ./install.sh install --gateway-url URL --api-key KEY" >&2
+      echo "run: ./install.sh --gateway-url URL --api-key KEY" >&2
       exit 1
     fi
     # shellcheck disable=SC1090

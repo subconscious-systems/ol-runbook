@@ -22,10 +22,13 @@ Hooks **cannot** inject headers into model HTTP. They `POST /v1/agent-hooks` wit
 ```bash
 cd ol-runbook/coding-agents/cursor
 chmod +x install.sh hook.sh
-./install.sh install \
+./install.sh \
   --gateway-url 'https://your-gateway.example' \
   --api-key 'sk-...'
 ```
+
+`install` is the default subcommand and may be omitted — `./install.sh` with no
+subcommand runs install.
 
 Restart Cursor fully so it reloads `~/.cursor/hooks.json`.
 

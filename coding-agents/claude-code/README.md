@@ -45,10 +45,12 @@ cd ol-runbook/coding-agents/claude-code
 chmod +x install.sh
 
 # Write env file to ~/.claude/subconscious-gateway.env (mode 600)
-./install.sh install \
+./install.sh \
   --gateway-url 'https://your-gateway.example' \
   --api-key 'sk-gw-...'
 ```
+
+`install` is the default subcommand and may be omitted.
 
 ## Launch
 

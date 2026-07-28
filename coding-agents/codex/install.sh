@@ -4,7 +4,7 @@
 # headers so the gateway can correlate Codex requests into Conversations.
 #
 # Quick start:
-#   ./install.sh install --gateway-url https://your-gateway.example --api-key sk-gw-...
+#   ./install.sh --gateway-url https://your-gateway.example --api-key sk-gw-...
 #   ./install.sh use                    # launches codex with gateway env loaded
 #   ./install.sh use -- --resume        # pass args through to codex
 #
@@ -75,7 +75,7 @@ SHARED_ENV="${SCRIPT_DIR}/../.env"
 [[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
 if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
-COMMAND=""
+COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-gw-glm-5.2}"
@@ -83,12 +83,14 @@ MODEL="${MODEL:-gw-glm-5.2}"
 usage() {
   cat <<'EOF'
 Usage:
-  install.sh install --gateway-url URL --api-key KEY [--model MODEL]
+  install.sh [install] --gateway-url URL --api-key KEY [--model MODEL]
   install.sh use [-- CODEX_ARGS...]
   install.sh env
   install.sh unset
   install.sh uninstall
   install.sh status
+
+`install` is the default subcommand and may be omitted.
 
 Commands:
   install     Write ~/.codex/config.toml + ~/.codex/subconscious.env
@@ -138,11 +140,6 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-
-if [[ -z "$COMMAND" ]]; then
-  usage >&2
-  exit 1
-fi
 
 CODEX_DIR="${HOME}/.codex"
 CONFIG_TOML="${CODEX_DIR}/config.toml"
@@ -217,7 +214,7 @@ EOF
 print_env_exports() {
   if [[ ! -f "$ENV_FILE" ]]; then
     echo "env file not found: $ENV_FILE" >&2
-    echo "run: ./install.sh install --gateway-url URL --api-key KEY" >&2
+    echo "run: ./install.sh --gateway-url URL --api-key KEY" >&2
     return 1
   fi
   cat "$ENV_FILE"
@@ -282,7 +279,7 @@ case "$COMMAND" in
   use)
     if [[ ! -f "$ENV_FILE" ]]; then
       echo "env file not found: $ENV_FILE" >&2
-      echo "run: ./install.sh install --gateway-url URL --api-key KEY" >&2
+      echo "run: ./install.sh --gateway-url URL --api-key KEY" >&2
       exit 1
     fi
     # shellcheck disable=SC1090

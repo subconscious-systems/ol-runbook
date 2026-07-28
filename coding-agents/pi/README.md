@@ -30,10 +30,12 @@ you need two things in your `models.json`:
 ```bash
 cd ol-runbook/coding-agents/pi
 chmod +x install.sh
-./install.sh install \
+./install.sh \
   --gateway-url 'https://your-gateway.example' \
   --api-key 'sk-...'
 ```
+
+`install` is the default subcommand and may be omitted.
 
 This writes `~/.pi/agent/models.json` (mode 600, includes the API key).
 Restart any running Pi sessions.

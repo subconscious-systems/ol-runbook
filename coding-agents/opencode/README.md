@@ -27,16 +27,18 @@ cd ol-runbook/coding-agents
 cp env.example .env   # one-time: paste your GATEWAY_URL + API_KEY
 
 cd opencode
-./install.sh install
+./install.sh
 ```
 
 Or with explicit flags:
 
 ```bash
-./install.sh install \
+./install.sh \
   --gateway-url 'https://your-gateway.example' \
   --api-key 'sk-...'
 ```
+
+`install` is the default subcommand and may be omitted.
 
 This writes `~/.opencode/opencode.json` and `~/.opencode/subconscious.env`
 (mode 600). Source the env file or export `SUBCONSCIOUS_API_KEY` in your shell
