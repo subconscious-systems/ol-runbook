@@ -50,11 +50,11 @@ or LiteLLM.
 | OpenCode | `x-session-affinity` + `x-session-id` (+ `x-parent-session-id` for parent link). For reliable detection, set `headers["x-subconscious-client"]: "opencode"` in your provider config. |
 | Pi | Requires `compat.sendSessionAffinityHeaders: true` in `models.json` (Pi sends no session headers by default). Use `sessionAffinityFormat: "openai-nosession"` to send `x-session-affinity` without the underscore `session_id` header. For reliable detection, set `headers["x-subconscious-client"]: "pi"` in your provider config. |
 | Portkey / LiteLLM | `x-portkey-trace-id` / `x-litellm-trace-id` / `x-litellm-session-id` |
-| Cursor | Install hooks via [`api-gateway/cursor/`](api-gateway/cursor/) (`POST /v1/agent-hooks` + prompt fingerprint soft-bind). Optional hard path: body `metadata.cursorConversationId`. |
+| Cursor | Install hooks via [`coding-agents/cursor/`](coding-agents/cursor/) (`POST /v1/agent-hooks` + prompt fingerprint soft-bind). Optional hard path: body `metadata.cursorConversationId`. |
 
 Bare SDK traffic without those signals stays on **Requests** only. Cursor hooks do
 not modify model HTTP; they announce each agent handoff so the gateway can group
-subsequent requests on that API key. See [`api-gateway/cursor/README.md`](api-gateway/cursor/README.md).
+subsequent requests on that API key. See [`coding-agents/cursor/README.md`](coding-agents/cursor/README.md).
 
 For correlated traffic, the gateway’s OpenTelemetry / Datadog `trace_id` is the
 conversation UUID as 32 lowercase hex characters (no dashes). Filter on that

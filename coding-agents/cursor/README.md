@@ -20,7 +20,7 @@ Hooks **cannot** inject headers into model HTTP. They `POST /v1/agent-hooks` wit
 ## Install
 
 ```bash
-cd ol-runbook/api-gateway/cursor
+cd ol-runbook/coding-agents/cursor
 chmod +x install.sh hook.sh
 ./install.sh install \
   --gateway-url 'https://your-gateway.example' \

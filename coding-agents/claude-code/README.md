@@ -23,7 +23,7 @@ correlation.
 ## Quick start
 
 ```bash
-cd ol-runbook/api-gateway/claude-code
+cd ol-runbook/coding-agents/claude-code
 chmod +x install.sh
 
 # Write env file to ~/.claude/subconscious-gateway.env (mode 600)

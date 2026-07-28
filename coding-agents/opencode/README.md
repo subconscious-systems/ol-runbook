@@ -23,7 +23,7 @@ regardless of session-header heuristics.
 ## Install
 
 ```bash
-cd ol-runbook/api-gateway/opencode
+cd ol-runbook/coding-agents/opencode
 chmod +x install.sh
 ./install.sh install \
   --gateway-url 'https://your-gateway.example' \

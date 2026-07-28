@@ -28,7 +28,7 @@ you need two things in your `models.json`:
 ## Install
 
 ```bash
-cd ol-runbook/api-gateway/pi
+cd ol-runbook/coding-agents/pi
 chmod +x install.sh
 ./install.sh install \
   --gateway-url 'https://your-gateway.example' \
