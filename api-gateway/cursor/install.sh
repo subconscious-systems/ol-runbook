@@ -1,10 +1,46 @@
 #!/usr/bin/env bash
-# Lightweight CLI to install/uninstall Subconscious Cursor conversation-correlation hooks.
+# ── Subconscious API Gateway — Cursor hooks setup ─────────────────────────────
+# Install Cursor hooks that announce each agent handoff to your gateway so
+# /v1/chat/completions requests are grouped into Conversations.
 #
-# Usage:
-#   ./install.sh install --gateway-url https://gateway.example --api-key sk-...
-#   ./install.sh uninstall
-#   ./install.sh status
+# Quick start:
+#   ./install.sh install --gateway-url https://your-gateway.example --api-key sk-gw-...
+#   ./install.sh status                 # show current hook config
+#   ./install.sh uninstall              # remove hooks
+#
+# Cursor model/URL are set in Cursor settings (OpenAI API Key Override), not
+# here. This script only installs the conversation-correlation hooks.
+# Restart Cursor after install so it reloads ~/.cursor/hooks.json.
+#
+# ── What this does under the hood ────────────────────────────────────────────
+# Equivalent manual setup (three pieces):
+#
+#   1. Cursor settings → enable "OpenAI API Key Override":
+#        Base URL: https://your-gateway.example
+#        API Key:  sk-gw-...
+#
+#   2. Write ~/.cursor/hooks.json pointing at the hook script:
+#        {
+#          "version": 1,
+#          "hooks": {
+#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
+#            "afterAgentResponse":  [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
+#            "stop":                [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
+#            "subagentStart":       [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
+#            "subagentStop":        [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
+#          }
+#        }
+#
+#   3. Write ~/.cursor/subconscious-hooks.env (mode 600):
+#        export SUBCONSCIOUS_GATEWAY_URL=https://your-gateway.example
+#        export SUBCONSCIOUS_API_KEY=sk-gw-...
+#
+# The hook script (hook.sh) POSTs turn_open/turn_heartbeat/turn_close to
+# /v1/agent-hooks with a SHA-256 prompt fingerprint. The gateway soft-binds
+# later LLM requests that share that fingerprint to group them into a
+# Conversation. Unlike Claude Code / Pi / OpenCode, Cursor has no native
+# session headers, so hooks are required for correlation.
+# ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 

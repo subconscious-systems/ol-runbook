@@ -47,8 +47,8 @@ or LiteLLM.
 | --- | --- |
 | Claude Code | `x-claude-code-session-id` (Messages `metadata.user_id` session fallback) |
 | Codex | `thread-id` / session metadata / `prompt_cache_key` |
-| OpenCode | `x-session-affinity` (+ `x-parent-session-id` for parent link) |
-| Pi | `x-session-id` |
+| OpenCode | `x-session-affinity` + `x-session-id` (+ `x-parent-session-id` for parent link). For reliable detection, set `headers["x-subconscious-client"]: "opencode"` in your provider config. |
+| Pi | Requires `compat.sendSessionAffinityHeaders: true` in `models.json` (Pi sends no session headers by default). Use `sessionAffinityFormat: "openai-nosession"` to send `x-session-affinity` without the underscore `session_id` header. For reliable detection, set `headers["x-subconscious-client"]: "pi"` in your provider config. |
 | Portkey / LiteLLM | `x-portkey-trace-id` / `x-litellm-trace-id` / `x-litellm-session-id` |
 | Cursor | Install hooks via [`api-gateway/cursor/`](api-gateway/cursor/) (`POST /v1/agent-hooks` + prompt fingerprint soft-bind). Optional hard path: body `metadata.cursorConversationId`. |
 
