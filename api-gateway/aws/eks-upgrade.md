@@ -1,15 +1,16 @@
-# EKS staged upgrade: 1.31 to 1.32
+# EKS staged upgrade: 1.32 to 1.33
 
-This is the only approved EKS hop in this runbook: **1.31 → 1.32**. Operate one
+This is the only approved EKS hop in this runbook: **1.32 → 1.33**. Operate one
 minor version per `api-gateway-infra` Distr Application release.
 
-**Stop after 1.32.** Do not set `KUBERNETES_VERSION` to 1.33 or later and do not
-select a later-hop infra release until the user has validated the 1.32 result
-and explicitly approved the next hop. A cluster below 1.31 needs an earlier
-staged release; a cluster already on 1.32 needs no version upgrade.
+**Stop after 1.33.** Do not set `KUBERNETES_VERSION` to 1.34 or later and do not
+select a later-hop infra release until the user has validated the 1.33 result
+and explicitly approved the next hop. A cluster below 1.32 needs an earlier
+staged release; a cluster already on 1.33 needs no version upgrade.
 
-EKS 1.31 and 1.32 are both in extended support as of July 2026. This hop reduces
-version lag but does not remove the extended-support charge. See
+EKS 1.32 is in extended support. EKS 1.33 standard support ends July 29, 2026
+and moves to extended support afterward. Confirm the live support tier before
+the maintenance window. See
 [cost-estimate.md](cost-estimate.md).
 
 ## Scope and maintenance expectations
@@ -35,14 +36,14 @@ Before the window, record:
 - successful dashboard login and authenticated inference evidence.
 
 Use the vendor-designated infra Application version whose release notes state
-that it packages the 1.31→1.32 hop. **Do not use `latest`.** Keep the gateway
+that it packages the 1.32→1.33 hop. **Do not use `latest`.** Keep the gateway
 setting at `GATEWAY_AUTO_DEPLOY=false` and
 `GATEWAY_CHART_VERSION=nochange` so this operation does not combine a gateway
 release with the EKS change.
 
 Before the EKS maintenance window, deploy the vendor-designated gateway
-compatibility Application version as a separate Distr Helm rollout on EKS 1.31.
-That release pins its cleanup-hook kubectl image to 1.32. Validate it with the
+compatibility Application version as a separate Distr Helm rollout on EKS 1.32.
+That release pins its cleanup-hook kubectl image to 1.33. Validate it with the
 pre-upgrade gates below, then leave that exact gateway version unchanged for the
 infra dry-run, apply, and 24-hour EKS soak.
 
@@ -69,7 +70,7 @@ export WORKER_HEALTH_URL='https://<worker-host>/health'
 export HOME=/root KUBECONFIG=/root/.kube/config
 aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
 test "$(kubectl version --client -o json \
-  | jq -r '.clientVersion.gitVersion')" = "v1.32.13"
+  | jq -r '.clientVersion.gitVersion')" = "v1.33.13"
 ```
 
 Do not paste `SMOKE_API_KEY` into Distr, logs, tickets, or this repository.
@@ -81,7 +82,7 @@ All of these gates must pass before changing the Distr deployment:
 ```bash
 test "$(aws eks describe-cluster \
   --name "$CLUSTER" --region "$AWS_REGION" \
-  --query 'cluster.version' --output text)" = "1.31"
+  --query 'cluster.version' --output text)" = "1.32"
 test "$(aws eks describe-cluster \
   --name "$CLUSTER" --region "$AWS_REGION" \
   --query 'cluster.status' --output text)" = "ACTIVE"
@@ -91,7 +92,7 @@ aws eks list-insights \
   --filter '{"categories":["UPGRADE_READINESS"]}'
 test "$(aws eks list-insights \
   --cluster-name "$CLUSTER" --region "$AWS_REGION" \
-  --filter '{"categories":["UPGRADE_READINESS"],"kubernetesVersions":["1.32"],"statuses":["ERROR","UNKNOWN"]}' \
+  --filter '{"categories":["UPGRADE_READINESS"],"kubernetesVersions":["1.33"],"statuses":["ERROR","UNKNOWN"]}' \
   --query 'length(insights)' --output text)" = "0"
 
 kubectl wait --for=condition=Ready nodes --all --timeout=10m
@@ -126,12 +127,12 @@ unexplained active Datadog alert.
 
 In the existing `api-gateway-infra` Docker deployment:
 
-1. Select the exact approved 1.31→1.32 Application version.
+1. Select the exact approved 1.32→1.33 Application version.
 2. Preserve all customer-specific env and secret references.
 3. Set:
 
    ```text
-   KUBERNETES_VERSION=1.32
+   KUBERNETES_VERSION=1.33
    GATEWAY_AUTO_DEPLOY=false
    GATEWAY_CHART_VERSION=nochange
    DISTR_DRY_RUN=1
@@ -143,7 +144,13 @@ The expected plan updates the EKS control plane, the existing managed node
 group, and the release-pinned EKS add-ons. It must not replace the VPC, EKS
 cluster, RDS, Valkey, load balancer, Secrets Manager secrets, or bootstrap host.
 It must not select a new gateway Application version. Any destroy/recreate,
-unrelated change, or version other than 1.32 is a hard stop.
+unrelated change, or version other than 1.33 is a hard stop.
+
+The plan shows the final External Secrets target `0.19.2`. During the real
+apply, the runner first migrates CRD storage to `external-secrets.io/v1`, then
+applies and verifies External Secrets `0.17.0`, `0.18.2`, and `0.19.2` while
+the cluster is still on EKS 1.32. Any failed secret-controller, store, sync, or
+generated-Secret check stops the run before the EKS control-plane update.
 
 The dry-run runner intentionally idles after `terraform plan`; stop or replace
 that revision through Distr after collecting the plan.
@@ -161,19 +168,24 @@ the environment during the apply and do not start a second infra run in
 parallel. Follow both Distr logs and the EKS update history until Terraform
 finishes successfully.
 
+Require the runner log to show successful verification of External Secrets
+`0.17.0`, `0.18.2`, and `0.19.2` before it reports the EKS 1.32→1.33
+control-plane plan or apply. If any ESO step fails, do not manually advance the
+EKS version; correct the error and rerun the same pinned release.
+
 Record the EKS control-plane upgrade completion time. AWS permits a rollback
 only until seven days after that completion time.
 
 ## Exact post-apply gates
 
 Repeat every pre-upgrade gate, changing the expected control-plane version to
-1.32. In addition, require all nodes to report kubelet 1.32 and inspect the
+1.33. In addition, require all nodes to report kubelet 1.33 and inspect the
 managed add-ons:
 
 ```bash
 test "$(aws eks describe-cluster \
   --name "$CLUSTER" --region "$AWS_REGION" \
-  --query 'cluster.version' --output text)" = "1.32"
+  --query 'cluster.version' --output text)" = "1.33"
 test "$(aws eks describe-cluster \
   --name "$CLUSTER" --region "$AWS_REGION" \
   --query 'cluster.status' --output text)" = "ACTIVE"
@@ -181,7 +193,7 @@ test "$(aws eks describe-cluster \
 kubectl get nodes \
   -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.nodeInfo.kubeletVersion}{"\n"}{end}'
 kubectl get nodes -o json \
-  | jq -e '[.items[].status.nodeInfo.kubeletVersion | startswith("v1.32.")] | all'
+  | jq -e '[.items[].status.nodeInfo.kubeletVersion | startswith("v1.33.")] | all'
 
 for addon in coredns kube-proxy vpc-cni aws-ebs-csi-driver; do
   aws eks describe-addon \
@@ -190,6 +202,32 @@ for addon in coredns kube-proxy vpc-cni aws-ebs-csi-driver; do
     --query 'addon.{name:addonName,version:addonVersion,status:status}' \
     --output table
 done
+
+test "$(aws eks describe-addon \
+  --cluster-name "$CLUSTER" --region "$AWS_REGION" \
+  --addon-name coredns --query 'addon.addonVersion' --output text)" \
+  = "v1.12.4-eksbuild.18"
+test "$(aws eks describe-addon \
+  --cluster-name "$CLUSTER" --region "$AWS_REGION" \
+  --addon-name kube-proxy --query 'addon.addonVersion' --output text)" \
+  = "v1.33.10-eksbuild.17"
+test "$(aws eks describe-addon \
+  --cluster-name "$CLUSTER" --region "$AWS_REGION" \
+  --addon-name vpc-cni --query 'addon.addonVersion' --output text)" \
+  = "v1.22.3-eksbuild.1"
+test "$(aws eks describe-addon \
+  --cluster-name "$CLUSTER" --region "$AWS_REGION" \
+  --addon-name aws-ebs-csi-driver --query 'addon.addonVersion' --output text)" \
+  = "v1.63.0-eksbuild.1"
+
+kubectl -n external-secrets get deployment external-secrets -o json \
+  | jq -e 'all(.spec.template.spec.containers[].image; endswith(":v0.19.2"))'
+kubectl get clustersecretstores.external-secrets.io -o json \
+  | jq -e 'all(.items[];
+      any(.status.conditions[]?; .type == "Ready" and .status == "True"))'
+kubectl get externalsecrets.external-secrets.io -A -o json \
+  | jq -e 'all(.items[];
+      any(.status.conditions[]?; .type == "Ready" and .status == "True"))'
 ```
 
 Each listed add-on must be `ACTIVE`. Then run the node wait, three rollout
@@ -205,7 +243,7 @@ success.
 
 For 24 continuous hours after all immediate gates pass:
 
-- keep `KUBERNETES_VERSION=1.32` and the pinned hop release unchanged;
+- keep `KUBERNETES_VERSION=1.33` and the pinned hop release unchanged;
 - do not combine the soak with a gateway, worker, networking, database, or
   secret-rotation change;
 - monitor EKS/node/add-on health, restarts and pending pods, Distr agent health,
@@ -215,19 +253,19 @@ For 24 continuous hours after all immediate gates pass:
   at the end of the 24 hours.
 
 Record the evidence and user decision. **A successful soak does not authorize
-1.33 or any later hop.** Stop at 1.32 pending explicit user validation and a
+1.34 or any later hop.** Stop at 1.33 pending explicit user validation and a
 separately staged release.
 
 ## Partial failure handling
 
 - If Distr or Terraform fails before an EKS update starts, fix the reported
-  prerequisite and rerun the same pinned release with the same 1.32 input.
-- If the control plane reaches 1.32 but a node group or add-on fails, do not
+  prerequisite and rerun the same pinned release with the same 1.33 input.
+- If the control plane reaches 1.33 but a node group or add-on fails, do not
   change versions and do not advance releases. Wait for any active AWS update to
   finish, preserve the Terraform state, and rerun the same Distr apply. Escalate
   before making manual state or resource changes.
 - If Terraform succeeds but an application gate fails, keep the cluster at
-  1.32 while diagnosing. Prefer a fix-forward that can complete inside the
+  1.33 while diagnosing. Prefer a fix-forward that can complete inside the
   maintenance window.
 - Never run concurrent infra applies, delete/recreate the cluster, restore old
   Terraform state, or use `terraform apply` outside the Distr runner.
@@ -239,12 +277,12 @@ separately staged release.
 
 AWS rollback is only from the current version to the immediately previous
 version, and must be initiated within seven days of the in-place upgrade
-completing. For 1.32→1.31, use this order:
+completing. For 1.33→1.32, use this order:
 
 1. Stop new changes. Record the failure, upgrade completion time, versions, and
    active AWS update IDs. Wait until the cluster is `ACTIVE` with no update in
    progress.
-2. Because 1.31 is in extended support, ensure the cluster upgrade policy is
+2. Because 1.32 is in extended support, ensure the cluster upgrade policy is
    `EXTENDED`:
 
    ```bash
@@ -267,7 +305,7 @@ completing. For 1.32→1.31, use this order:
      --query 'length(insights)' --output text)" = "0"
    ```
 
-4. **Roll every EKS managed node group back to 1.31 first.** Repeat for each
+4. **Roll every EKS managed node group back to 1.32 first.** Repeat for each
    name returned by `list-nodegroups`, monitor its update ID to `Successful`,
    and require the node group to return to `ACTIVE`:
 
@@ -277,11 +315,11 @@ completing. For 1.32→1.31, use this order:
    aws eks update-nodegroup-version \
      --cluster-name "$CLUSTER" --region "$AWS_REGION" \
      --nodegroup-name '<node-group-name>' \
-     --kubernetes-version 1.31
+     --kubernetes-version 1.32
    ```
 
 5. **Before the control plane**, downgrade any EKS add-on that rollback
-   readiness reports as incompatible. Use the exact 1.31-compatible versions
+   readiness reports as incompatible. Use the exact 1.32-compatible versions
    recorded from the previous approved infra release; EKS does not roll add-ons
    back automatically:
 
@@ -289,7 +327,7 @@ completing. For 1.32→1.31, use this order:
    aws eks update-addon \
      --cluster-name "$CLUSTER" --region "$AWS_REGION" \
      --addon-name '<addon-name>' \
-     --addon-version '<approved-1.31-addon-version>'
+     --addon-version '<approved-1.32-addon-version>'
    ```
 
 6. Initiate the control-plane rollback and save the returned update ID:
@@ -297,15 +335,15 @@ completing. For 1.32→1.31, use this order:
    ```bash
    aws eks update-cluster-version \
      --name "$CLUSTER" --region "$AWS_REGION" \
-     --kubernetes-version 1.31
+     --kubernetes-version 1.32
    aws eks describe-update \
      --name "$CLUSTER" --region "$AWS_REGION" \
      --update-id '<update-id>'
    ```
 
-7. After the update is `Successful`, select the previous approved 1.31 infra
-   Application release and restore `KUBERNETES_VERSION=1.31` in Distr before
-   any later infra run. Do not run the 1.32 release again. Re-run every health
+7. After the update is `Successful`, select the previous approved 1.32 infra
+   Application release and restore `KUBERNETES_VERSION=1.32` in Distr before
+   any later infra run. Do not run the 1.33 release again. Re-run every health
    gate and begin a new 24-hour observation period.
 
 AWS preserves etcd data, workloads, and persistent volumes during control-plane
