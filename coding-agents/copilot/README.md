@@ -111,8 +111,8 @@ If you prefer to configure VS Code entirely by hand:
         "url": "https://your-gateway.example/v1/chat/completions",
         "toolCalling": true,
         "vision": false,
-        "maxInputTokens": 200000,
-        "maxOutputTokens": 16000,
+        "maxInputTokens": 256000,
+        "maxOutputTokens": 64000,
         "streaming": true,
         "requestHeaders": { "x-subconscious-client": "copilot" }
       }

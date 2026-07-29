@@ -38,8 +38,8 @@
 #           "url": "https://your-gateway.example/v1/chat/completions",
 #           "toolCalling": true,
 #           "vision": false,
-#           "maxInputTokens": 200000,
-#           "maxOutputTokens": 16000,
+#           "maxInputTokens": 256000,
+#           "maxOutputTokens": 64000,
 #           "streaming": true,
 #           "requestHeaders": { "x-subconscious-client": "copilot" }
 #         }
@@ -74,8 +74,8 @@ COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-gw-glm-5.2}"
-MAX_INPUT_TOKENS="${MAX_INPUT_TOKENS:-200000}"
-MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-16000}"
+MAX_INPUT_TOKENS="${MAX_INPUT_TOKENS:-256000}"
+MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-64000}"
 VSCODE_APP="${VSCODE_APP:-}"  # auto-detected: Code | Code - Insiders | VSCodium
 
 # VS Code's customendpoint provider requires the apiKey to be a
@@ -123,8 +123,8 @@ Options:
   --gateway-url URL         Gateway origin (default: $GATEWAY_URL from .env)
   --api-key KEY             Gateway API key for hooks (default: $API_KEY from .env)
   --model MODEL             Model id (default: gw-glm-5.2)
-  --max-input-tokens N      Model context window input tokens (default: 200000)
-  --max-output-tokens N     Model max output tokens (default: 16000)
+  --max-input-tokens N      Model context window input tokens (default: 256000)
+  --max-output-tokens N     Model max output tokens (default: 64000)
   --vscode-app APP          Code, Code - Insiders, or VSCodium (auto-detected)
 
 Requires: jq, curl. Restart VS Code after install, then enter your model API

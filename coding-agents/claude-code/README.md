@@ -19,7 +19,9 @@ correlation.
 | `ANTHROPIC_MODEL` | Primary model name from the dashboard |
 | `ANTHROPIC_SMALL_FAST_MODEL` | Model used for lightweight tasks (set to same as `ANTHROPIC_MODEL`) |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | Model used for spawned subagents (set to same as `ANTHROPIC_MODEL`) |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Context window for auto-compaction (default `150000`) |
+| `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | Max subagents running at once (set to `4`; Claude default `20`) |
+| `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | Max subagent nesting depth (set to `1` — nesting off; Claude default `3`) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Context window for auto-compaction (default `500000`) |
 
 Subagent traffic will be its own conversation and have a link back to the parent session.
 
