@@ -105,6 +105,13 @@ Without `sendSessionAffinityHeaders: true`, Pi sends no session headers and
 traffic will appear on the **Requests** view only (not grouped into
 Conversations).
 
+### Subagent plugin (`pi install npm:pi-subagents`)
+
+When you use the Pi subagent plugin (`pi install npm:pi-subagents`), each
+subagent conversation is treated as its **own** conversation by the gateway.
+The parent session and its spawned subagents are **not currently correlated**
+back together - subagent traffic will not have a link back to the parent session.
+
 ## Session affinity formats
 
 Pi supports several `sessionAffinityFormat` values. The recommended format for

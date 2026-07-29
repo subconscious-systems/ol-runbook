@@ -18,7 +18,10 @@ correlation.
 | `ANTHROPIC_AUTH_TOKEN` | Gateway API key (`sk-gw-...`) |
 | `ANTHROPIC_MODEL` | Primary model name from the dashboard |
 | `ANTHROPIC_SMALL_FAST_MODEL` | Model used for lightweight tasks (set to same as `ANTHROPIC_MODEL`) |
+| `CLAUDE_CODE_SUBAGENT_MODEL` | Model used for spawned subagents (set to same as `ANTHROPIC_MODEL`) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Context window for auto-compaction (default `150000`) |
+
+Subagent traffic will be its own conversation and have a link back to the parent session.
 
 ## Shared env (preferred)
 

@@ -54,6 +54,7 @@ export ANTHROPIC_BASE_URL="$GATEWAY_URL"
 export ANTHROPIC_AUTH_TOKEN="$API_KEY"
 export ANTHROPIC_MODEL="$MODEL"
 export ANTHROPIC_SMALL_FAST_MODEL="$MODEL"
+export CLAUDE_CODE_SUBAGENT_MODEL="$MODEL"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW=150000
 
 # If sourced, export env and return (caller can unset when done).

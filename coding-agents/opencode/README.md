@@ -14,6 +14,8 @@ The install script also sets `x-subconscious-client: opencode` as a custom
 provider header, which unambiguously identifies the agent to the gateway
 regardless of session-header heuristics.
 
+With OpenCode, subagent traffic will be its own conversation and have a link back to the parent session.
+
 ## Requirements
 
 - `jq`
