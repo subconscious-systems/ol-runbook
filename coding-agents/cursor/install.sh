@@ -23,11 +23,7 @@
 #        {
 #          "version": 1,
 #          "hooks": {
-#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "afterAgentResponse":  [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "stop":                [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "subagentStart":       [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "subagentStop":        [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
+#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
 #          }
 #        }
 #
@@ -35,11 +31,12 @@
 #        export SUBCONSCIOUS_GATEWAY_URL=https://your-gateway.example
 #        export SUBCONSCIOUS_API_KEY=sk-gw-...
 #
-# The hook script (hook.sh) POSTs turn_open/turn_heartbeat/turn_close to
-# /v1/agent-hooks with a SHA-256 prompt fingerprint. The gateway soft-binds
-# later LLM requests that share that fingerprint to group them into a
-# Conversation. Unlike Claude Code / Pi / OpenCode, Cursor has no native
-# session headers, so hooks are required for correlation.
+# The hook script (hook.sh) POSTs turn_open to /v1/agent-hooks with the raw
+# prompt text once per submission. The gateway fingerprints the prompt itself,
+# binds the first LLM request of that prompt, then chains every later turn of the
+# conversation onto it -- including subagents. Unlike Claude Code / Pi /
+# OpenCode, Cursor has no native session headers and hooks cannot inject headers
+# into model HTTP, so this announcement is required for correlation.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -66,11 +63,11 @@ Usage:
 
 `install` is the default subcommand and may be omitted.
 
-Installs Cursor hooks (user-wide under ~/.cursor) that POST
-turn_open/turn_heartbeat/turn_close to POST /v1/agent-hooks so the gateway
-can group Conversations for Cursor traffic.
+Installs a Cursor hook (user-wide under ~/.cursor) that POSTs turn_open to
+/v1/agent-hooks on each prompt submission so the gateway can group
+Conversations for Cursor traffic.
 
-Requires: jq, curl, openssl (or shasum). Restart Cursor after install.
+Requires: jq, curl. Restart Cursor after install.
 EOF
 }
 
@@ -114,10 +111,6 @@ require_cmds() {
       missing=1
     fi
   done
-  if ! command -v openssl >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
-    echo "missing required command: openssl or shasum" >&2
-    missing=1
-  fi
   if [[ "$missing" -ne 0 ]]; then
     exit 1
   fi
@@ -200,13 +193,20 @@ merge_hooks_json() {
     sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
     return
   fi
-  merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" \
-    beforeSubmitPrompt afterAgentResponse stop subagentStart subagentStop
+  # Drop our entries first so upgrading from a release that registered
+  # afterAgentResponse / stop / subagentStart / subagentStop prunes them: those
+  # events are no longer used and correlation is gateway-side now.
+  remove_hook_entries "$HOOKS_JSON" "$MARKER"
+  merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" beforeSubmitPrompt
 }
 
 uninstall_hooks() {
   remove_hook_entries "$HOOKS_JSON" "$MARKER"
   rm -f "$HOOK_DST" "$ENV_FILE"
+  # State file from the pre-chaining hook, which kept a local id map and
+  # pending-subagent queues. Nothing writes it any more.
+  rm -rf "${CURSOR_DIR}/subconscious-corr-state.json" \
+    "${CURSOR_DIR}/subconscious-corr-state.json.lockdir"
 }
 
 status() {
