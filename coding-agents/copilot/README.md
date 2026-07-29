@@ -131,56 +131,47 @@ VS Code **does** support [agent hooks](https://code.visualstudio.com/docs/copilo
 via `~/.copilot/hooks/` — a directory of JSON files that invoke shell scripts
 on chat lifecycle events.
 
-The installer writes a `subconscious-hook.json` + `subconscious-hook.sh` pair
-into `~/.copilot/hooks/`. The hook script keeps a local state machine
-(`~/.copilot/subconscious-corr-state.json`) and talks to the gateway with:
+The installer writes a `subconscious-hooks.json` + `subconscious-hook.sh` pair
+into `~/.copilot/hooks/`. The hook makes exactly one call, on one event:
 
-1. `conversation_ensure` — upsert a conversation; store the returned gateway UUID
-2. `conversation_associate` — patch recent inflight rows by `prompt_fp` after Stop / SubagentStop
+| VS Code hook | Gateway event |
+| --- | --- |
+| `UserPromptSubmit` | `conversation_ensure` with `conversation_id` (the VS Code `session_id`) and the raw `prompt` |
 
+Nothing else is registered. The gateway fingerprints the prompt itself, binds
+the first LLM request of that prompt, and chains every later turn of the
+conversation onto it — so the hook keeps no local state, does no hashing, and
+never calls back to patch anything up.
 
-**Subagent fan-out:** `SubagentStart` has no task text. The hook pushes
-`agent_id` onto a local pending queue; the next `UserPromptSubmit`(s) while
-pending is non-empty arm each child with `task_fp = hash(normalize(prompt))`,
-which later message arrays reproduce (including `<userRequest>` wrappers after
-gateway strip).
+**Subagent fan-out** needs no hooks at all. `UserPromptSubmit` fires for each
+subagent's prompt too, and the parent's `runSubagent` tool call carries that same
+prompt as a top-level argument, so the gateway nests the child from the model
+traffic alone. `SubagentStart` / `SubagentStop` are not registered.
 
 ### What gets installed for correlation
 
 | Path | Purpose |
 | --- | --- |
-| `~/.copilot/hooks/subconscious-hook.json` | Hook registration (PascalCase event names) |
+| `~/.copilot/hooks/subconscious-hooks.json` | Hook registration (PascalCase event names) |
 | `~/.copilot/hooks/subconscious-hook.sh` | Fail-open hook script (POSTs to `/v1/agent-hooks`) |
 | `~/.copilot/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
-| `~/.copilot/subconscious-corr-state.json` | Local pending drain + ensure/associate state |
-
-Override state path with `SUBCONSCIOUS_CORR_STATE` (useful for tests).
 
 ### Fingerprint contract
 
-Both the hook and the gateway normalize then SHA-256:
-
-1. Replace `\r\n` with `\n`
-2. Trim leading/trailing whitespace (and strip known prompt wrappers on the gateway)
-3. SHA-256 hex (64 lowercase hex chars) → `prompt_fp`
-
-### Events
-
-| VS Code hook | Gateway / local action |
-| --- | --- |
-| `SessionStart` | `conversation_ensure` (session → gateway UUID) |
-| `UserPromptSubmit` (no pending) | `conversation_ensure` + store parent `prompt_fp` |
-| `UserPromptSubmit` (pending subagents) | Pop pending; `conversation_ensure` child by `task_fp` |
-| `Stop` | `conversation_associate` parent by stored `prompt_fp` |
-| `SubagentStart` | Push `agent_id` onto local pending queue (no gateway call) |
-| `SubagentStop` | `conversation_associate` child by stored `task_fp` |
+The hook sends raw prompt text; only the gateway hashes. It normalizes by
+replacing `\r\n` with `\n`, stripping the `<userRequest>` wrapper VS Code adds
+before the prompt reaches the model, trimming, then SHA-256. Keeping that in one
+place is the point: when the hook hashed too, any drift between the shell and
+Rust implementations broke correlation silently.
 
 ### Limitations
 
-- No after-LLM hook (VS Code has no `afterAgentResponse`); associate runs on
-  `Stop` / `SubagentStop`, so dashboard linkage can lag until the turn ends.
-- If two sibling tasks hash to the same `prompt_fp`, they may merge. Distinct
-  Explore task texts avoid this in practice.
+- The hook races the request it announces. Losing that race is recovered on the
+  gateway side, which sweeps for unbound turns carrying the announced
+  fingerprint — except when two sessions send byte-identical prompts, where it
+  declines to guess and leaves both for the next prompt to re-anchor.
+- A missed `UserPromptSubmit` costs one generation; the next prompt re-anchors
+  and the chain carries the rest.
 
 ## GitHub Copilot desktop app
 
