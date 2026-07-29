@@ -87,7 +87,7 @@ ignores the response body entirely.
 
 | Cursor hook | Gateway event |
 | --- | --- |
-| `beforeSubmitPrompt` | `turn_open` with `conversation_id`, `generation_id`, and raw `prompt` |
+| `beforeSubmitPrompt` | `conversation_ensure` with `conversation_id` and raw `prompt` |
 
 Nothing else is registered. `afterAgentThought` never fires for gateway-served
 models; `afterAgentResponse` is empty in plan mode and tool-only turns;

@@ -31,7 +31,7 @@
 #        export SUBCONSCIOUS_GATEWAY_URL=https://your-gateway.example
 #        export SUBCONSCIOUS_API_KEY=sk-gw-...
 #
-# The hook script (hook.sh) POSTs turn_open to /v1/agent-hooks with the raw
+# The hook script (hook.sh) POSTs conversation_ensure to /v1/agent-hooks with the raw
 # prompt text once per submission. The gateway fingerprints the prompt itself,
 # binds the first LLM request of that prompt, then chains every later turn of the
 # conversation onto it -- including subagents. Unlike Claude Code / Pi /
@@ -63,7 +63,7 @@ Usage:
 
 `install` is the default subcommand and may be omitted.
 
-Installs a Cursor hook (user-wide under ~/.cursor) that POSTs turn_open to
+Installs a Cursor hook (user-wide under ~/.cursor) that POSTs conversation_ensure to
 /v1/agent-hooks on each prompt submission so the gateway can group
 Conversations for Cursor traffic.
 

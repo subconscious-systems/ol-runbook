@@ -5,7 +5,7 @@
 # Docs: https://cursor.com/docs/agent/hooks
 #
 # One event, one call:
-#   beforeSubmitPrompt -> turn_open { conversation_id, generation_id, prompt }
+#   beforeSubmitPrompt -> conversation_ensure { conversation_id, prompt }
 #
 # The gateway fingerprints the raw prompt itself and chains every later turn of
 # the conversation onto the first one, so this hook needs no hashing, no local
@@ -55,9 +55,7 @@ if [[ "$HOOK_EVENT" != "beforeSubmitPrompt" ]]; then
 fi
 
 CONVERSATION_ID="$(printf '%s' "$INPUT" | jq -r '.conversation_id // .session_id // empty' 2>/dev/null || true)"
-GENERATION_ID="$(printf '%s' "$INPUT" | jq -r '.generation_id // empty' 2>/dev/null || true)"
 PROMPT="$(printf '%s' "$INPUT" | jq -r '.prompt // empty' 2>/dev/null || true)"
-MODEL="$(printf '%s' "$INPUT" | jq -r '.model_id // .model // empty' 2>/dev/null || true)"
 WORKSPACE="$(printf '%s' "$INPUT" | jq -r '(.workspace_roots // [])[0] // empty' 2>/dev/null || true)"
 if [[ -n "$WORKSPACE" ]]; then
   WORKSPACE="$(basename "$WORKSPACE")"
@@ -68,26 +66,16 @@ if [[ -z "$CONVERSATION_ID" || -z "$PROMPT" ]]; then
   fail_open
 fi
 
-# Cursor omits generation_id on some submissions; the conversation id is a safe
-# stand-in because the gateway only uses it to scope the soft-bind window.
-if [[ -z "$GENERATION_ID" ]]; then
-  GENERATION_ID="$CONVERSATION_ID"
-fi
-
 PAYLOAD="$(jq -n \
-  --arg event "turn_open" \
+  --arg event "conversation_ensure" \
   --arg conversation_id "$CONVERSATION_ID" \
-  --arg generation_id "$GENERATION_ID" \
   --arg prompt "$PROMPT" \
-  --arg model "$MODEL" \
   --arg workspace "$WORKSPACE" \
   --arg hook_event_name "$HOOK_EVENT" \
   '{
     event: $event,
     conversation_id: $conversation_id,
-    generation_id: $generation_id,
     prompt: $prompt,
-    model: (if $model == "" then null else $model end),
     workspace: (if $workspace == "" then null else $workspace end),
     hook_event_name: $hook_event_name
   } | with_entries(select(.value != null))'
