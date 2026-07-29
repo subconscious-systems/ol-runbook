@@ -123,25 +123,23 @@ If you prefer to configure VS Code entirely by hand:
 
 Copilot in VS Code has no native session headers and VS Code's Custom Endpoint
 provider exposes no per-request hook surface for injecting headers. However,
-VS Code **does** support [agent hooks](https://code.visualstudio.com/docs/agent-customization/language-models)
+VS Code **does** support [agent hooks](https://code.visualstudio.com/docs/copilot/customization/hooks)
 via `~/.copilot/hooks/` — a directory of JSON files that invoke shell scripts
 on chat lifecycle events.
 
 The installer writes a `subconscious-hook.json` + `subconscious-hook.sh` pair
-into `~/.copilot/hooks/`. The hook script:
+into `~/.copilot/hooks/`. The hook script keeps a local state machine
+(`~/.copilot/subconscious-corr-state.json`) and talks to the gateway with:
 
-1. Reads the chat event (`SessionStart`, `UserPromptSubmit`, `Stop`,
-   `SubagentStart`, `SubagentStop`) from stdin.
-2. Extracts `session_id` and `timestamp` from the event payload.
-3. Normalizes the prompt text and computes a SHA-256 fingerprint (same algorithm
-   as the Cursor hook).
-4. `POST /v1/agent-hooks` to your gateway with `x-subconscious-client: copilot`,
-   a `turn_open`/`turn_close` event, and the prompt fingerprint.
+1. `conversation_ensure` — upsert a conversation; store the returned gateway UUID
+2. `conversation_associate` — patch recent inflight rows by `prompt_fp` after Stop / SubagentStop
 
-The gateway soft-binds later `/v1/chat/completions` requests that share the
-same fingerprint to group them into a **Conversation** row in the dashboard.
 
-This is the same mechanism Cursor uses, adapted for VS Code's hook format.
+**Subagent fan-out:** `SubagentStart` has no task text. The hook pushes
+`agent_id` onto a local pending queue; the next `UserPromptSubmit`(s) while
+pending is non-empty arm each child with `task_fp = hash(normalize(prompt))`,
+which later message arrays reproduce (including `<userRequest>` wrappers after
+gateway strip).
 
 ### What gets installed for correlation
 
@@ -150,36 +148,35 @@ This is the same mechanism Cursor uses, adapted for VS Code's hook format.
 | `~/.copilot/hooks/subconscious-hook.json` | Hook registration (PascalCase event names) |
 | `~/.copilot/hooks/subconscious-hook.sh` | Fail-open hook script (POSTs to `/v1/agent-hooks`) |
 | `~/.copilot/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
+| `~/.copilot/subconscious-corr-state.json` | Local pending drain + ensure/associate state |
+
+Override state path with `SUBCONSCIOUS_CORR_STATE` (useful for tests).
 
 ### Fingerprint contract
 
 Both the hook and the gateway normalize then SHA-256:
 
 1. Replace `\r\n` with `\n`
-2. Trim leading/trailing whitespace
+2. Trim leading/trailing whitespace (and strip known prompt wrappers on the gateway)
 3. SHA-256 hex (64 lowercase hex chars) → `prompt_fp`
 
 ### Events
 
-| VS Code hook | Gateway event |
+| VS Code hook | Gateway / local action |
 | --- | --- |
-| `SessionStart` | `turn_open` (+ `prompt_fp` from `initial_prompt` if present) |
-| `UserPromptSubmit` | `turn_open` (+ `prompt_fp` from `prompt`) |
-| `Stop` | `turn_close` |
-| `SubagentStart` | `turn_open` (child conversation, `parent_conversation_id` set) |
-| `SubagentStop` | `turn_close` (child conversation) |
-
-Same VS Code `session_id` across multiple prompts upserts one Conversations row.
-Each prompt opens a new generation window (`generation_id` = `session_id:timestamp`).
+| `SessionStart` | `conversation_ensure` (session → gateway UUID) |
+| `UserPromptSubmit` (no pending) | `conversation_ensure` + store parent `prompt_fp` |
+| `UserPromptSubmit` (pending subagents) | Pop pending; `conversation_ensure` child by `task_fp` |
+| `Stop` | `conversation_associate` parent by stored `prompt_fp` |
+| `SubagentStart` | Push `agent_id` onto local pending queue (no gateway call) |
+| `SubagentStop` | `conversation_associate` child by stored `task_fp` |
 
 ### Limitations
 
-- No `turn_heartbeat` equivalent (VS Code has no "response received" hook).
-- The hook fires on chat lifecycle events, not on raw HTTP requests, so
-  correlation is heuristic (prompt fingerprint soft-bind) rather than
-  header-hard-bound like Codex or Claude Code.
-- If two chats start with identical prompts, they may merge into one
-  conversation. This is a known limitation of the fingerprint approach.
+- No after-LLM hook (VS Code has no `afterAgentResponse`); associate runs on
+  `Stop` / `SubagentStop`, so dashboard linkage can lag until the turn ends.
+- If two sibling tasks hash to the same `prompt_fp`, they may merge. Distinct
+  Explore task texts avoid this in practice.
 
 ## GitHub Copilot desktop app
 

@@ -6,15 +6,20 @@ Use base url `https://<your-gateway-url>`, an API key from the Subconscious dash
 
 # Cursor hooks — Conversations correlation
 
-Install local [Cursor hooks](https://cursor.com/docs/hooks.md) that announce each agent handoff to your Subconscious gateway. The gateway groups `/v1/chat/completions` (and related) requests into the dashboard **Conversations** view.
+Install local [Cursor agent hooks](https://cursor.com/docs/agent/hooks) that ensure a dashboard conversation and associate later LLM requests after the fact.
 
-Hooks **cannot** inject headers into model HTTP. They `POST /v1/agent-hooks` with a prompt fingerprint; the gateway soft-binds later LLM requests that share that fingerprint.
+Hooks **cannot** inject headers into model HTTP. They:
+
+1. `POST /v1/agent-hooks` with `conversation_ensure` → gateway returns a conversation UUID stored locally
+2. Model traffic may land uncorrelated (with a `prompt_fp` derived from the last user message)
+3. `afterAgentResponse` / `stop` → `conversation_associate` patches recent inflight rows by `prompt_fp`
+
 
 ## Requirements
 
 - `jq`, `curl`
 - `openssl` or `shasum` (SHA-256)
-- A gateway API key (same key as Cursor’s OpenAI override)
+- A gateway API key (same key as Cursor's OpenAI override)
 - Gateway URL reachable from your machine
 
 ## Install
@@ -48,6 +53,9 @@ Hooks install **user-wide** under `~/.cursor` only (API key stays out of git wor
 | `~/.cursor/hooks/subconscious-hook.sh` | Fail-open hook script |
 | `~/.cursor/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
 | `~/.cursor/hooks.json` | Merges `beforeSubmitPrompt`, `afterAgentResponse`, `stop`, `subagentStart`, `subagentStop` |
+| `~/.cursor/subconscious-corr-state.json` | Local ensure/associate state (created on first hook fire) |
+
+Override state path with `SUBCONSCIOUS_CORR_STATE` (useful for tests).
 
 ## Fingerprint contract
 
@@ -68,12 +76,34 @@ Fixture (must match gateway unit tests):
 
 | Cursor hook | Gateway event |
 | --- | --- |
-| `beforeSubmitPrompt` | `turn_open` (+ `prompt_fp`) |
-| `afterAgentResponse` | `turn_heartbeat` |
-| `stop` | `turn_close` |
-| `subagentStart` | `turn_open` (child conversation, `generation_id`=subagent_id, `parent_conversation_id` set, `prompt_fp`=hash of task) |
-| `subagentStop` | `turn_close` (child conversation) |
+| `beforeSubmitPrompt` | `conversation_ensure` (parent: store gateway UUID + `last_prompt_fp`; subagent: pop pending queue, ensure child with `task_fp`=hash of actual prompt) |
+| `afterAgentResponse` | `conversation_associate` (parent gateway UUID + `prompt_fp`) |
+| `stop` | `conversation_associate` (safety net for parent + any remaining children) |
+| `subagentStart` | Push `subagent_id` onto parent's pending queue (no gateway call) |
+| `subagentStop` | `conversation_associate` (child UUID + `task_fp` = actual prompt hash) |
 
-Same Cursor `conversation_id` across multiple user sends upserts one Conversations row. Each send opens a new generation window (`generation_id` + `prompt_fp`).
+### Plan → Build
 
-Subagents (Task tool) get their own conversation row linked to the parent via `parent_conversation_id`; the subagent run is the `generation_id`. `subagentStart`→`turn_open` / `subagentStop`→`turn_close` follow the same soft-bind contract.
+Build often skips `beforeSubmitPrompt`. If `afterAgentResponse` / `stop` still fire with the same Cursor `conversation_id`, the local state file already has the gateway UUID from the Plan turn and associate patches Build requests by `prompt_fp`.
+
+### Subagents (SubagentStart → UPS drain)
+
+Each Task-tool subagent gets its own conversation row. Correlation uses a
+pending-subagent queue that pairs each `subagentStart` with the next
+`beforeSubmitPrompt`:
+
+1. `subagentStart` pushes `subagent_id` onto `pending_subagent_ids` on the parent.
+2. The next `beforeSubmitPrompt` pops the first pending id and calls
+   `conversation_ensure` with the subagent's id as grouping key.
+3. The `task_fp` is `sha256(prompt)` — the hash of the **actual prompt content**
+   from `beforeSubmitPrompt`, which matches the gateway's `prompt_fp` on the
+   inflight record. This is NOT the short task description.
+4. `subagentStop` calls `conversation_associate` using the stored `task_fp`.
+
+Parallel siblings each get their own queue entry and prompt-hash, so they stay
+distinct. The state file is serialized via a portable `mkdir` lock.
+
+### TTL-based state cleanup
+
+Every state-file write prunes conversation entries with `updated_at` older than
+1 hour. This keeps the file bounded to active conversations only.

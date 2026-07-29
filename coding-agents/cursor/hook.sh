@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
-# Fail-open Cursor hook: announce turn_open / turn_heartbeat / turn_close to the gateway.
+# Fail-open Cursor hook: client-side conversation ensure + post-hoc associate.
 # Stdin: Cursor hook JSON. Stdout: permissive JSON for Cursor. Never blocks the agent.
+#
+# Docs: https://cursor.com/docs/agent/hooks
+#
+# Gateway events:
+#   subagentStart -> push pending locally (no gateway call until UPS arms the child)
+#   beforeSubmitPrompt (parent) -> conversation_ensure
+#   beforeSubmitPrompt while pending -> pop, ensure child with task_fp=hash(prompt)
+#   afterAgentResponse / stop / subagentStop -> conversation_associate by stored prompt_fp
+#
+# Local state: ~/.cursor/subconscious-corr-state.json (override with SUBCONSCIOUS_CORR_STATE)
+# Concurrent hook invocations are serialized via mkdir lock (portable; no flock binary).
 
 set -u
 
@@ -12,9 +23,10 @@ fi
 
 GATEWAY_URL="${SUBCONSCIOUS_GATEWAY_URL:-}"
 API_KEY="${SUBCONSCIOUS_API_KEY:-}"
+STATE_FILE="${SUBCONSCIOUS_CORR_STATE:-${HOME}/.cursor/subconscious-corr-state.json}"
+LOCK_DIR="${STATE_FILE}.lockdir"
 
 fail_open() {
-  # beforeSubmitPrompt expects continue; other hooks accept empty / allow.
   printf '%s\n' '{"continue":true,"permission":"allow"}'
   exit 0
 }
@@ -44,55 +56,17 @@ fi
 
 HOOK_EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
 CONVERSATION_ID="$(printf '%s' "$INPUT" | jq -r '.conversation_id // .session_id // empty' 2>/dev/null || true)"
-GENERATION_ID="$(printf '%s' "$INPUT" | jq -r '.generation_id // empty' 2>/dev/null || true)"
 MODEL="$(printf '%s' "$INPUT" | jq -r '.model // empty' 2>/dev/null || true)"
 PROMPT="$(printf '%s' "$INPUT" | jq -r '.prompt // empty' 2>/dev/null || true)"
-RESPONSE_TEXT="$(printf '%s' "$INPUT" | jq -r '.text // empty' 2>/dev/null || true)"
 WORKSPACE="$(printf '%s' "$INPUT" | jq -r '(.workspace_roots // [])[0] // empty' 2>/dev/null || true)"
 if [[ -n "$WORKSPACE" ]]; then
   WORKSPACE="$(basename "$WORKSPACE")"
 fi
-# Subagent (Task tool) lifecycle fields. Cursor's subagentStart carries
-# parent_conversation_id explicitly; subagentStop does not, but the same
-# parent id is required to link the child turn_close to the parent conversation.
 SUBAGENT_ID="$(printf '%s' "$INPUT" | jq -r '.subagent_id // empty' 2>/dev/null || true)"
 SUBAGENT_PARENT_CONV="$(printf '%s' "$INPUT" | jq -r '.parent_conversation_id // empty' 2>/dev/null || true)"
 
-# PARENT_CONVERSATION_ID is only set for subagent events; initialize empty here
-# so the jq payload build always has a value (set -u safe). The subagent guard
-# below overwrites it for subagentStart/subagentStop.
-PARENT_CONVERSATION_ID=""
-
-# Subagent events: the subagent is its own conversation window. Cursor's payload
-# gives us the parent's conversation_id (base field) and parent_conversation_id
-# (explicit), plus subagent_id as the unique subagent handle. We use subagent_id
-# as both the child conversation_id and the generation_id so the gateway creates
-# a distinct child conversation row linked to the parent via parent_conversation_id.
-if [[ "$HOOK_EVENT" == "subagentStart" ]]; then
-  # subagentStart carries parent_conversation_id; we need it to link the child.
-  if [[ -z "$SUBAGENT_ID" || -z "$SUBAGENT_PARENT_CONV" ]]; then
-    fail_open
-  fi
-  PARENT_CONVERSATION_ID="$SUBAGENT_PARENT_CONV"
-  CONVERSATION_ID="$SUBAGENT_ID"
-  GENERATION_ID="$SUBAGENT_ID"
-elif [[ "$HOOK_EVENT" == "subagentStop" ]]; then
-  # subagentStop does not carry parent_conversation_id; we only need the
-  # subagent handle to close its generation window.
-  if [[ -z "$SUBAGENT_ID" ]]; then
-    fail_open
-  fi
-  CONVERSATION_ID="$SUBAGENT_ID"
-  GENERATION_ID="$SUBAGENT_ID"
-else
-  if [[ -z "$CONVERSATION_ID" || -z "$GENERATION_ID" ]]; then
-    fail_open
-  fi
-fi
-
 # Must match observability::normalize_prompt_for_fingerprint + prompt_fingerprint.
 normalize_prompt() {
-  # CRLF -> LF, trim leading/trailing whitespace
   printf '%s' "$1" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
@@ -105,75 +79,270 @@ sha256_hex() {
   fi
 }
 
-EVENT=""
-PROMPT_FP=""
-RESPONSE_FP=""
+now_epoch() {
+  date +%s
+}
+
+ensure_state_file() {
+  mkdir -p "$(dirname "$STATE_FILE")"
+  if [[ ! -f "$STATE_FILE" ]]; then
+    printf '%s\n' '{"conversations":{}}' >"$STATE_FILE"
+  fi
+}
+
+lock_acquire() {
+  ensure_state_file
+  local i=0
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    i=$((i + 1))
+    if [[ "$i" -gt 40 ]]; then
+      echo "subconscious hook: state lock busy" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+  return 0
+}
+
+lock_release() {
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+
+state_jq() {
+  local tmp
+  tmp="$(mktemp)"
+  if ! jq "$@" "$STATE_FILE" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$STATE_FILE"
+}
+
+ensure_conv_body() {
+  local cid="$1"
+  state_jq --arg c "$cid" '
+    if (.conversations[$c] // null) == null then
+      .conversations[$c] = {
+        gw_conversation_id: null,
+        updated_at: 0,
+        last_prompt_fp: null,
+        pending_subagent_ids: [],
+        children: {}
+      }
+    else
+      .conversations[$c].pending_subagent_ids //= []
+      | .conversations[$c].children //= {}
+    end
+  '
+}
+
+post_hooks() {
+  local payload="$1"
+  local url="${GATEWAY_URL%/}/v1/agent-hooks"
+  curl -sS -m 2 \
+    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Content-Type: application/json" \
+    -H "x-subconscious-client: cursor" \
+    -d "$payload" \
+    "$url" 2>/dev/null || true
+}
+
+associate() {
+  local gw_id="$1"
+  local prompt_fp="$2"
+  local hook_event_name="$3"
+  [[ -n "$gw_id" && -n "$prompt_fp" && "$prompt_fp" != "null" ]] || return 0
+  local payload
+  payload="$(jq -n \
+    --arg event "conversation_associate" \
+    --arg conversation_id "$gw_id" \
+    --arg prompt_fp "$prompt_fp" \
+    --arg hook_event_name "$hook_event_name" \
+    '{
+      event: $event,
+      conversation_id: $conversation_id,
+      prompt_fp: $prompt_fp,
+      hook_event_name: $hook_event_name
+    }'
+  )"
+  post_hooks "$payload" >/dev/null
+}
+
 case "$HOOK_EVENT" in
   beforeSubmitPrompt)
-    EVENT="turn_open"
-    PROMPT_FP="$(sha256_hex "$(normalize_prompt "$PROMPT")")"
-    ;;
-  afterAgentResponse)
-    EVENT="turn_heartbeat"
-    if [[ -n "$RESPONSE_TEXT" ]]; then
-      RESPONSE_FP="$(sha256_hex "$(normalize_prompt "$RESPONSE_TEXT")")"
+    if [[ -z "$CONVERSATION_ID" ]]; then
+      fail_open
     fi
-    ;;
-  stop)
-    EVENT="turn_close"
-    if [[ -n "$RESPONSE_TEXT" ]]; then
-      RESPONSE_FP="$(sha256_hex "$(normalize_prompt "$RESPONSE_TEXT")")"
+
+    POPPED=""
+    if lock_acquire; then
+      ensure_conv_body "$CONVERSATION_ID" || true
+      POPPED="$(jq -r --arg c "$CONVERSATION_ID" \
+        '(.conversations[$c].pending_subagent_ids // [])[0] // empty' "$STATE_FILE" 2>/dev/null || true)"
+      if [[ -n "$POPPED" ]]; then
+        state_jq --arg c "$CONVERSATION_ID" --argjson now "$(now_epoch)" \
+          '.conversations[$c].pending_subagent_ids |= .[1:]
+           | .conversations[$c].updated_at = $now
+           | .conversations |= with_entries(select(.value.updated_at > ($now - 3600)))' || true
+      fi
+      lock_release
     fi
-    ;;
-  subagentStart)
-    EVENT="turn_open"
-    # No user prompt fingerprint for a subagent spawn; hash the task description
-    # so the gateway's turn_open prompt_fp requirement is satisfied. The gateway
-    # soft-binds later LLM requests that share this fingerprint, so a subagent
-    # using its own task text as the first user message will correlate.
-    SUBAGENT_TASK="$(printf '%s' "$INPUT" | jq -r '.task // empty' 2>/dev/null || true)"
-    if [[ -n "$SUBAGENT_TASK" ]]; then
-      PROMPT_FP="$(sha256_hex "$(normalize_prompt "$SUBAGENT_TASK")")"
+
+    if [[ -n "$POPPED" ]]; then
+      # This UPS arms a pending subagent. Hash the actual prompt content so
+      # the fingerprint matches what the gateway computes from the LLM request.
+      if [[ -n "$PROMPT" ]]; then
+        TASK_FP="$(sha256_hex "$(normalize_prompt "$PROMPT")")"
+      else
+        TASK_FP="$(sha256_hex "$POPPED")"
+      fi
+      PAYLOAD="$(jq -n \
+        --arg event "conversation_ensure" \
+        --arg conversation_id "$POPPED" \
+        --arg parent_conversation_id "$CONVERSATION_ID" \
+        --arg prompt_fp "$TASK_FP" \
+        --arg model "$MODEL" \
+        --arg workspace "$WORKSPACE" \
+        --arg hook_event_name "$HOOK_EVENT" \
+        '{
+          event: $event,
+          conversation_id: $conversation_id,
+          parent_conversation_id: $parent_conversation_id,
+          prompt_fp: $prompt_fp,
+          model: (if $model == "" then null else $model end),
+          workspace: (if $workspace == "" then null else $workspace end),
+          hook_event_name: $hook_event_name
+        } | with_entries(select(.value != null))'
+      )"
+      RESP="$(post_hooks "$PAYLOAD")"
+      GW_ID="$(printf '%s' "$RESP" | jq -r '.conversation_id // empty' 2>/dev/null || true)"
+      if [[ -n "$GW_ID" ]] && lock_acquire; then
+        state_jq --arg c "$CONVERSATION_ID" --arg a "$POPPED" \
+          --arg gw "$GW_ID" --arg fp "$TASK_FP" \
+          --argjson now "$(now_epoch)" \
+          '.conversations[$c].children[$a] = {
+            gw_conversation_id: $gw,
+            task_fp: $fp,
+            armed_at: $now
+          }
+          | .conversations[$c].updated_at = $now
+          | .conversations |= with_entries(select(.value.updated_at > ($now - 3600)))' || true
+        lock_release
+      fi
     else
-      PROMPT_FP="$(sha256_hex "$SUBAGENT_ID")"
+      PROMPT_FP=""
+      if [[ -n "$PROMPT" ]]; then
+        PROMPT_FP="$(sha256_hex "$(normalize_prompt "$PROMPT")")"
+      fi
+      PAYLOAD="$(jq -n \
+        --arg event "conversation_ensure" \
+        --arg conversation_id "$CONVERSATION_ID" \
+        --arg prompt_fp "$PROMPT_FP" \
+        --arg model "$MODEL" \
+        --arg workspace "$WORKSPACE" \
+        --arg hook_event_name "$HOOK_EVENT" \
+        '{
+          event: $event,
+          conversation_id: $conversation_id,
+          prompt_fp: (if $prompt_fp == "" then null else $prompt_fp end),
+          model: (if $model == "" then null else $model end),
+          workspace: (if $workspace == "" then null else $workspace end),
+          hook_event_name: $hook_event_name
+        } | with_entries(select(.value != null))'
+      )"
+      RESP="$(post_hooks "$PAYLOAD")"
+      GW_ID="$(printf '%s' "$RESP" | jq -r '.conversation_id // empty' 2>/dev/null || true)"
+      if lock_acquire; then
+        ensure_conv_body "$CONVERSATION_ID" || true
+        state_jq --arg c "$CONVERSATION_ID" --arg gw "$GW_ID" --arg fp "$PROMPT_FP" \
+          --argjson now "$(now_epoch)" '
+          .conversations[$c].gw_conversation_id =
+            (if $gw == "" then .conversations[$c].gw_conversation_id else $gw end)
+          | .conversations[$c].last_prompt_fp =
+            (if $fp == "" then .conversations[$c].last_prompt_fp else $fp end)
+          | .conversations[$c].updated_at = $now
+          | .conversations |= with_entries(select(.value.updated_at > ($now - 3600)))
+        ' || true
+        lock_release
+      fi
     fi
     ;;
-  subagentStop)
-    EVENT="turn_close"
+
+  afterAgentResponse|stop)
+    if [[ -z "$CONVERSATION_ID" ]]; then
+      fail_open
+    fi
+    CONV_JSON=""
+    if lock_acquire; then
+      CONV_JSON="$(jq -c --arg c "$CONVERSATION_ID" \
+        '.conversations[$c] // empty' "$STATE_FILE" 2>/dev/null || true)"
+      lock_release
+    fi
+    if [[ -n "$CONV_JSON" ]]; then
+      GW_ID="$(printf '%s' "$CONV_JSON" | jq -r '.gw_conversation_id // empty')"
+      PROMPT_FP="$(printf '%s' "$CONV_JSON" | jq -r '.last_prompt_fp // empty')"
+      associate "$GW_ID" "$PROMPT_FP" "$HOOK_EVENT"
+    fi
+
+    if [[ "$HOOK_EVENT" == "stop" && -n "$CONV_JSON" ]]; then
+      while IFS= read -r child; do
+        [[ -n "$child" ]] || continue
+        c_gw="$(printf '%s' "$child" | jq -r '.gw_conversation_id // empty')"
+        c_fp="$(printf '%s' "$child" | jq -r '.task_fp // empty')"
+        associate "$c_gw" "$c_fp" "stop"
+      done < <(printf '%s' "$CONV_JSON" | jq -c '.children // {} | .[]' 2>/dev/null || true)
+      if lock_acquire; then
+        state_jq --arg c "$CONVERSATION_ID" --argjson now "$(now_epoch)" \
+          '.conversations[$c].children = {}
+           | .conversations[$c].updated_at = $now
+           | .conversations |= with_entries(select(.value.updated_at > ($now - 3600)))' || true
+        lock_release
+      fi
+    fi
     ;;
+
+  subagentStart)
+    if [[ -z "$SUBAGENT_ID" || -z "$SUBAGENT_PARENT_CONV" ]]; then
+      fail_open
+    fi
+    if lock_acquire; then
+      ensure_conv_body "$SUBAGENT_PARENT_CONV" || true
+      state_jq --arg c "$SUBAGENT_PARENT_CONV" --arg a "$SUBAGENT_ID" \
+        --argjson now "$(now_epoch)" \
+        '.conversations[$c].pending_subagent_ids += [$a]
+         | .conversations[$c].updated_at = $now
+         | .conversations |= with_entries(select(.value.updated_at > ($now - 3600)))' || true
+      lock_release
+    fi
+    ;;
+
+  subagentStop)
+    if [[ -z "$SUBAGENT_ID" ]]; then
+      fail_open
+    fi
+    CHILD=""
+    if lock_acquire; then
+      CHILD="$(jq -c --arg c "$CONVERSATION_ID" --arg a "$SUBAGENT_ID" \
+        '.conversations[$c].children[$a] // empty' "$STATE_FILE" 2>/dev/null || true)"
+      if [[ -n "$CHILD" ]]; then
+        state_jq --arg c "$CONVERSATION_ID" --arg a "$SUBAGENT_ID" \
+          --argjson now "$(now_epoch)" \
+          'del(.conversations[$c].children[$a])
+           | .conversations[$c].updated_at = $now
+           | .conversations |= with_entries(select(.value.updated_at > ($now - 3600)))' || true
+      fi
+      lock_release
+    fi
+    if [[ -n "$CHILD" ]]; then
+      GW_ID="$(printf '%s' "$CHILD" | jq -r '.gw_conversation_id // empty')"
+      TASK_FP="$(printf '%s' "$CHILD" | jq -r '.task_fp // empty')"
+      associate "$GW_ID" "$TASK_FP" "$HOOK_EVENT"
+    fi
+    ;;
+
   *)
     fail_open
     ;;
 esac
-
-PAYLOAD="$(jq -n \
-  --arg event "$EVENT" \
-  --arg conversation_id "$CONVERSATION_ID" \
-  --arg generation_id "$GENERATION_ID" \
-  --arg prompt_fp "$PROMPT_FP" \
-  --arg response_fp "$RESPONSE_FP" \
-  --arg model "$MODEL" \
-  --arg workspace "$WORKSPACE" \
-  --arg hook_event_name "$HOOK_EVENT" \
-  --arg parent_conversation_id "$PARENT_CONVERSATION_ID" \
-  '{
-    event: $event,
-    conversation_id: $conversation_id,
-    generation_id: $generation_id,
-    prompt_fp: (if $prompt_fp == "" then null else $prompt_fp end),
-    response_fp: (if $response_fp == "" then null else $response_fp end),
-    model: (if $model == "" then null else $model end),
-    workspace: (if $workspace == "" then null else $workspace end),
-    hook_event_name: (if $hook_event_name == "" then null else $hook_event_name end),
-    parent_conversation_id: (if $parent_conversation_id == "" then null else $parent_conversation_id end)
-  } | with_entries(select(.value != null))'
-)"
-
-URL="${GATEWAY_URL%/}/v1/agent-hooks"
-curl -sS -m 2 \
-  -H "Authorization: Bearer ${API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD" \
-  "$URL" >/dev/null 2>&1 || true
 
 fail_open
