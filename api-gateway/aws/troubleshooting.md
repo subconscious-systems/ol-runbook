@@ -54,6 +54,16 @@ kubectl -n <GATEWAY_DISTR_DEPLOYMENT_NAME> logs deploy/<name> --tail=200
 
 Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.
 
+### Datadog AWS integration bootstrap failed
+
+With `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the runner automatically
+creates the account integration and IAM role in separate account-global state.
+A `403` from the Datadog API means the application key is missing one of
+`aws_configuration_read`, `aws_configuration_edit`, or
+`aws_configurations_manage`. Duplicate or incompatible customer-managed
+integrations fail closed instead of being modified. Do not work around this by
+enabling the Datadog log forwarder; database metrics do not require it.
+
 ### Why can’t I just kubectl from my laptop?
 
 Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Your laptop is not on that path by default. Use `./scripts/connect.sh` and run `kubectl` **on the bootstrap host**. Day-0 dashboard admin should use the identity-bootstrap Job, not kubectl (see [FAQ.md](../../FAQ.md#how-is-the-initial-dashboard-admin-created)).
