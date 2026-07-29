@@ -64,6 +64,11 @@ A `403` from the Datadog API means the application key is missing one of
 integrations fail closed instead of being modified. Do not work around this by
 enabling the Datadog log forwarder; database metrics do not require it.
 
+If the runner reports that the Datadog configuration ID or ownership marker
+does not match account state, verify that the deployment still uses credentials
+for the original Datadog organization. The runner intentionally refuses to
+rewrite account-global state or IAM trust with another organization's keys.
+
 ### Why can’t I just kubectl from my laptop?
 
 Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Your laptop is not on that path by default. Use `./scripts/connect.sh` and run `kubectl` **on the bootstrap host**. Day-0 dashboard admin should use the identity-bootstrap Job, not kubectl (see [FAQ.md](../../FAQ.md#how-is-the-initial-dashboard-admin-created)).
