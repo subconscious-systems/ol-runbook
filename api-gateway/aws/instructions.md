@@ -88,7 +88,9 @@ When `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the Distr runner creates the
 minimal Datadog AWS account integration and IAM trust role automatically if
 they are absent. Do not run Datadog's AWS wizard or deploy its log-forwarder
 CloudFormation stack. Compatible integrations that already exist are validated
-and preserved.
+and preserved. Account-global Datadog state always uses the canonical
+`<aws-account-id>-subconscious-tfstate` bucket; `TF_STATE_BUCKET` overrides only
+the deployment-scoped infrastructure state.
 
 ### 7. Admin: Connect the Distr Docker agent
 
