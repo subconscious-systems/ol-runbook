@@ -27,25 +27,29 @@ A static `x-subconscious-client: copilot` header is attached per-model via the
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
-## Install
+## Shared env (preferred)
 
-```bash
-cd ol-runbook/coding-agents/copilot
-chmod +x install.sh
-./install.sh --gateway-url 'https://your-gateway.example'
-```
-
-Or, reading from the shared `coding-agents/.env` (copy `env.example` to `.env`
-first):
+Prefer the shared `coding-agents/.env` one level up for `GATEWAY_URL` (and
+optional `MODEL`). Set that once, then install without flags:
 
 ```bash
 cd ol-runbook/coding-agents
-./copilot/install.sh
+cp env.example .env   # one-time: paste GATEWAY_URL (+ optional MODEL)
 ```
 
-`install` is the default subcommand and may be omitted — `./install.sh` with no
-subcommand runs install, and `./install.sh --gateway-url URL` is equivalent to
-`./install.sh` with the flag.
+`--gateway-url` and related flags still override `.env` when you need a
+one-off value. The API key is never taken from `.env` for Copilot — VS Code
+requires it via the UI secret store (see below).
+
+## Install
+
+```bash
+cd ol-runbook/coding-agents
+chmod +x copilot/install.sh
+./copilot/install.sh    # reads GATEWAY_URL from .env
+```
+
+`install` is the default subcommand and may be omitted.
 
 The API key is **not** passed on the command line. After install:
 
@@ -60,8 +64,8 @@ you only enter the key once, even if you re-run `install`.
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./copilot/install.sh status
+./copilot/install.sh uninstall
 ```
 
 ## Options

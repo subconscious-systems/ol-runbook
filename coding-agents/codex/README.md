@@ -20,6 +20,20 @@ Codex doesn't send hosted tools the gateway can't execute.
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
+## Shared env (preferred)
+
+All scripts read `GATEWAY_URL`, `API_KEY`, and optional `MODEL` from the shared
+`coding-agents/.env` one level up. Set that once, then run install/run without
+passing credentials on the command line:
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste GATEWAY_URL + API_KEY
+```
+
+`--gateway-url` / `--api-key` flags still override `.env` when you need a
+one-off value.
+
 ## Quick start (ephemeral — no persistent config)
 
 `run.sh` launches Codex with `-c` flags + a temp model catalog — nothing is
@@ -27,7 +41,7 @@ written to `~/.codex/config.toml`. The temp catalog is cleaned up on exit.
 
 ```bash
 cd ol-runbook/coding-agents
-cp env.example .env      # one-time setup (shared at coding-agents/ level)
+# ensure .env is filled in (see above)
 ./codex/run.sh                        # uses GATEWAY_URL/API_KEY from .env
 ./codex/run.sh -- --resume            # pass args through to codex
 ```
@@ -41,11 +55,9 @@ source codex/run.sh
 ## Install (persistent config)
 
 ```bash
-cd ol-runbook/coding-agents/codex
-chmod +x install.sh
-./install.sh \
-  --gateway-url 'https://your-gateway.example' \
-  --api-key 'sk-gw-...'
+cd ol-runbook/coding-agents
+chmod +x codex/install.sh
+./codex/install.sh    # reads GATEWAY_URL + API_KEY from .env
 ```
 
 `install` is the default subcommand and may be omitted.
@@ -58,22 +70,22 @@ This writes `~/.codex/config.toml` and `~/.codex/subconscious.env`
 After install, launch codex with the gateway env loaded:
 
 ```bash
-./install.sh use                    # launches codex
-./install.sh use -- --resume        # pass args through to codex
+./codex/install.sh use                    # launches codex
+./codex/install.sh use -- --resume        # pass args through to codex
 ```
 
 Or load the env into your current shell without launching:
 
 ```bash
-source <(./install.sh env)          # load   SUBCONSCIOUS_API_KEY
-source <(./install.sh unset)        # remove SUBCONSCIOUS_API_KEY
+source <(./codex/install.sh env)          # load   SUBCONSCIOUS_API_KEY
+source <(./codex/install.sh unset)        # remove SUBCONSCIOUS_API_KEY
 ```
 
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./codex/install.sh status
+./codex/install.sh uninstall
 ```
 
 ## Manual setup

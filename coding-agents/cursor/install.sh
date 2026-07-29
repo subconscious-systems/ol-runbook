@@ -9,8 +9,8 @@
 #   ./install.sh uninstall              # remove hooks
 #
 # Cursor model/URL are set in Cursor settings (OpenAI API Key Override), not
-# here. This script only installs the conversation-correlation hooks.
-# Restart Cursor after install so it reloads ~/.cursor/hooks.json.
+# here. This script installs the conversation-correlation hooks (user-wide
+# under ~/.cursor). Restart Cursor after install so it reloads hooks.json.
 #
 # ── What this does under the hood ────────────────────────────────────────────
 # Equivalent manual setup (three pieces):
@@ -139,46 +139,77 @@ install_hook_script() {
   chmod +x "$HOOK_DST"
 }
 
-merge_hooks_json() {
+# merge_hook_entries <hooks_json> <marker> <command> <event> [<event>...]
+#
+# Additive, idempotent merge of a single hook command into one or more events
+# of a hooks.json file. Preserves ALL other entries verbatim, including
+# third-party hooks, prompt hooks (no `command` field), and unknown events.
+#
+# Invariants:
+#  - Only entries whose `command` contains <marker> are replaced; others untouched.
+#  - Running twice yields the same result as once (idempotent, order-stable).
+#  - Entries without a `command` field are never matched/removed.
+#  - Missing/empty file is initialized to {"version":1,"hooks":{}}.
+merge_hook_entries() {
+  local hooks_json="$1" marker="$2" command="$3"
+  shift 3
+  local events
+  events="$(printf '%s\n' "$@" | jq -R . | jq -s .)"
+
+  if [[ ! -f "$hooks_json" ]]; then
+    printf '%s\n' '{"version":1,"hooks":{}}' >"$hooks_json"
+  fi
+
   local tmp
   tmp="$(mktemp)"
+  jq --arg marker "$marker" --arg cmd "$command" --argjson events "$events" '
+    .version = (.version // 1) |
+    .hooks = (.hooks // {}) |
+    # Strip prior entries with our marker from every event, keep everything else.
+    .hooks |= with_entries(
+      .value = ((.value // []) | map(select((.command // "") | tostring | contains($marker) | not)))
+    ) |
+    # Append our entry to each requested event (preserving any other entries).
+    .hooks = (.hooks | reduce ($events[]) as $e (.;
+      .[$e] = ((.[$e] // []) + [{"command": $cmd, "timeout": 2}])
+    ))
+  ' "$hooks_json" >"$tmp"
+  mv "$tmp" "$hooks_json"
+}
+
+# remove_hook_entries <hooks_json> <marker>
+#
+# Remove every entry whose `command` contains <marker> from all events.
+# Preserves all other entries (third-party, prompt hooks, unknown events).
+remove_hook_entries() {
+  local hooks_json="$1" marker="$2"
+  [[ -f "$hooks_json" ]] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg marker "$marker" '
+    .hooks //= {} |
+    .hooks |= with_entries(
+      .value = ((.value // []) | map(select((.command // "") | tostring | contains($marker) | not)))
+    )
+  ' "$hooks_json" >"$tmp"
+  mv "$tmp" "$hooks_json"
+}
+
+merge_hooks_json() {
   if [[ ! -f "$HOOKS_JSON" ]]; then
     sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
     return
   fi
-  # Strip any prior subconscious entries, then append ours.
-  jq --arg cmd "$HOOK_DST" '
-    .version = (.version // 1) |
-    .hooks = (.hooks // {}) |
-    .hooks |= with_entries(
-      .value = ((.value // []) | map(select((.command // "") | tostring | contains("subconscious-hook.sh") | not)))
-    ) |
-    .hooks.beforeSubmitPrompt = ((.hooks.beforeSubmitPrompt // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.afterAgentResponse = ((.hooks.afterAgentResponse // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.stop = ((.hooks.stop // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.subagentStart = ((.hooks.subagentStart // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.subagentStop = ((.hooks.subagentStop // []) + [{"command": $cmd, "timeout": 2}])
-  ' "$HOOKS_JSON" >"$tmp"
-  mv "$tmp" "$HOOKS_JSON"
+  merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" \
+    beforeSubmitPrompt afterAgentResponse stop subagentStart subagentStop
 }
 
 uninstall_hooks() {
-  if [[ -f "$HOOKS_JSON" ]]; then
-    local tmp
-    tmp="$(mktemp)"
-    jq '
-      .hooks //= {} |
-      .hooks |= with_entries(
-        .value = ((.value // []) | map(select((.command // "") | tostring | contains("subconscious-hook.sh") | not)))
-      )
-    ' "$HOOKS_JSON" >"$tmp"
-    mv "$tmp" "$HOOKS_JSON"
-  fi
+  remove_hook_entries "$HOOKS_JSON" "$MARKER"
   rm -f "$HOOK_DST" "$ENV_FILE"
 }
 
 status() {
-  echo "scope: user"
   echo "cursor dir: $CURSOR_DIR"
   echo "hooks.json: $HOOKS_JSON"
   if [[ -f "$HOOKS_JSON" ]] && jq -e --arg m "$MARKER" '

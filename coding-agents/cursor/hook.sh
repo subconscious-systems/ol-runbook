@@ -65,6 +65,24 @@ fi
 SUBAGENT_ID="$(printf '%s' "$INPUT" | jq -r '.subagent_id // empty' 2>/dev/null || true)"
 SUBAGENT_PARENT_CONV="$(printf '%s' "$INPUT" | jq -r '.parent_conversation_id // empty' 2>/dev/null || true)"
 
+# Fire log: append one line per hook invocation so we can audit exactly when
+# hooks fire (e.g. whether Cursor fires any hook when you click "build" after the
+# plan + build flow). Override the path with SUBCONSCIOUS_HOOK_LOG.
+HOOK_LOG="${SUBCONSCIOUS_HOOK_LOG:-${HOME}/.cursor/subconscious-hook.log}"
+PROMPT_SNIP="$(printf '%s' "$PROMPT" | head -c 200 | tr '\n' ' ')"
+{
+  printf '%s event=%s conv=%s subagent=%s parent=%s model=%s workspace=%s prompt_len=%s prompt="%s"\n' \
+    "$(date '+%Y-%m-%dT%H:%M:%S%z')" \
+    "${HOOK_EVENT:-?}" \
+    "${CONVERSATION_ID:-}" \
+    "${SUBAGENT_ID:-}" \
+    "${SUBAGENT_PARENT_CONV:-}" \
+    "${MODEL:-}" \
+    "${WORKSPACE:-}" \
+    "${#PROMPT}" \
+    "$PROMPT_SNIP"
+} >>"$HOOK_LOG" 2>/dev/null || true
+
 # Must match observability::normalize_prompt_for_fingerprint + prompt_fingerprint.
 normalize_prompt() {
   printf '%s' "$1" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'

@@ -22,14 +22,25 @@ Hooks **cannot** inject headers into model HTTP. They:
 - A gateway API key (same key as Cursor's OpenAI override)
 - Gateway URL reachable from your machine
 
+## Shared env (preferred)
+
+Prefer the shared `coding-agents/.env` one level up for `GATEWAY_URL`,
+`API_KEY`, and optional `MODEL`. Set that once, then install without flags:
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste GATEWAY_URL + API_KEY
+```
+
+`--gateway-url` / `--api-key` flags still override `.env` when you need a
+one-off value.
+
 ## Install
 
 ```bash
-cd ol-runbook/coding-agents/cursor
-chmod +x install.sh hook.sh
-./install.sh \
-  --gateway-url 'https://your-gateway.example' \
-  --api-key 'sk-...'
+cd ol-runbook/coding-agents
+chmod +x cursor/install.sh cursor/hook.sh
+./cursor/install.sh    # reads GATEWAY_URL + API_KEY from .env
 ```
 
 `install` is the default subcommand and may be omitted — `./install.sh` with no
@@ -40,8 +51,8 @@ Restart Cursor fully so it reloads `~/.cursor/hooks.json`.
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./cursor/install.sh status
+./cursor/install.sh uninstall
 ```
 
 Hooks install **user-wide** under `~/.cursor` only (API key stays out of git working trees).
