@@ -33,7 +33,7 @@ Create these Hub Secrets yourself (masked). Reference them from the infra Docker
 | Hub secret | Used by |
 | --- | --- |
 | `DISTR_TOKEN` | Infra runner (customer PAT) |
-| `DD_API_KEY` / `DD_APP_KEY` | Infra / Datadog when enabled (not gateway pods) |
+| `DD_API_KEY` / `DD_APP_KEY` | Infra / Datadog when enabled (not gateway pods). Automatic AWS integration creation requires `aws_configuration_read`, `aws_configuration_edit`, and `aws_configurations_manage` on the application key. |
 | `{gw}_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | First dashboard admin (`{gw}` = `GATEWAY_DISTR_DEPLOYMENT_NAME`) |
 | `{gw}_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Dashboard SSO client secret when `DASHBOARD_OIDC_ENABLED=true` (Okta / Entra) |
 

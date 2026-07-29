@@ -30,7 +30,9 @@ Deployment **targets** are not entitlements. The admin creates those when connec
   - `DOMAIN_NAME`: public hostname (subdomain under your zone)
   - `VPC_CIDR`: non-overlapping `/16`
 - [ ] Public Route 53 zone exists (`DNS_ZONE_NAME`); `DOMAIN_NAME` is free
-- [ ] Datadog API key + application key ready
+- [ ] Datadog API key + application key ready. When database AWS metrics are
+  enabled, the application key needs `aws_configuration_read`,
+  `aws_configuration_edit`, and `aws_configurations_manage`.
 - [ ] Create a Distr PAT
 
 Make sure naming conventions follow this pattern:
@@ -81,6 +83,12 @@ See [gateway-secrets.md](gateway-secrets.md) for more details.
 - [ ] Create the **api-gateway-infra** Docker deployment in Hub
 - [ ] Paste env from [sample-gateway-infra.env](sample-gateway-infra.env), adapting names/region/domain/CIDR to your settings
 - [ ] Save the Docker-agent **connect URL** from Hub for the next step
+
+When `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the Distr runner creates the
+minimal Datadog AWS account integration and IAM trust role automatically if
+they are absent. Do not run Datadog's AWS wizard or deploy its log-forwarder
+CloudFormation stack. Compatible integrations that already exist are validated
+and preserved.
 
 ### 7. Admin: Connect the Distr Docker agent
 
