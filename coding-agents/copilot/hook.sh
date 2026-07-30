@@ -8,8 +8,8 @@
 #   UserPromptSubmit -> conversation_ensure { conversation_id, prompt }
 #
 # The gateway fingerprints the raw prompt itself and chains every later turn of
-# the conversation onto the first one, so this hook needs no hashing, no local
-# state, and no after-the-fact associate call.
+# the conversation onto the first one, so this hook needs no hashing and no local
+# state.
 #
 # Deliberately NOT registered: SessionStart / SubagentStart / SubagentStop /
 # Stop / PreToolUse / PostToolUse / PreCompact. UserPromptSubmit already fires

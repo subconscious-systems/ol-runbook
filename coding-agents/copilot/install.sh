@@ -91,10 +91,6 @@ HOOKS_DIR="${COPILOT_DIR}/hooks"
 HOOK_DST="${HOOKS_DIR}/subconscious-hook.sh"
 HOOKS_JSON="${HOOKS_DIR}/subconscious-hooks.json"
 ENV_FILE="${COPILOT_DIR}/subconscious-hooks.env"
-# Written by the pre-convergence hook, which kept a local drain/associate state
-# machine. Nothing reads it now; installing or uninstalling clears it so an
-# upgraded machine does not keep a stale file around forever.
-LEGACY_STATE_FILE="${COPILOT_DIR}/subconscious-corr-state.json"
 MARKER="subconscious-hook.sh"
 
 usage() {
@@ -343,13 +339,10 @@ install_hook_script() {
 
 write_hooks_json() {
   sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
-  rm -f "$LEGACY_STATE_FILE" "${LEGACY_STATE_FILE}.lockdir" 2>/dev/null || true
-  rmdir "${LEGACY_STATE_FILE}.lockdir" 2>/dev/null || true
 }
 
 uninstall_hooks() {
-  rm -f "$HOOK_DST" "$HOOKS_JSON" "$ENV_FILE" "$LEGACY_STATE_FILE"
-  rmdir "${LEGACY_STATE_FILE}.lockdir" 2>/dev/null || true
+  rm -f "$HOOK_DST" "$HOOKS_JSON" "$ENV_FILE"
 }
 
 hooks_status() {

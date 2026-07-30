@@ -66,11 +66,6 @@ Check status / uninstall:
 
 Hooks install **user-wide** under `~/.cursor` only (API key stays out of git working trees).
 
-Upgrading from an earlier release prunes the hook entries it registered for
-`afterAgentResponse`, `stop`, `subagentStart`, and `subagentStop`; those events
-are no longer used. `uninstall` also removes the old
-`~/.cursor/subconscious-corr-state.json` state file.
-
 ## What gets installed
 
 | Path | Purpose |

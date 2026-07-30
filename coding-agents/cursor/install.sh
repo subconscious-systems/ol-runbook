@@ -193,9 +193,7 @@ merge_hooks_json() {
     sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
     return
   fi
-  # Drop our entries first so upgrading from a release that registered
-  # afterAgentResponse / stop / subagentStart / subagentStop prunes them: those
-  # events are no longer used and correlation is gateway-side now.
+  # Replace our marker entries, then register beforeSubmitPrompt only.
   remove_hook_entries "$HOOKS_JSON" "$MARKER"
   merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" beforeSubmitPrompt
 }
@@ -203,10 +201,6 @@ merge_hooks_json() {
 uninstall_hooks() {
   remove_hook_entries "$HOOKS_JSON" "$MARKER"
   rm -f "$HOOK_DST" "$ENV_FILE"
-  # State file from the pre-chaining hook, which kept a local id map and
-  # pending-subagent queues. Nothing writes it any more.
-  rm -rf "${CURSOR_DIR}/subconscious-corr-state.json" \
-    "${CURSOR_DIR}/subconscious-corr-state.json.lockdir"
 }
 
 status() {

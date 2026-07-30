@@ -8,9 +8,9 @@
 #   beforeSubmitPrompt -> conversation_ensure { conversation_id, prompt }
 #
 # The gateway fingerprints the raw prompt itself and chains every later turn of
-# the conversation onto the first one, so this hook needs no hashing, no local
-# state, and no after-the-fact associate call. Cursor cannot inject headers into
-# model HTTP, which is why this announcement exists at all.
+# the conversation onto the first one, so this hook needs no hashing and no local
+# state. Cursor cannot inject headers into model HTTP, which is why this
+# announcement exists at all.
 #
 # Deliberately NOT registered: afterAgentThought / afterAgentResponse /
 # preToolUse / stop / subagentStart / subagentStop. Subagents are correlated
