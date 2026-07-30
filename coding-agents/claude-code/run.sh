@@ -59,6 +59,17 @@ export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4
 export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000
 
+# Export metadata-only LLM request spans back to the gateway. The gateway keeps
+# only request_id/query_source attribution and discards all other OTLP content.
+export CLAUDE_CODE_ENABLE_TELEMETRY="${CLAUDE_CODE_ENABLE_TELEMETRY:-1}"
+export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA="${CLAUDE_CODE_ENHANCED_TELEMETRY_BETA:-1}"
+export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"
+export OTEL_METRICS_EXPORTER="${OTEL_METRICS_EXPORTER:-none}"
+export OTEL_LOGS_EXPORTER="${OTEL_LOGS_EXPORTER:-none}"
+export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL="${OTEL_EXPORTER_OTLP_TRACES_PROTOCOL:-http/protobuf}"
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-${GATEWAY_URL%/}/v1/traces}"
+export OTEL_EXPORTER_OTLP_HEADERS="${OTEL_EXPORTER_OTLP_HEADERS:-Authorization=Bearer $API_KEY}"
+
 # If sourced, export env and return (caller can unset when done).
 if [[ "${BASH_SOURCE[0]:-$0}" != "${0}" ]]; then
   return 0 2>/dev/null || true
