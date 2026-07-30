@@ -38,8 +38,8 @@
 #           "url": "https://your-gateway.example/v1/chat/completions",
 #           "toolCalling": true,
 #           "vision": false,
-#           "maxInputTokens": 200000,
-#           "maxOutputTokens": 16000,
+#           "maxInputTokens": 256000,
+#           "maxOutputTokens": 64000,
 #           "streaming": true,
 #           "requestHeaders": { "x-subconscious-client": "copilot" }
 #         }
@@ -47,12 +47,13 @@
 #     }
 #   ]
 #
-# And installs VS Code agent hooks (~/.copilot/hooks/) that POST
-# turn_open / turn_close to /v1/agent-hooks with a SHA-256 prompt fingerprint.
-# The gateway soft-binds later LLM requests that share that fingerprint to
-# group them into a Conversation. The x-subconscious-client: copilot header
-# (sent by both the hook script and the model requestHeaders) tells the
-# gateway to classify the traffic as Copilot.
+# And installs a VS Code agent hook (~/.copilot/hooks/) that POSTs
+# conversation_ensure to /v1/agent-hooks with the raw prompt text once per
+# submission. The gateway fingerprints the prompt itself, binds the first LLM
+# request of that prompt, then chains every later turn of the conversation onto
+# it -- including subagents, which UserPromptSubmit also fires for. The
+# x-subconscious-client: copilot header (sent by both the hook script and the
+# model requestHeaders) tells the gateway to classify the traffic as Copilot.
 # hooks reference: https://code.visualstudio.com/docs/agent-customization/hooks
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -73,8 +74,8 @@ COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-gw-glm-5.2}"
-MAX_INPUT_TOKENS="${MAX_INPUT_TOKENS:-200000}"
-MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-16000}"
+MAX_INPUT_TOKENS="${MAX_INPUT_TOKENS:-256000}"
+MAX_OUTPUT_TOKENS="${MAX_OUTPUT_TOKENS:-64000}"
 VSCODE_APP="${VSCODE_APP:-}"  # auto-detected: Code | Code - Insiders | VSCodium
 
 # VS Code's customendpoint provider requires the apiKey to be a
@@ -118,12 +119,12 @@ Options:
   --gateway-url URL         Gateway origin (default: $GATEWAY_URL from .env)
   --api-key KEY             Gateway API key for hooks (default: $API_KEY from .env)
   --model MODEL             Model id (default: gw-glm-5.2)
-  --max-input-tokens N      Model context window input tokens (default: 200000)
-  --max-output-tokens N     Model max output tokens (default: 16000)
+  --max-input-tokens N      Model context window input tokens (default: 256000)
+  --max-output-tokens N     Model max output tokens (default: 64000)
   --vscode-app APP          Code, Code - Insiders, or VSCodium (auto-detected)
 
-Requires: jq, curl, openssl (or shasum). Restart VS Code after install, then
-enter your model API key once via Manage Language Models.
+Requires: jq, curl. Restart VS Code after install, then enter your model API
+key once via Manage Language Models.
 EOF
 }
 
@@ -180,10 +181,6 @@ require_cmds() {
       missing=1
     fi
   done
-  if ! command -v openssl >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
-    echo "missing required command: openssl or shasum" >&2
-    missing=1
-  fi
   if [[ "$missing" -ne 0 ]]; then
     exit 1
   fi

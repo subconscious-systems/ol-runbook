@@ -22,11 +22,22 @@
 #   export ANTHROPIC_AUTH_TOKEN=sk-gw-...
 #   export ANTHROPIC_MODEL=gw-glm-5.2
 #   export ANTHROPIC_SMALL_FAST_MODEL=gw-glm-5.2
-#   export CLAUDE_CODE_AUTO_COMPACT_WINDOW=150000
+#   export CLAUDE_CODE_SUBAGENT_MODEL=gw-glm-5.2
+#   export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4
+#   export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1
+#   export CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000
+#   export CLAUDE_CODE_ENABLE_TELEMETRY=1
+#   export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
+#   export OTEL_TRACES_EXPORTER=otlp
+#   export OTEL_METRICS_EXPORTER=none
+#   export OTEL_LOGS_EXPORTER=none
+#   export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+#   export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://your-gateway.example/v1/traces
+#   export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer sk-gw-..."
 #   claude
 #
 # Claude Code sends native x-claude-code-session-id headers, so the gateway
-# correlates requests automatically — no hooks or extra config required.
+# correlates requests automatically. Metadata-only traces add request types.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -41,12 +52,16 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 CLAUDE_DIR="${HOME}/.claude"
 ENV_FILE="${CLAUDE_DIR}/subconscious-gateway.env"
 DEFAULT_MODEL="gw-glm-5.2"
-DEFAULT_COMPACT_WINDOW="150000"
+DEFAULT_COMPACT_WINDOW="500000"
+DEFAULT_MAX_CONCURRENT_SUBAGENTS="4"
+DEFAULT_MAX_SUBAGENT_SPAWN_DEPTH="1"
 
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-$DEFAULT_MODEL}"
 COMPACT_WINDOW="${COMPACT_WINDOW:-$DEFAULT_COMPACT_WINDOW}"
+MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS:-$DEFAULT_MAX_CONCURRENT_SUBAGENTS}"
+MAX_SUBAGENT_SPAWN_DEPTH="${MAX_SUBAGENT_SPAWN_DEPTH:-$DEFAULT_MAX_SUBAGENT_SPAWN_DEPTH}"
 COMMAND="install"
 
 usage() {
@@ -73,7 +88,7 @@ Options:
   --gateway-url URL     Gateway origin (e.g. https://gateway.example)
   --api-key KEY         Gateway API key (sk-gw-...)
   --model MODEL         Model name (default: gw-glm-5.2)
-  --compact-window N    CLAUDE_CODE_AUTO_COMPACT_WINDOW (default: 150000)
+  --compact-window N    CLAUDE_CODE_AUTO_COMPACT_WINDOW (default: 500000)
 EOF
 }
 
@@ -124,7 +139,18 @@ export ANTHROPIC_BASE_URL="${GATEWAY_URL}"
 export ANTHROPIC_AUTH_TOKEN="${API_KEY}"
 export ANTHROPIC_MODEL="${MODEL}"
 export ANTHROPIC_SMALL_FAST_MODEL="${MODEL}"
+export CLAUDE_CODE_SUBAGENT_MODEL="${MODEL}"
+export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS}"
+export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH="${MAX_SUBAGENT_SPAWN_DEPTH}"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${COMPACT_WINDOW}"
+export CLAUDE_CODE_ENABLE_TELEMETRY="1"
+export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA="1"
+export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_METRICS_EXPORTER="none"
+export OTEL_LOGS_EXPORTER="none"
+export OTEL_EXPORTER_OTLP_TRACES_PROTOCOL="http/protobuf"
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${GATEWAY_URL%/}/v1/traces"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer ${API_KEY}"
 EOF
   chmod 600 "$ENV_FILE"
 }
@@ -144,7 +170,18 @@ unset ANTHROPIC_BASE_URL
 unset ANTHROPIC_AUTH_TOKEN
 unset ANTHROPIC_MODEL
 unset ANTHROPIC_SMALL_FAST_MODEL
+unset CLAUDE_CODE_SUBAGENT_MODEL
+unset CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS
+unset CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH
 unset CLAUDE_CODE_AUTO_COMPACT_WINDOW
+unset CLAUDE_CODE_ENABLE_TELEMETRY
+unset CLAUDE_CODE_ENHANCED_TELEMETRY_BETA
+unset OTEL_TRACES_EXPORTER
+unset OTEL_METRICS_EXPORTER
+unset OTEL_LOGS_EXPORTER
+unset OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+unset OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+unset OTEL_EXPORTER_OTLP_HEADERS
 EOF
 }
 
@@ -162,7 +199,10 @@ status() {
       echo "api key: unset"
     fi
     echo "model: ${ANTHROPIC_MODEL:-unset}"
+    echo "max concurrent subagents: ${CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS:-unset}"
+    echo "max subagent spawn depth: ${CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH:-unset}"
     echo "compact window: ${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-unset}"
+    echo "request types: ${OTEL_TRACES_EXPORTER:-unset} -> ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-unset}"
   else
     echo "env file: missing"
     echo "run: ./install.sh --gateway-url URL --api-key KEY"
@@ -179,6 +219,7 @@ case "$COMMAND" in
     echo "Wrote $ENV_FILE"
     echo "  gateway: $GATEWAY_URL"
     echo "  model:   $MODEL"
+    echo "  request types: enabled"
     echo ""
     echo "Launch claude:"
     echo "  ./install.sh use"

@@ -27,25 +27,29 @@ A static `x-subconscious-client: copilot` header is attached per-model via the
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
-## Install
+## Shared env (preferred)
 
-```bash
-cd ol-runbook/coding-agents/copilot
-chmod +x install.sh
-./install.sh --gateway-url 'https://your-gateway.example'
-```
-
-Or, reading from the shared `coding-agents/.env` (copy `env.example` to `.env`
-first):
+Prefer the shared `coding-agents/.env` one level up for `GATEWAY_URL` (and
+optional `MODEL`). Set that once, then install without flags:
 
 ```bash
 cd ol-runbook/coding-agents
-./copilot/install.sh
+cp env.example .env   # one-time: paste GATEWAY_URL (+ optional MODEL)
 ```
 
-`install` is the default subcommand and may be omitted — `./install.sh` with no
-subcommand runs install, and `./install.sh --gateway-url URL` is equivalent to
-`./install.sh` with the flag.
+`--gateway-url` and related flags still override `.env` when you need a
+one-off value. The API key is never taken from `.env` for Copilot — VS Code
+requires it via the UI secret store (see below).
+
+## Install
+
+```bash
+cd ol-runbook/coding-agents
+chmod +x copilot/install.sh
+./copilot/install.sh    # reads GATEWAY_URL from .env
+```
+
+`install` is the default subcommand and may be omitted.
 
 The API key is **not** passed on the command line. After install:
 
@@ -60,8 +64,8 @@ you only enter the key once, even if you re-run `install`.
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./copilot/install.sh status
+./copilot/install.sh uninstall
 ```
 
 ## Options
@@ -107,8 +111,8 @@ If you prefer to configure VS Code entirely by hand:
         "url": "https://your-gateway.example/v1/chat/completions",
         "toolCalling": true,
         "vision": false,
-        "maxInputTokens": 200000,
-        "maxOutputTokens": 16000,
+        "maxInputTokens": 256000,
+        "maxOutputTokens": 64000,
         "streaming": true,
         "requestHeaders": { "x-subconscious-client": "copilot" }
       }
@@ -123,63 +127,51 @@ If you prefer to configure VS Code entirely by hand:
 
 Copilot in VS Code has no native session headers and VS Code's Custom Endpoint
 provider exposes no per-request hook surface for injecting headers. However,
-VS Code **does** support [agent hooks](https://code.visualstudio.com/docs/agent-customization/language-models)
+VS Code **does** support [agent hooks](https://code.visualstudio.com/docs/copilot/customization/hooks)
 via `~/.copilot/hooks/` — a directory of JSON files that invoke shell scripts
 on chat lifecycle events.
 
-The installer writes a `subconscious-hook.json` + `subconscious-hook.sh` pair
-into `~/.copilot/hooks/`. The hook script:
+The installer writes a `subconscious-hooks.json` + `subconscious-hook.sh` pair
+into `~/.copilot/hooks/`. The hook makes exactly one call, on one event:
 
-1. Reads the chat event (`SessionStart`, `UserPromptSubmit`, `Stop`,
-   `SubagentStart`, `SubagentStop`) from stdin.
-2. Extracts `session_id` and `timestamp` from the event payload.
-3. Normalizes the prompt text and computes a SHA-256 fingerprint (same algorithm
-   as the Cursor hook).
-4. `POST /v1/agent-hooks` to your gateway with `x-subconscious-client: copilot`,
-   a `turn_open`/`turn_close` event, and the prompt fingerprint.
+| VS Code hook | Gateway event |
+| --- | --- |
+| `UserPromptSubmit` | `conversation_ensure` with `conversation_id` (the VS Code `session_id`) and the raw `prompt` |
 
-The gateway soft-binds later `/v1/chat/completions` requests that share the
-same fingerprint to group them into a **Conversation** row in the dashboard.
+Nothing else is registered. The gateway fingerprints the prompt itself, binds
+the first LLM request of that prompt, and chains every later turn of the
+conversation onto it — so the hook keeps no local state, does no hashing, and
+never calls back to patch anything up.
 
-This is the same mechanism Cursor uses, adapted for VS Code's hook format.
+**Subagent fan-out** needs no hooks at all. `UserPromptSubmit` fires for each
+subagent's prompt too, and the parent's `runSubagent` tool call carries that same
+prompt as a top-level argument, so the gateway nests the child from the model
+traffic alone. `SubagentStart` / `SubagentStop` are not registered.
 
 ### What gets installed for correlation
 
 | Path | Purpose |
 | --- | --- |
-| `~/.copilot/hooks/subconscious-hook.json` | Hook registration (PascalCase event names) |
+| `~/.copilot/hooks/subconscious-hooks.json` | Hook registration (PascalCase event names) |
 | `~/.copilot/hooks/subconscious-hook.sh` | Fail-open hook script (POSTs to `/v1/agent-hooks`) |
 | `~/.copilot/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
 
 ### Fingerprint contract
 
-Both the hook and the gateway normalize then SHA-256:
-
-1. Replace `\r\n` with `\n`
-2. Trim leading/trailing whitespace
-3. SHA-256 hex (64 lowercase hex chars) → `prompt_fp`
-
-### Events
-
-| VS Code hook | Gateway event |
-| --- | --- |
-| `SessionStart` | `turn_open` (+ `prompt_fp` from `initial_prompt` if present) |
-| `UserPromptSubmit` | `turn_open` (+ `prompt_fp` from `prompt`) |
-| `Stop` | `turn_close` |
-| `SubagentStart` | `turn_open` (child conversation, `parent_conversation_id` set) |
-| `SubagentStop` | `turn_close` (child conversation) |
-
-Same VS Code `session_id` across multiple prompts upserts one Conversations row.
-Each prompt opens a new generation window (`generation_id` = `session_id:timestamp`).
+The hook sends raw prompt text; only the gateway hashes. It normalizes by
+replacing `\r\n` with `\n`, stripping the `<userRequest>` wrapper VS Code adds
+before the prompt reaches the model, trimming, then SHA-256. Keeping that in one
+place is the point: when the hook hashed too, any drift between the shell and
+Rust implementations broke correlation silently.
 
 ### Limitations
 
-- No `turn_heartbeat` equivalent (VS Code has no "response received" hook).
-- The hook fires on chat lifecycle events, not on raw HTTP requests, so
-  correlation is heuristic (prompt fingerprint soft-bind) rather than
-  header-hard-bound like Codex or Claude Code.
-- If two chats start with identical prompts, they may merge into one
-  conversation. This is a known limitation of the fingerprint approach.
+- The hook races the request it announces. Losing that race is recovered on the
+  gateway side, which sweeps for unbound turns carrying the announced
+  fingerprint — except when two sessions send byte-identical prompts, where it
+  declines to guess and leaves both for the next prompt to re-anchor.
+- A missed `UserPromptSubmit` costs one generation; the next prompt re-anchors
+  and the chain carries the rest.
 
 ## GitHub Copilot desktop app
 

@@ -9,8 +9,8 @@
 #   ./install.sh uninstall              # remove hooks
 #
 # Cursor model/URL are set in Cursor settings (OpenAI API Key Override), not
-# here. This script only installs the conversation-correlation hooks.
-# Restart Cursor after install so it reloads ~/.cursor/hooks.json.
+# here. This script installs the conversation-correlation hooks (user-wide
+# under ~/.cursor). Restart Cursor after install so it reloads hooks.json.
 #
 # ── What this does under the hood ────────────────────────────────────────────
 # Equivalent manual setup (three pieces):
@@ -23,11 +23,7 @@
 #        {
 #          "version": 1,
 #          "hooks": {
-#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "afterAgentResponse":  [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "stop":                [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "subagentStart":       [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
-#            "subagentStop":        [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
+#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
 #          }
 #        }
 #
@@ -35,11 +31,12 @@
 #        export SUBCONSCIOUS_GATEWAY_URL=https://your-gateway.example
 #        export SUBCONSCIOUS_API_KEY=sk-gw-...
 #
-# The hook script (hook.sh) POSTs turn_open/turn_heartbeat/turn_close to
-# /v1/agent-hooks with a SHA-256 prompt fingerprint. The gateway soft-binds
-# later LLM requests that share that fingerprint to group them into a
-# Conversation. Unlike Claude Code / Pi / OpenCode, Cursor has no native
-# session headers, so hooks are required for correlation.
+# The hook script (hook.sh) POSTs conversation_ensure to /v1/agent-hooks with the raw
+# prompt text once per submission. The gateway fingerprints the prompt itself,
+# binds the first LLM request of that prompt, then chains every later turn of the
+# conversation onto it -- including subagents. Unlike Claude Code / Pi /
+# OpenCode, Cursor has no native session headers and hooks cannot inject headers
+# into model HTTP, so this announcement is required for correlation.
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -66,11 +63,11 @@ Usage:
 
 `install` is the default subcommand and may be omitted.
 
-Installs Cursor hooks (user-wide under ~/.cursor) that POST
-turn_open/turn_heartbeat/turn_close to POST /v1/agent-hooks so the gateway
-can group Conversations for Cursor traffic.
+Installs a Cursor hook (user-wide under ~/.cursor) that POSTs conversation_ensure to
+/v1/agent-hooks on each prompt submission so the gateway can group
+Conversations for Cursor traffic.
 
-Requires: jq, curl, openssl (or shasum). Restart Cursor after install.
+Requires: jq, curl. Restart Cursor after install.
 EOF
 }
 
@@ -114,10 +111,6 @@ require_cmds() {
       missing=1
     fi
   done
-  if ! command -v openssl >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
-    echo "missing required command: openssl or shasum" >&2
-    missing=1
-  fi
   if [[ "$missing" -ne 0 ]]; then
     exit 1
   fi
@@ -139,46 +132,78 @@ install_hook_script() {
   chmod +x "$HOOK_DST"
 }
 
-merge_hooks_json() {
+# merge_hook_entries <hooks_json> <marker> <command> <event> [<event>...]
+#
+# Additive, idempotent merge of a single hook command into one or more events
+# of a hooks.json file. Preserves ALL other entries verbatim, including
+# third-party hooks, prompt hooks (no `command` field), and unknown events.
+#
+# Invariants:
+#  - Only entries whose `command` contains <marker> are replaced; others untouched.
+#  - Running twice yields the same result as once (idempotent, order-stable).
+#  - Entries without a `command` field are never matched/removed.
+#  - Missing/empty file is initialized to {"version":1,"hooks":{}}.
+merge_hook_entries() {
+  local hooks_json="$1" marker="$2" command="$3"
+  shift 3
+  local events
+  events="$(printf '%s\n' "$@" | jq -R . | jq -s .)"
+
+  if [[ ! -f "$hooks_json" ]]; then
+    printf '%s\n' '{"version":1,"hooks":{}}' >"$hooks_json"
+  fi
+
   local tmp
   tmp="$(mktemp)"
+  jq --arg marker "$marker" --arg cmd "$command" --argjson events "$events" '
+    .version = (.version // 1) |
+    .hooks = (.hooks // {}) |
+    # Strip prior entries with our marker from every event, keep everything else.
+    .hooks |= with_entries(
+      .value = ((.value // []) | map(select((.command // "") | tostring | contains($marker) | not)))
+    ) |
+    # Append our entry to each requested event (preserving any other entries).
+    .hooks = (.hooks | reduce ($events[]) as $e (.;
+      .[$e] = ((.[$e] // []) + [{"command": $cmd, "timeout": 2}])
+    ))
+  ' "$hooks_json" >"$tmp"
+  mv "$tmp" "$hooks_json"
+}
+
+# remove_hook_entries <hooks_json> <marker>
+#
+# Remove every entry whose `command` contains <marker> from all events.
+# Preserves all other entries (third-party, prompt hooks, unknown events).
+remove_hook_entries() {
+  local hooks_json="$1" marker="$2"
+  [[ -f "$hooks_json" ]] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg marker "$marker" '
+    .hooks //= {} |
+    .hooks |= with_entries(
+      .value = ((.value // []) | map(select((.command // "") | tostring | contains($marker) | not)))
+    )
+  ' "$hooks_json" >"$tmp"
+  mv "$tmp" "$hooks_json"
+}
+
+merge_hooks_json() {
   if [[ ! -f "$HOOKS_JSON" ]]; then
     sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
     return
   fi
-  # Strip any prior subconscious entries, then append ours.
-  jq --arg cmd "$HOOK_DST" '
-    .version = (.version // 1) |
-    .hooks = (.hooks // {}) |
-    .hooks |= with_entries(
-      .value = ((.value // []) | map(select((.command // "") | tostring | contains("subconscious-hook.sh") | not)))
-    ) |
-    .hooks.beforeSubmitPrompt = ((.hooks.beforeSubmitPrompt // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.afterAgentResponse = ((.hooks.afterAgentResponse // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.stop = ((.hooks.stop // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.subagentStart = ((.hooks.subagentStart // []) + [{"command": $cmd, "timeout": 2}]) |
-    .hooks.subagentStop = ((.hooks.subagentStop // []) + [{"command": $cmd, "timeout": 2}])
-  ' "$HOOKS_JSON" >"$tmp"
-  mv "$tmp" "$HOOKS_JSON"
+  # Replace our marker entries, then register beforeSubmitPrompt only.
+  remove_hook_entries "$HOOKS_JSON" "$MARKER"
+  merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" beforeSubmitPrompt
 }
 
 uninstall_hooks() {
-  if [[ -f "$HOOKS_JSON" ]]; then
-    local tmp
-    tmp="$(mktemp)"
-    jq '
-      .hooks //= {} |
-      .hooks |= with_entries(
-        .value = ((.value // []) | map(select((.command // "") | tostring | contains("subconscious-hook.sh") | not)))
-      )
-    ' "$HOOKS_JSON" >"$tmp"
-    mv "$tmp" "$HOOKS_JSON"
-  fi
+  remove_hook_entries "$HOOKS_JSON" "$MARKER"
   rm -f "$HOOK_DST" "$ENV_FILE"
 }
 
 status() {
-  echo "scope: user"
   echo "cursor dir: $CURSOR_DIR"
   echo "hooks.json: $HOOKS_JSON"
   if [[ -f "$HOOKS_JSON" ]] && jq -e --arg m "$MARKER" '

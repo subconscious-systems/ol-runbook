@@ -15,36 +15,33 @@
 #   ./install.sh status                 # show current config
 #   ./install.sh uninstall              # remove config + env file
 #
+# ── Subagents ─────────────────────────────────────────────────────────────────
+# Subagents are OFF by default. Current Codex releases (>=0.144) wrap subagent
+# tools in a `type: "namespace"` wire format that non-OpenAI providers can't
+# resolve, causing "unsupported call: spawn_agent" errors (upstream #32318,
+# #26977, #17598). The fix (PR #29602) is not yet merged.
+#
+# To use subagents, install the legacy Codex 0.132.0 which uses the older
+# multi-agent v1 config with plain tool names:
+#
+#   ./install.sh --subagents --gateway-url ... --api-key ...
+#
+# This pins `codex@0.132.0` and writes the legacy agents config:
+#
+#   [features]
+#   multi_agent = true
+#
+#   [agents]
+#   max_threads = 4
+#   max_depth = 1
+#   interrupt_message = true
+#
 # ── What this does under the hood ────────────────────────────────────────────
 # Equivalent manual setup (writes ~/.codex/config.toml + model catalog + env):
 #
 #   export SUBCONSCIOUS_API_KEY=sk-gw-...
 #   cat > ~/.codex/model-catalog.json <<'EOF'
-#   {
-#     "models": [{
-#       "slug": "gw-glm-5.2",
-#       "display_name": "Subconscious GLM 5.2",
-#       "context_window": 200000,
-#       "max_context_window": 200000,
-#       "auto_compact_token_limit": 180000,
-#       "effective_context_window_percent": 95,
-#       "supported_reasoning_levels": [],
-#       "shell_type": "shell_command",
-#       "visibility": "list",
-#       "supported_in_api": true,
-#       "priority": 0,
-#       "availability_nux": null,
-#       "upgrade": null,
-#       "base_instructions": "You are Codex, a coding agent.",
-#       "supports_reasoning_summaries": false,
-#       "support_verbosity": false,
-#       "default_verbosity": null,
-#       "apply_patch_tool_type": "freeform",
-#       "truncation_policy": { "mode": "tokens", "limit": 10000 },
-#       "supports_parallel_tool_calls": true,
-#       "experimental_supported_tools": []
-#     }]
-#   }
+#   { "models": [{ ... }] }
 #   EOF
 #
 #   cat > ~/.codex/config.toml <<'EOF'
@@ -79,11 +76,17 @@ COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${API_KEY:-}"
 MODEL="${MODEL:-gw-glm-5.2}"
+SUBAGENTS=false
+MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS:-4}"
+
+# Codex version that supports the legacy multi-agent v1 config (plain tool names).
+SUBAGENT_CODEX_VERSION="0.132.0"
 
 usage() {
   cat <<'EOF'
 Usage:
   install.sh [install] --gateway-url URL --api-key KEY [--model MODEL]
+                         [--subagents] [--max-concurrent-subagents N]
   install.sh use [-- CODEX_ARGS...]
   install.sh env
   install.sh unset
@@ -101,9 +104,13 @@ Commands:
   status      Show current configuration
 
 Options:
-  --gateway-url URL     Gateway origin (e.g. https://gateway.example)
-  --api-key KEY         Gateway API key (sk-gw-...)
-  --model MODEL         Model name (default: gw-glm-5.2)
+  --gateway-url URL            Gateway origin (e.g. https://gateway.example)
+  --api-key KEY                Gateway API key (sk-gw-...)
+  --model MODEL                Model name (default: gw-glm-5.2)
+  --subagents                  Enable subagents (pins codex@0.132.0, writes legacy
+                               multi-agent v1 config with plain tool names)
+  --max-concurrent-subagents N Max concurrent subagent threads (default: 4,
+                               only used with --subagents)
 EOF
 }
 
@@ -123,6 +130,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --model)
       MODEL="${2:-}"
+      shift 2
+      ;;
+    --subagents)
+      SUBAGENTS=true
+      shift
+      ;;
+    --max-concurrent-subagents)
+      MAX_CONCURRENT_SUBAGENTS="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -190,7 +205,34 @@ ENDJSON
   # On macOS, sed -i requires an empty backup extension arg.
   sed -i '' "s/__MODEL__/${MODEL}/g" "$CATALOG_FILE"
 
-  cat >"$CONFIG_TOML" <<EOF
+  # Write config.toml. When --subagents is set, write the legacy multi-agent v1
+  # config that uses plain tool names (not namespace wrappers), which the model
+  # worker can actually resolve. Otherwise, omit the [agents] block entirely so
+  # Codex uses its defaults (subagents off for custom providers).
+  if [[ "$SUBAGENTS" == "true" ]]; then
+    cat >"$CONFIG_TOML" <<EOF
+model = "${MODEL}"
+model_provider = "subconscious"
+model_catalog_json = "${CATALOG_FILE}"
+web_search = "disabled"
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = ${MAX_CONCURRENT_SUBAGENTS}
+max_depth = 1
+interrupt_message = true
+
+[model_providers.subconscious]
+name = "Subconscious Gateway"
+base_url = "${base_url}"
+wire_api = "responses"
+env_key = "SUBCONSCIOUS_API_KEY"
+stream_idle_timeout_ms = 300000
+EOF
+  else
+    cat >"$CONFIG_TOML" <<EOF
 model = "${MODEL}"
 model_provider = "subconscious"
 model_catalog_json = "${CATALOG_FILE}"
@@ -203,6 +245,8 @@ wire_api = "responses"
 env_key = "SUBCONSCIOUS_API_KEY"
 stream_idle_timeout_ms = 300000
 EOF
+  fi
+
   umask 077
   cat >"$ENV_FILE" <<EOF
 # Generated by ol-runbook/coding-agents/codex/install.sh — do not commit secrets.
@@ -248,6 +292,14 @@ status() {
     echo "status: installed"
     echo "model: $(grep '^model' "$CONFIG_TOML" | head -1 | sed 's/^model = "//;s/"$//')"
     echo "base_url: $(grep 'base_url' "$CONFIG_TOML" | sed 's/^base_url = "//;s/"$//')"
+    if grep -q '^\[agents\]' "$CONFIG_TOML" 2>/dev/null; then
+      echo "subagents: enabled (legacy multi-agent v1)"
+      local maxt
+      maxt="$(awk -F' *= *' '/^max_threads *=/{print $2}' "$CONFIG_TOML")"
+      echo "  max_threads: ${maxt:-?}"
+    else
+      echo "subagents: disabled (codex defaults)"
+    fi
   else
     echo "status: not installed"
   fi
@@ -268,6 +320,15 @@ case "$COMMAND" in
     echo "Installed Subconscious Codex config at $CONFIG_TOML"
     echo "  gateway: $GATEWAY_URL"
     echo "  model:   $MODEL"
+    if [[ "$SUBAGENTS" == "true" ]]; then
+      echo "  subagents: ENABLED (codex@${SUBAGENT_CODEX_VERSION}, max ${MAX_CONCURRENT_SUBAGENTS} threads)"
+      echo ""
+      echo "  NOTE: Subagent mode pins codex@${SUBAGENT_CODEX_VERSION}."
+      echo "  Install it with:  npm install -g @openai/codex@${SUBAGENT_CODEX_VERSION}"
+      echo "  Then launch with: ./install.sh use"
+    else
+      echo "  subagents: disabled (default for custom providers)"
+    fi
     echo ""
     echo "Launch codex:"
     echo "  ./install.sh use"
@@ -284,9 +345,25 @@ case "$COMMAND" in
     fi
     # shellcheck disable=SC1090
     source "$ENV_FILE"
-    if ! command -v codex >/dev/null 2>&1; then
-      echo "codex CLI not found in PATH" >&2
-      exit 1
+    # If subagents are enabled, ensure the pinned legacy version is installed.
+    if [[ "$SUBAGENTS" == "true" ]]; then
+      if ! command -v codex >/dev/null 2>&1; then
+        echo "codex CLI not found in PATH" >&2
+        echo "Install the pinned subagent version:" >&2
+        echo "  npm install -g @openai/codex@${SUBAGENT_CODEX_VERSION}" >&2
+        exit 1
+      fi
+      local_version="$(codex --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "")"
+      if [[ "$local_version" != "$SUBAGENT_CODEX_VERSION" ]]; then
+        echo "WARNING: codex ${local_version:-unknown} is installed, but subagents need ${SUBAGENT_CODEX_VERSION}." >&2
+        echo "  npm install -g @openai/codex@${SUBAGENT_CODEX_VERSION}" >&2
+        echo "  (or remove --subagents from your config to use the latest codex without subagents)" >&2
+      fi
+    else
+      if ! command -v codex >/dev/null 2>&1; then
+        echo "codex CLI not found in PATH" >&2
+        exit 1
+      fi
     fi
     exec codex "$@"
     ;;
