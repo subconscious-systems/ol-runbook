@@ -20,6 +20,20 @@ Codex doesn't send hosted tools the gateway can't execute.
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
+## Shared env (preferred)
+
+All scripts read `GATEWAY_URL`, `API_KEY`, and optional `MODEL` from the shared
+`coding-agents/.env` one level up. Set that once, then run install/run without
+passing credentials on the command line:
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste GATEWAY_URL + API_KEY
+```
+
+`--gateway-url` / `--api-key` flags still override `.env` when you need a
+one-off value.
+
 ## Quick start (ephemeral — no persistent config)
 
 `run.sh` launches Codex with `-c` flags + a temp model catalog — nothing is
@@ -27,7 +41,7 @@ written to `~/.codex/config.toml`. The temp catalog is cleaned up on exit.
 
 ```bash
 cd ol-runbook/coding-agents
-cp env.example .env      # one-time setup (shared at coding-agents/ level)
+# ensure .env is filled in (see above)
 ./codex/run.sh                        # uses GATEWAY_URL/API_KEY from .env
 ./codex/run.sh -- --resume            # pass args through to codex
 ```
@@ -41,11 +55,9 @@ source codex/run.sh
 ## Install (persistent config)
 
 ```bash
-cd ol-runbook/coding-agents/codex
-chmod +x install.sh
-./install.sh \
-  --gateway-url 'https://your-gateway.example' \
-  --api-key 'sk-gw-...'
+cd ol-runbook/coding-agents
+chmod +x codex/install.sh
+./codex/install.sh    # reads GATEWAY_URL + API_KEY from .env
 ```
 
 `install` is the default subcommand and may be omitted.
@@ -58,23 +70,97 @@ This writes `~/.codex/config.toml` and `~/.codex/subconscious.env`
 After install, launch codex with the gateway env loaded:
 
 ```bash
-./install.sh use                    # launches codex
-./install.sh use -- --resume        # pass args through to codex
+./codex/install.sh use                    # launches codex
+./codex/install.sh use -- --resume        # pass args through to codex
 ```
 
 Or load the env into your current shell without launching:
 
 ```bash
-source <(./install.sh env)          # load   SUBCONSCIOUS_API_KEY
-source <(./install.sh unset)        # remove SUBCONSCIOUS_API_KEY
+source <(./codex/install.sh env)          # load   SUBCONSCIOUS_API_KEY
+source <(./codex/install.sh unset)        # remove SUBCONSCIOUS_API_KEY
 ```
 
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./codex/install.sh status
+./codex/install.sh uninstall
 ```
+
+## Subagents
+
+### Known limitation: subagents don't work with custom providers
+
+Subagents are **disabled by default**. Current Codex releases (>= 0.144) wrap
+subagent tools (`spawn_agent`, etc.) in a proprietary `type: "namespace"` wire
+format. Non-OpenAI providers — including the Subconscious gateway — can't
+resolve these namespace tools, so Codex emits:
+
+```
+unsupported call: spawn_agent
+```
+
+This is a known upstream issue ([#32318](https://github.com/openai/codex/issues/32318),
+[#26977](https://github.com/openai/codex/issues/26977),
+[#17598](https://github.com/openai/codex/issues/17598)). The fix
+([PR #29602](https://github.com/openai/codex/pull/29602) — `namespace_tools =
+false` provider capability) is not yet merged into any released version.
+
+### Running with subagents (legacy codex@0.132.0)
+
+To use subagents, install the pinned legacy Codex 0.132.0 which uses the
+older multi-agent v1 config with **plain tool names** (no namespace wrapper)
+that the model worker can resolve:
+
+```bash
+# Install codex@0.132.0 globally
+npm install -g @openai/codex@0.132.0
+```
+
+Run ephemerally:
+
+```bash
+./codex/run.sh --subagents
+./codex/run.sh --subagents -- --resume
+```
+
+Install persistently:
+```bash
+# Install the gateway config with --subagents
+cd ol-runbook/coding-agents
+./codex/install.sh --subagents
+
+# Launch
+./codex/install.sh use
+```
+
+This writes the legacy multi-agent v1 config to `~/.codex/config.toml`:
+
+```toml
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+interrupt_message = true
+```
+### Running without subagents (default)
+
+The default install/run path uses the latest Codex with subagents off — no
+`[agents]` block is written, so Codex uses its defaults (subagents disabled
+for custom providers):
+
+```bash
+./codex/run.sh                           # latest codex, no subagents
+./codex/install.sh                        # persistent config, no subagents
+./codex/install.sh use                    # launch
+```
+
+When PR #29602 lands and a new Codex version ships with `namespace_tools`
+support, the default path will be able to enable subagents without the
+legacy downgrade. Until then, use `--subagents` with 0.132.0.
 
 ## Manual setup
 
@@ -113,13 +199,37 @@ a "Model metadata not found" warning on every turn):
 }
 ```
 
-Then set these in your `~/.codex/config.toml`:
+Then set these in your `~/.codex/config.toml` (without subagents):
 
 ```toml
 model = "gw-glm-5.2"
 model_provider = "subconscious"
 model_catalog_json = "~/.codex/model-catalog.json"
 web_search = "disabled"
+
+[model_providers.subconscious]
+name = "Subconscious Gateway"
+base_url = "https://your-gateway.example/v1"
+wire_api = "responses"
+env_key = "SUBCONSCIOUS_API_KEY"
+stream_idle_timeout_ms = 300000
+```
+
+Or with subagents (requires codex@0.132.0):
+
+```toml
+model = "gw-glm-5.2"
+model_provider = "subconscious"
+model_catalog_json = "~/.codex/model-catalog.json"
+web_search = "disabled"
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+interrupt_message = true
 
 [model_providers.subconscious]
 name = "Subconscious Gateway"
@@ -155,7 +265,7 @@ codex \
 
 | Path | Purpose |
 | --- | --- |
-| `~/.codex/config.toml` | Provider config pointing to your gateway with `wire_api = "responses"` and `web_search = "disabled"` |
+| `~/.codex/config.toml` | Provider config pointing to your gateway with `wire_api = "responses"` and `web_search = "disabled"`. With `--subagents`, also includes `[features] multi_agent = true` and `[agents]` block (max 4 threads, depth 1) |
 | `~/.codex/model-catalog.json` | Model metadata catalog (context window, tool support) so Codex doesn't print a "Model metadata not found" warning |
 | `~/.codex/subconscious.env` | `SUBCONSCIOUS_API_KEY` env var (mode 600) |
 
@@ -167,4 +277,4 @@ The gateway detects Codex via two mechanisms (checked in order):
 2. **`thread-id` / `x-codex-turn-metadata` / `session-id`** — native Codex headers (heuristic fallback)
 
 Sub-agent sessions (`x-codex-parent-thread-id`) are linked to their parent
-conversation in the dashboard.
+conversation in the dashboard and are tracked as a separate conversation.

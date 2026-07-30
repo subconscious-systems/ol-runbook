@@ -25,14 +25,25 @@ you need two things in your `models.json`:
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
+## Shared env (preferred)
+
+Prefer the shared `coding-agents/.env` one level up for `GATEWAY_URL`,
+`API_KEY`, and optional `MODEL`. Set that once, then install without flags:
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste GATEWAY_URL + API_KEY
+```
+
+`--gateway-url` / `--api-key` flags still override `.env` when you need a
+one-off value.
+
 ## Install
 
 ```bash
-cd ol-runbook/coding-agents/pi
-chmod +x install.sh
-./install.sh \
-  --gateway-url 'https://your-gateway.example' \
-  --api-key 'sk-...'
+cd ol-runbook/coding-agents
+chmod +x pi/install.sh
+./pi/install.sh    # reads GATEWAY_URL + API_KEY from .env
 ```
 
 `install` is the default subcommand and may be omitted.
@@ -43,8 +54,8 @@ Restart any running Pi sessions.
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./pi/install.sh status
+./pi/install.sh uninstall
 ```
 
 ## Manual setup
@@ -93,6 +104,13 @@ The gateway detects Pi via two mechanisms (checked in order):
 Without `sendSessionAffinityHeaders: true`, Pi sends no session headers and
 traffic will appear on the **Requests** view only (not grouped into
 Conversations).
+
+### Subagent plugin (`pi install npm:pi-subagents`)
+
+When you use the Pi subagent plugin (`pi install npm:pi-subagents`), each
+subagent conversation is treated as its **own** conversation by the gateway.
+The parent session and its spawned subagents are **not currently correlated**
+back together - subagent traffic will not have a link back to the parent session.
 
 ## Session affinity formats
 

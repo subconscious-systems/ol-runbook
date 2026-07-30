@@ -6,30 +6,6 @@
         "command": "HOOK_SH_PATH",
         "timeout": 2
       }
-    ],
-    "afterAgentResponse": [
-      {
-        "command": "HOOK_SH_PATH",
-        "timeout": 2
-      }
-    ],
-    "stop": [
-      {
-        "command": "HOOK_SH_PATH",
-        "timeout": 2
-      }
-    ],
-    "subagentStart": [
-      {
-        "command": "HOOK_SH_PATH",
-        "timeout": 2
-      }
-    ],
-    "subagentStop": [
-      {
-        "command": "HOOK_SH_PATH",
-        "timeout": 2
-      }
     ]
   }
 }

@@ -14,28 +14,33 @@ The install script also sets `x-subconscious-client: opencode` as a custom
 provider header, which unambiguously identifies the agent to the gateway
 regardless of session-header heuristics.
 
+With OpenCode, subagent traffic will be its own conversation and have a link back to the parent session.
+
 ## Requirements
 
 - `jq`
 - A gateway API key (create one in the Subconscious dashboard)
 - Gateway URL reachable from your machine
 
+## Shared env (preferred)
+
+All scripts read `GATEWAY_URL`, `API_KEY`, and optional `MODEL` from the shared
+`coding-agents/.env` one level up. Set that once, then run install/run without
+passing credentials on the command line:
+
+```bash
+cd ol-runbook/coding-agents
+cp env.example .env   # one-time: paste GATEWAY_URL + API_KEY
+```
+
+`--gateway-url` / `--api-key` flags still override `.env` when you need a
+one-off value.
+
 ## Install
 
 ```bash
 cd ol-runbook/coding-agents
-cp env.example .env   # one-time: paste your GATEWAY_URL + API_KEY
-
-cd opencode
-./install.sh
-```
-
-Or with explicit flags:
-
-```bash
-./install.sh \
-  --gateway-url 'https://your-gateway.example' \
-  --api-key 'sk-...'
+./opencode/install.sh    # reads GATEWAY_URL + API_KEY from .env
 ```
 
 `install` is the default subcommand and may be omitted.
@@ -47,8 +52,8 @@ profile, then launch opencode.
 Check status / uninstall:
 
 ```bash
-./install.sh status
-./install.sh uninstall
+./opencode/install.sh status
+./opencode/install.sh uninstall
 ```
 
 ## Ephemeral runner (no persistent config)
@@ -59,8 +64,7 @@ and launches opencode — nothing is written to disk.
 
 ```bash
 cd ol-runbook/coding-agents
-cp env.example .env   # one-time: paste your GATEWAY_URL + API_KEY
-
+# ensure .env is filled in (see above)
 ./opencode/run.sh             # launch opencode
 ./opencode/run.sh -- auth     # pass args through
 ```

@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# Fail-open VS Code Copilot hook: announce turn_open / turn_close to the gateway.
-# Stdin: VS Code hook JSON. Stdout: permissive JSON for VS Code. Never blocks the agent.
+# Fail-open VS Code Copilot hook: announce each prompt to the gateway. Never blocks the agent.
+# Stdin: VS Code hook JSON. Stdout: permissive JSON for VS Code.
 #
-# VS Code hook events -> gateway events:
-#   SessionStart      -> turn_open  (no prompt; fingerprint the session_id)
-#   UserPromptSubmit  -> turn_open  (fingerprint the prompt)
-#   Stop              -> turn_close
-#   SubagentStart     -> turn_open  (child conversation, parent = session_id)
-#   SubagentStop      -> turn_close (child conversation)
+# Docs: https://code.visualstudio.com/docs/copilot/customization/hooks
 #
-# VS Code has no afterAgentResponse equivalent, so there is no turn_heartbeat.
+# One event, one call:
+#   UserPromptSubmit -> conversation_ensure { conversation_id, prompt }
+#
+# The gateway fingerprints the raw prompt itself and chains every later turn of
+# the conversation onto the first one, so this hook needs no hashing, no local
+# state, and no after-the-fact associate call.
+#
+# Deliberately NOT registered: SessionStart / SubagentStart / SubagentStop /
+# Stop / PreToolUse / PostToolUse / PreCompact. UserPromptSubmit already fires
+# for subagent prompts, and subagents are correlated gateway-side from the
+# parent's runSubagent tool call.
 
 set -u
 
@@ -32,18 +37,12 @@ if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
   fail_open
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "subconscious hook: jq is required" >&2
-  fail_open
-fi
-if ! command -v curl >/dev/null 2>&1; then
-  echo "subconscious hook: curl is required" >&2
-  fail_open
-fi
-if ! command -v openssl >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
-  echo "subconscious hook: openssl or shasum is required" >&2
-  fail_open
-fi
+for tool in jq curl; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "subconscious hook: ${tool} is required" >&2
+    fail_open
+  fi
+done
 
 INPUT="$(cat || true)"
 if [[ -z "$INPUT" ]]; then
@@ -51,8 +50,11 @@ if [[ -z "$INPUT" ]]; then
 fi
 
 HOOK_EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
+if [[ "$HOOK_EVENT" != "UserPromptSubmit" ]]; then
+  fail_open
+fi
+
 SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)"
-TIMESTAMP="$(printf '%s' "$INPUT" | jq -r '.timestamp // empty' 2>/dev/null || true)"
 PROMPT="$(printf '%s' "$INPUT" | jq -r '.prompt // empty' 2>/dev/null || true)"
 CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
 WORKSPACE=""
@@ -60,123 +62,33 @@ if [[ -n "$CWD" ]]; then
   WORKSPACE="$(basename "$CWD")"
 fi
 
-# Subagent fields.
-AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)"
-AGENT_TYPE="$(printf '%s' "$INPUT" | jq -r '.agent_type // empty' 2>/dev/null || true)"
-
-if [[ -z "$SESSION_ID" || -z "$HOOK_EVENT" ]]; then
+# Nothing to anchor on without a session id and a prompt.
+if [[ -z "$SESSION_ID" || -z "$PROMPT" ]]; then
   fail_open
 fi
 
-# Derive a generation_id from session_id + timestamp so each prompt within a
-# session gets a distinct generation window. VS Code does not provide a
-# native generation_id.
-GENERATION_ID="${SESSION_ID}:${TIMESTAMP}"
-
-# PARENT_CONVERSATION_ID is only set for subagent events.
-PARENT_CONVERSATION_ID=""
-
-# Subagent events: the subagent is its own conversation window. VS Code gives
-# us agent_id as the unique subagent handle and session_id as the parent
-# session. We use agent_id as the child conversation_id and session_id as
-# the parent_conversation_id so the gateway links the child to the parent.
-if [[ "$HOOK_EVENT" == "SubagentStart" ]]; then
-  if [[ -z "$AGENT_ID" ]]; then
-    fail_open
-  fi
-  PARENT_CONVERSATION_ID="$SESSION_ID"
-  CONVERSATION_ID="$AGENT_ID"
-  GENERATION_ID="${AGENT_ID}:${TIMESTAMP}"
-elif [[ "$HOOK_EVENT" == "SubagentStop" ]]; then
-  if [[ -z "$AGENT_ID" ]]; then
-    fail_open
-  fi
-  PARENT_CONVERSATION_ID="$SESSION_ID"
-  CONVERSATION_ID="$AGENT_ID"
-  GENERATION_ID="${AGENT_ID}:${TIMESTAMP}"
-else
-  CONVERSATION_ID="$SESSION_ID"
-fi
-
-# Must match observability::normalize_prompt_for_fingerprint + prompt_fingerprint.
-normalize_prompt() {
-  printf '%s' "$1" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
-}
-
-sha256_hex() {
-  local data="$1"
-  if command -v openssl >/dev/null 2>&1; then
-    printf '%s' "$data" | openssl dgst -sha256 -hex 2>/dev/null | awk '{print $NF}'
-  else
-    printf '%s' "$data" | shasum -a 256 | awk '{print $1}'
-  fi
-}
-
-EVENT=""
-PROMPT_FP=""
-case "$HOOK_EVENT" in
-  SessionStart)
-    EVENT="turn_open"
-    # SessionStart has no prompt field; fingerprint the session_id so the
-    # gateway's turn_open prompt_fp requirement is satisfied. The first
-    # UserPromptSubmit will carry the actual prompt fingerprint for soft-bind.
-    PROMPT_FP="$(sha256_hex "$(normalize_prompt "$SESSION_ID")")"
-    ;;
-  UserPromptSubmit)
-    EVENT="turn_open"
-    if [[ -n "$PROMPT" ]]; then
-      PROMPT_FP="$(sha256_hex "$(normalize_prompt "$PROMPT")")"
-    else
-      PROMPT_FP="$(sha256_hex "$(normalize_prompt "$SESSION_ID")")"
-    fi
-    ;;
-  Stop)
-    EVENT="turn_close"
-    ;;
-  SubagentStart)
-    EVENT="turn_open"
-    # Fingerprint the agent_type + task context so the subagent's first LLM
-    # request can soft-bind. VS Code does not carry a task field, so hash the
-    # agent_type as a stable proxy.
-    if [[ -n "$AGENT_TYPE" ]]; then
-      PROMPT_FP="$(sha256_hex "$(normalize_prompt "$AGENT_TYPE")")"
-    else
-      PROMPT_FP="$(sha256_hex "$AGENT_ID")"
-    fi
-    ;;
-  SubagentStop)
-    EVENT="turn_close"
-    ;;
-  *)
-    fail_open
-    ;;
-esac
-
 PAYLOAD="$(jq -n \
-  --arg event "$EVENT" \
-  --arg conversation_id "$CONVERSATION_ID" \
-  --arg generation_id "$GENERATION_ID" \
-  --arg prompt_fp "$PROMPT_FP" \
+  --arg event "conversation_ensure" \
+  --arg conversation_id "$SESSION_ID" \
+  --arg prompt "$PROMPT" \
   --arg workspace "$WORKSPACE" \
   --arg hook_event_name "$HOOK_EVENT" \
-  --arg parent_conversation_id "$PARENT_CONVERSATION_ID" \
   '{
     event: $event,
     conversation_id: $conversation_id,
-    generation_id: $generation_id,
-    prompt_fp: (if $prompt_fp == "" then null else $prompt_fp end),
+    prompt: $prompt,
     workspace: (if $workspace == "" then null else $workspace end),
-    hook_event_name: (if $hook_event_name == "" then null else $hook_event_name end),
-    parent_conversation_id: (if $parent_conversation_id == "" then null else $parent_conversation_id end)
+    hook_event_name: $hook_event_name
   } | with_entries(select(.value != null))'
 )"
 
-URL="${GATEWAY_URL%/}/v1/agent-hooks"
+# Response body is intentionally ignored: the gateway resolves the VS Code
+# session id to its own UUID on every call, so there is no mapping to cache.
 curl -sS -m 2 \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
   -H "x-subconscious-client: copilot" \
   -d "$PAYLOAD" \
-  "$URL" >/dev/null 2>&1 || true
+  "${GATEWAY_URL%/}/v1/agent-hooks" >/dev/null 2>&1 || true
 
 fail_open
