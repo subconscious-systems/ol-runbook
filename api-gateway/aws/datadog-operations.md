@@ -25,6 +25,10 @@ variables:
 | `$model` | Logical model filter |
 | `$request_id` | Drill into correlated request logs |
 
+The Overview group shows **Gateway RPS** plus **Requests / minute** and
+**Requests / hour** count widgets so you can read request volume at three time
+scales without rebuilding the query.
+
 ## What pages (monitors)
 
 Monitors are prefixed `[<DATADOG_ENV>]` and link to
@@ -39,6 +43,7 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayStreamingTtftP95High | Slow streaming first token | Inference path panels, TTFT SLO (if enabled) |
 | GatewayRequestLatencyP95High | Slow end-to-end requests | Gateway latency group, router/adapter latency |
 | GatewayLimiterRejectionsSustained | Rate limits firing | Tenant signals group, Valkey CloudWatch (if enabled) |
+| GatewayLimiterCheckLatencyHigh | Limiter checks slow (early Valkey warning) | Limiter check latency widget, Valkey CPU/memory (if enabled) |
 | GatewayWorkerPoolEmpty | No workers registered | Router worker pool, model-group sync, worker route health |
 | GatewayRouterWorkerCbOpen | Worker circuit breaker open | Inference path CB state, worker connectivity |
 | GatewayRouterInflightAgeHigh | Stuck router requests | Router inflight age, active requests |
