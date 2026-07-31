@@ -64,7 +64,7 @@ HOOK_SRC="${SCRIPT_DIR}/hook.sh"
 HOOKS_TEMPLATE="${SCRIPT_DIR}/hooks.json"
 
 # Load shared env from coding-agents/.env (gitignored) or env.example.
-SHARED_ENV="${SCRIPT_DIR}/../.env"
+SHARED_ENV="${MBTA_ENV_FILE:-${SCRIPT_DIR}/../.env}"
 [[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
 if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
