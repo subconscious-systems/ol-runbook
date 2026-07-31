@@ -3,23 +3,21 @@
 This estimate covers the Subconscious Inference System **API Gateway only**.
 GPU instances, inference workers, and private worker NLBs are excluded.
 
-Use **approximately $1,045 per month** as the planning baseline for the current
-staged EKS 1.33 gateway with Datadog Infrastructure Pro and APM. EKS 1.33
-standard support ends July 29, 2026, so this estimate conservatively budgets
-the extended-support rate. The AWS-only portion is approximately **$953 per
-month**. A separately validated standard-support EKS release would reduce the
-total by approximately $365 per month.
+Use **approximately $680 per month** as the planning baseline for the current
+staged EKS 1.34 gateway with Datadog Infrastructure Pro and APM. EKS 1.34
+standard support ends December 2, 2026 UTC. The AWS-only portion is
+approximately **$588 per month**. After 1.34 enters extended support, the total
+increases by approximately $365 per month.
 
 ## Assumptions
 
-- Prices checked July 23, 2026.
+- Prices checked July 28, 2026.
 - AWS Region: US East (Ohio), `us-east-2`.
 - 730 runtime hours per month.
 - On-Demand pricing with no free-tier, Spot, Reserved Instance, Savings Plan,
   private-pricing, tax, or AWS Support adjustments.
 - Two `m7g.xlarge` EKS nodes.
-- EKS Kubernetes 1.33 at its extended-support transition (the current staged
-  hop target).
+- EKS Kubernetes 1.34 in standard support (the current staged hop target).
 - Multi-AZ `db.t4g.medium` RDS for PostgreSQL with 50 GB gp3 storage.
 - Two `cache.t4g.small` ElastiCache for Valkey nodes.
 - One always-on `t3.large` bootstrap/Distr agent host.
@@ -32,7 +30,7 @@ total by approximately $365 per month.
 
 | Resource | Monthly estimate | Basis |
 | --- | ---: | --- |
-| EKS control plane | $438.00 | Extended support at $0.60/hour |
+| EKS control plane | $73.00 | Standard support at $0.10/hour |
 | Two EKS nodes | $238.27 | 2 × `m7g.xlarge` |
 | RDS PostgreSQL | $100.65 | Multi-AZ `db.t4g.medium` plus 50 GB gp3 |
 | Bootstrap/Distr host | $60.74 | `t3.large` |
@@ -44,25 +42,27 @@ total by approximately $365 per month.
 | Secrets Manager, Route 53, and Terraform state | $1.80 | Low-volume estimate |
 | Datadog Infrastructure Pro | $30.00 | 2 hosts × $15/host |
 | Datadog APM | $62.00 | 2 hosts × $31/host |
-| **Estimated total** | **$1,044.96** | Before usage-variable charges |
+| **Estimated total** | **$679.96** | Before usage-variable charges |
 
-Round the estimate to **$1,045 per month** for planning.
+Round the estimate to **$680 per month** for planning.
 
 ## EKS version cost warning
 
-EKS charges more when a Kubernetes version enters extended support. EKS 1.32
-entered extended support on March 23, 2026, and EKS 1.33 enters extended
-support after July 29, 2026:
+EKS charges more when a Kubernetes version enters extended support. EKS 1.33
+enters extended support after July 29, 2026, and EKS 1.34 enters extended
+support after December 2, 2026 UTC:
 
 - Standard-support control plane: $0.10/hour, or about $73/month.
 - Extended-support control plane: $0.60/hour, or about $438/month.
 - Difference: **$365/month** or **$4,380/year** per cluster.
 
-The staged 1.33 target therefore costs approximately **$1,045 per month** after
-its standard-support window closes, without adding capacity. The current
+The staged 1.34 target therefore costs approximately **$680 per month** during
+standard support and approximately **$1,045 per month** after its
+standard-support window closes, without adding capacity. The current
 [`sample-gateway-infra.env`](sample-gateway-infra.env) sets
-`KUBERNETES_VERSION=1.33`; the 1.32→1.33 hop removes the extended-support
-premium only until the 1.33 standard-support end date. Do not skip to a later
+`KUBERNETES_VERSION=1.34`; the 1.33→1.34 hop avoids the 1.33
+extended-support premium until the 1.34 standard-support end date. Do not skip
+to a later
 version to reduce cost: use only a
 separately released and user-validated hop. Check current support dates during
 each upgrade and budget the premium until a standard-support hop is approved.
