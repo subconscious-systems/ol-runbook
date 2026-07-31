@@ -2,7 +2,7 @@
 
 End-to-end Assisted Self-Managed setup on AWS. Roles are labeled so one person can play both **FDE** (Subconscious Forward Deployed Engineer) and **Admin** (customer initial admin) during a demo.
 
-Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md).
+Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md). Datadog: [datadog-operations.md](datadog-operations.md).
 
 Expect two FDE pairing / debug gates: (1) first Docker agent + infra runner
 bring-up with gateway auto-deploy disabled, (2) second infra deploy / intentional
@@ -32,7 +32,8 @@ Deployment **targets** are not entitlements. The admin creates those when connec
 - [ ] Public Route 53 zone exists (`DNS_ZONE_NAME`); `DOMAIN_NAME` is free
 - [ ] Datadog API key + application key ready. When database AWS metrics are
   enabled, the application key needs `aws_configuration_read`,
-  `aws_configuration_edit`, and `aws_configurations_manage`.
+  `aws_configuration_edit`, and `aws_configurations_manage`. See
+  [datadog-operations.md](datadog-operations.md) for dashboard and monitor rollout.
 - [ ] Create a Distr PAT
 
 Make sure naming conventions follow this pattern:
