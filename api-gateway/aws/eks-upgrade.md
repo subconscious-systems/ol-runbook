@@ -222,7 +222,7 @@ test "$(aws eks describe-addon \
 test "$(aws eks describe-addon \
   --cluster-name "$CLUSTER" --region "$AWS_REGION" \
   --addon-name aws-ebs-csi-driver --query 'addon.addonVersion' --output text)" \
-  = "v1.63.0-eksbuild.1"
+  = "v1.63.1-eksbuild.1"
 
 kubectl -n external-secrets get deployment external-secrets -o json \
   | jq -e 'all(.spec.template.spec.containers[].image; endswith(":v0.20.4"))'
