@@ -122,6 +122,8 @@ Optional Hub overrides:
 
 Metric tag *configurations* (allowlisted tag keys on metric names) are org-global and shared (intentional). Deploy isolation is via tag *values* (`env`, `service`).
 
+Operations guide: [api-gateway/aws/datadog-operations.md](api-gateway/aws/datadog-operations.md).
+
 ## How do I rotate gateway secrets?
 
 App csrf and credential encryption: copy-paste from [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md) (`bootstrap/scripts/rotate-app-secret.sh`). RDS/Valkey URLs: new infra deploy. Org API keys and worker endpoint keys: dashboard (same doc).
@@ -137,6 +139,7 @@ App csrf and credential encryption: copy-paste from [api-gateway/aws/secret-rota
 | `DATADOG_ENABLED` / `DATADOG_ENV` | Sample path: on; env facet for titles/monitors/filters |
 | `DATADOG_DASHBOARD_TAGS` | Optional; default `team:api-gateway` |
 | `DATADOG_MONITORS_DRAFT` | Draft vs published monitors only |
+| `DATADOG_SLOS_ENABLED` | Managed availability + TTFT SLOs (default off) |
 | `GATEWAY_AUTO_DEPLOY` | Default false; enable only for a separate gateway rollout |
 | `GATEWAY_CHART_VERSION` | `latest` (default), `nochange`, or `0.n.n` |
 | `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES` | Provider DNS suffixes; `svc.cluster.local` always added |
