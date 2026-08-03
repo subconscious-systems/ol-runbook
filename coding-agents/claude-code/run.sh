@@ -58,6 +58,7 @@ export CLAUDE_CODE_SUBAGENT_MODEL="$MODEL"
 export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4
 export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS=500000
 
 # Export metadata-only LLM request spans back to the gateway. The gateway keeps
 # only request_id/query_source attribution and discards all other OTLP content.
