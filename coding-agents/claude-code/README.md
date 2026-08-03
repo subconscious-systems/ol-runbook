@@ -9,14 +9,7 @@ launch.
 
 Claude Code sends `x-claude-code-session-id` and `x-claude-code-agent-id`
 headers natively. The gateway uses these to group requests into the dashboard
-**Conversations** view automatically. The scripts also send metadata-only
-`claude_code.llm_request` traces to the gateway so each request can be labeled
-as main, subagent, compact, or another auxiliary source.
-
-The **Request Type** and **Model** columns are complementary. For example, an
-auxiliary call routed through the configured small model appears as
-`Auxiliary` beside that model name. Trace export is batched, so a new row can
-show `Unknown`; refresh after about five seconds to see its type.
+**Conversations** view automatically.
 
 | Env var | Purpose |
 | --- | --- |
@@ -28,17 +21,6 @@ show `Unknown`; refresh after about five seconds to see its type.
 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | Max subagents running at once (set to `4`; Claude default `20`) |
 | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | Max subagent nesting depth (set to `1` — nesting off; Claude default `3`) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Context window for auto-compaction (default `500000`) |
-| `CLAUDE_CODE_ENABLE_TELEMETRY` | Enables Claude Code telemetry |
-| `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` | Enables per-request trace spans |
-| `OTEL_TRACES_EXPORTER` | Sends traces through OTLP |
-| `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` | Uses `http/protobuf` |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Sends to the gateway's `/v1/traces` intake |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Authenticates trace intake with the same gateway key |
-
-Metrics and logs exporters are set to `none`; only traces are sent. The gateway
-extracts `request_id`, `query_source`, and whether an agent issued the request.
-It discards the rest of each OTLP payload and never stores prompts, tool data,
-or opaque agent IDs from this intake.
 
 Subagent traffic will be its own conversation and have a link back to the parent session.
 
@@ -114,10 +96,10 @@ Check status / uninstall:
 
 | Path | Purpose |
 | --- | --- |
-| `~/.claude/subconscious-gateway.env` | Gateway and metadata-only trace exports (mode 600, not committed) |
+| `~/.claude/subconscious-gateway.env` | Gateway env exports (mode 600, not committed) |
 
 No hooks are needed for Claude Code. Session correlation uses native
-`x-claude-code-*` headers; request-type attribution uses OTLP traces.
+`x-claude-code-*` headers.
 
 ## Multiple gateways
 
