@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Terraform working data, plans, local inputs, and state
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/*.tfvars
+**/*.tfvars.json
+**/*.auto.tfvars
+**/*.auto.tfvars.json
+**/backend.tf
+**/.backend.hcl
+**/.terraformrc
+**/terraform.rc
+!**/*.tfvars.example
+
+# Local cloud and Kubernetes credentials
+**/.config/gcloud/
+**/application_default_credentials.json
+**/*credential*.json
+**/*service-account*.json
+**/*service_account*.json
+**/client_secret*.json
+**/.kube/
+**/kubeconfig
+**/kubeconfig.*
+**/*.key
+**/*.pem
+**/*.p12
+
+# Local environment files (documented samples remain tracked)
+**/.env
+**/*.env.local
+!**/.env.example
+!**/sample-*.env

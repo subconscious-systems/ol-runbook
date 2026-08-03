@@ -2,7 +2,20 @@
 
 Common questions for deploying the Subconscious Inference System.
 
-Architecture and setup: [api-gateway/aws/README.md](api-gateway/aws/README.md) · [api-gateway/aws/instructions.md](api-gateway/aws/instructions.md). Day-0 host: [api-gateway/aws/bootstrap/](api-gateway/aws/bootstrap/). Secrets: [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md). Rotation: [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md). Troubleshooting: [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md). Example env: [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env).
+AWS: [architecture](api-gateway/aws/README.md) · [setup](api-gateway/aws/instructions.md) · [bootstrap](api-gateway/aws/bootstrap/) · [secrets](api-gateway/aws/gateway-secrets.md) · [rotation](api-gateway/aws/secret-rotation.md) · [troubleshooting](api-gateway/aws/troubleshooting.md).
+
+GCP: [architecture and release gate](api-gateway/gcp/README.md) · [setup](api-gateway/gcp/instructions.md) · [bootstrap](api-gateway/gcp/bootstrap/) · [secrets](api-gateway/gcp/gateway-secrets.md) · [rotation](api-gateway/gcp/secret-rotation.md) · [troubleshooting](api-gateway/gcp/troubleshooting.md).
+
+## Can I use the GCP runbook with any infra release?
+
+No. The GCP runbook defines a complete production-parity contract, but the
+selected `api-gateway-infra` Distr Application release must explicitly say its
+full `CLOUD=gcp` path is enabled. A release whose runner still reports GCP as a
+stub fails closed. Complete the sandbox dress rehearsal before production.
+
+The GCP path is greenfield only: separate sandbox/production projects in
+`us-east1`, no AWS data migration, and no GPU provisioning. See
+[api-gateway/gcp/README.md](api-gateway/gcp/README.md).
 
 ## How should I name my deployments, namespaces, and releases?
 
@@ -20,6 +33,12 @@ Example: slug `acme` → infra `acme-api-gateway-infra`, gateway/namespace/relea
 It is rare to need more than one deployment of the infra package or the api-gateway chart. If you do, use a different readable slug for each stack. The same rule applies to the public hostname where the api-gateway dashboard is hosted (`DOMAIN_NAME`): each deploy needs its own unique hostname.
 
 Terraform state keys and Datadog `env` (defaults from the infra `DEPLOY_NAME` unless you set `DATADOG_ENV`) are derived from the names you provide. Gateway **cluster** secrets live in AWS Secrets Manager (`orangeline/{infra-name}/rds|valkey|app`) and sync into the cluster via External Secrets Operator - not Distr Hub keys for DB/Redis/crypto. Details: [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md).
+
+On GCP the same logical bundles map to Secret Manager IDs such as
+`orangeline__{infra-name}__rds|valkey|app` and sync through ESO with Workload
+Identity Federation. Sandbox and production use independent projects and
+secret versions. Details:
+[api-gateway/gcp/gateway-secrets.md](api-gateway/gcp/gateway-secrets.md).
 
 Keep each Distr deployment name **32 characters or fewer**. Longer names can hit cloud resource id limits (especially cache replication group ids).
 
@@ -122,11 +141,18 @@ Optional Hub overrides:
 
 Metric tag *configurations* (allowlisted tag keys on metric names) are org-global and shared (intentional). Deploy isolation is via tag *values* (`env`, `service`).
 
-Operations guide: [api-gateway/aws/datadog-operations.md](api-gateway/aws/datadog-operations.md).
+Operations guides: [AWS](api-gateway/aws/datadog-operations.md) ·
+[GCP STS/Agent/Cloud SQL DBM](api-gateway/gcp/datadog-operations.md).
 
 ## How do I rotate gateway secrets?
 
 App csrf and credential encryption: copy-paste from [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md) (`bootstrap/scripts/rotate-app-secret.sh`). RDS/Valkey URLs: new infra deploy. Org API keys and worker endpoint keys: dashboard (same doc).
+
+For GCP, use
+[api-gateway/gcp/secret-rotation.md](api-gateway/gcp/secret-rotation.md). It
+uses the keyless bootstrap/IAP path for app keys, overlapping Cloud SQL users,
+and blue/green Redis replacement because Memorystore cannot overlap old/new
+AUTH strings.
 
 ## Infra Hub field cheatsheet
 
