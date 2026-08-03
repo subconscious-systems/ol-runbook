@@ -51,7 +51,8 @@ Typical day-0 rights for the human bootstrap identity are:
 - `roles/serviceusage.serviceUsageAdmin` and
   `roles/resourcemanager.projectIamAdmin` on the newly created projects (an
   organization bootstrap role may grant the equivalent permissions);
-- `roles/serviceusage.serviceUsageConsumer` on `quota_project_id`, when used.
+- `roles/serviceusage.serviceUsageAdmin` and
+  `roles/serviceusage.serviceUsageConsumer` on `quota_project_id`, when used.
 
 These are rights for the **human foundation apply**, not the long-lived VM.
 Remove temporary parent-level grants after each approved project foundation
@@ -69,6 +70,9 @@ bash scripts/setup-gcloud.sh --quota-project <EXISTING_ADMIN_PROJECT>
 
 The setup performs user login and Application Default Credentials (ADC) login.
 ADC is stored in the normal user config directory, never in this repository.
+When a quota project is provided, the setup also enables the Billing Budgets,
+Cloud Billing, Cloud Resource Manager, IAM, and Service Usage APIs required by
+the foundation provider calls.
 For other Linux distributions, follow the official
 [Google Cloud CLI install guide](https://cloud.google.com/sdk/docs/install),
 then run `setup-gcloud.sh`.

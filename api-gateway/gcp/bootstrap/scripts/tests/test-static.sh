@@ -84,6 +84,17 @@ for line in "${required_env_lines[@]}"; do
   }
 done
 
+grep -Fq 'billing_account = var.billing_account_id' \
+  "${BOOTSTRAP_DIR}/billing.tf"
+for api in \
+  billingbudgets.googleapis.com \
+  cloudbilling.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  iam.googleapis.com \
+  serviceusage.googleapis.com; do
+  grep -Fq "${api}" "${SCRIPTS_DIR}/setup-gcloud.sh"
+done
+
 if grep -Eq '(BEGIN (RSA|OPENSSH|PRIVATE) KEY|\"type\"[[:space:]]*:[[:space:]]*\"service_account\")' \
   "${GCP_DIR}"/*.md "${GCP_DIR}"/*.env "${BOOTSTRAP_DIR}"/*.tf; then
   printf 'ERROR: key-like credential material found in GCP runbook\n' >&2

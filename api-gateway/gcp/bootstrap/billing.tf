@@ -1,7 +1,7 @@
 resource "google_billing_budget" "environment" {
   for_each = local.environments
 
-  billing_account = "billingAccounts/${var.billing_account_id}"
+  billing_account = var.billing_account_id
   display_name    = "Subconscious gateway ${each.key} monthly budget"
 
   budget_filter {
