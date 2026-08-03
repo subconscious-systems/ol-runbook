@@ -1,0 +1,14 @@
+#cloud-config
+# First boot only. Day-2 repair uses scripts/repair-host.sh over IAP.
+package_update: false
+package_upgrade: false
+
+write_files:
+  - path: /usr/local/sbin/api-gateway-infra-host-setup.sh
+    owner: root:root
+    permissions: "0755"
+    encoding: b64
+    content: ${host_setup_b64}
+
+runcmd:
+  - [/usr/local/sbin/api-gateway-infra-host-setup.sh]

@@ -33,6 +33,12 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 | [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md)             | Rotate csrf / encryption, RDS/Valkey, org and worker keys              |
 | [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md)             | Common hiccups, rollback notes                                         |
 | [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env                            |
+| [api-gateway/gcp/README.md](api-gateway/gcp/README.md)                               | GCP greenfield production-parity architecture and release gate         |
+| [api-gateway/gcp/instructions.md](api-gateway/gcp/instructions.md)                   | Sandbox-first GCP project, Distr, GKE, and gateway checklist            |
+| [api-gateway/gcp/bootstrap/](api-gateway/gcp/bootstrap/)                             | Keyless private GCE Docker-agent VMs and project foundation             |
+| [api-gateway/gcp/gateway-secrets.md](api-gateway/gcp/gateway-secrets.md)             | GCP Secret Manager, ESO, and Workload Identity Federation               |
+| [api-gateway/gcp/gke-upgrade.md](api-gateway/gcp/gke-upgrade.md)                     | Staged one-minor GKE upgrade procedure                                  |
+| [api-gateway/gcp/cost-estimate.md](api-gateway/gcp/cost-estimate.md)                 | GCP planning estimate with live-pricing verification gate               |
 | [api-gateway/sso-okta.md](api-gateway/sso-okta.md)                                   | Dashboard OIDC SSO with Okta                                           |
 | [api-gateway/sso-entra.md](api-gateway/sso-entra.md)                                 | Dashboard OIDC SSO with Microsoft Entra ID                             |
 | [gpu-deployment/README.md](gpu-deployment/README.md)                                 | GPU host bootstrap + Distr worker deploy (27B / 8B, NLB exposure)      |
@@ -49,3 +55,7 @@ Discuss with your platform and security teams which model fits your requirements
 
 Once you confirm your approach, **proceed to the platform runbook for your cloud** to get started with setup instructions.  
 For AWS, follow the step-by-step guide in [`api-gateway/aws/README.md`](api-gateway/aws/README.md).
+For GCP, start with the release gate and sandbox-first guide in
+[`api-gateway/gcp/README.md`](api-gateway/gcp/README.md). Do not deploy GCP
+with an `api-gateway-infra` release that still identifies its GCP runner as a
+stub.

@@ -1,0 +1,11 @@
+# Add this backend only after the first local apply creates the state buckets.
+# scripts/migrate-state.sh writes ignored backend.tf and .backend.hcl files and
+# runs terraform init -migrate-state.
+#
+# terraform {
+#   backend "gcs" {}
+# }
+#
+# .backend.hcl:
+#   bucket = "<production-project>-subconscious-tfstate"
+#   prefix = "bootstrap/gcp-foundation"
