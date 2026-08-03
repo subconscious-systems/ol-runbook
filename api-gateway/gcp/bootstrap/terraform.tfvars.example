@@ -36,8 +36,8 @@ bootstrap_zones = {
 }
 
 bootstrap_subnet_cidrs = {
-  sandbox = "10.10.0.0/24"
-  prod    = "10.20.0.0/24"
+  sandbox = "10.40.0.0/24"
+  prod    = "10.41.0.0/24"
 }
 
 bootstrap_machine_type = "e2-standard-2"
