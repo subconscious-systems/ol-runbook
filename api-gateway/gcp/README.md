@@ -138,7 +138,7 @@ versions and reviewed configuration, then run independent smoke checks.
 - One canonical, non-overlapping RFC1918 `/16` per environment; platform
   Terraform deterministically carves node, Pod, Service, private-service, and
   control-plane ranges from it.
-- Terraform 1.11.5+, gcloud, GKE auth plugin, kubectl, jq, and curl.
+- Terraform 1.11.4+, gcloud, GKE auth plugin, kubectl, jq, and curl.
 
 No GPU capacity is required to make the gateway/dashboard healthy. An
 authenticated inference smoke requires an already approved provider endpoint;

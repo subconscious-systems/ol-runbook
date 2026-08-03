@@ -37,7 +37,7 @@ credential files.
 
 ## Local prerequisites
 
-- Terraform 1.11.5 or newer.
+- Terraform 1.11.4 or newer.
 - `gcloud` and `gke-gcloud-auth-plugin`.
 - A human Google identity; do not download a service-account JSON key.
 - Rights to create projects below the selected organization/folder, attach the
