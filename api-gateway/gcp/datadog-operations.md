@@ -12,6 +12,45 @@ credentials and never belong in gateway Helm values or `gateway-secrets`.
 
 ## Keyless GCP STS integration
 
+### Domain Restricted Sharing prerequisite
+
+If `constraints/iam.allowedPolicyMemberDomains` is enforced, Datadog's
+delegate cannot receive Token Creator until an organization policy
+administrator allows Datadog's customer identity. Commercial Datadog sites,
+including US5, use `C0147pk0i`; government sites use `C03lf3ewa`.
+
+Prefer a project-level override on each gateway environment rather than
+broadening the policy for the whole organization. Preserve every customer ID
+already allowed by the effective policy and add the Datadog ID:
+
+```bash
+gcloud org-policies describe \
+  constraints/iam.allowedPolicyMemberDomains \
+  --project="$GCP_PROJECT" \
+  --effective \
+  --format=yaml
+
+GCP_PROJECT_NUMBER="$(
+  gcloud projects describe "$GCP_PROJECT" --format='value(projectNumber)'
+)"
+cat >domain-restricted-sharing.yaml <<EOF
+name: projects/${GCP_PROJECT_NUMBER}/policies/iam.allowedPolicyMemberDomains
+spec:
+  rules:
+  - values:
+      allowedValues:
+      - EXISTING_CUSTOMER_ID
+      - C0147pk0i
+EOF
+gcloud org-policies set-policy domain-restricted-sharing.yaml
+```
+
+Replace `EXISTING_CUSTOMER_ID` with the value from the effective policy; do
+not remove the organization's existing identity. Setting the override requires
+`roles/orgpolicy.policyAdmin`. The bootstrap service account receives only
+`roles/orgpolicy.policyViewer`, and the infra runner fails before Terraform
+mutation if the required Datadog identity is absent.
+
 Create one dedicated integration service account per project, for example:
 
 ```text
