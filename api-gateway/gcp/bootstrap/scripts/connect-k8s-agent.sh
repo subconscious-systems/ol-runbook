@@ -12,8 +12,8 @@ usage:
   connect-k8s-agent.sh <sandbox|prod> <INFRA_DEPLOY_NAME> \
     'kubectl apply -n <GATEWAY_DEPLOY_NAME> -f "https://.../api/v1/connect?..."'
 
-The cluster name is INFRA_DEPLOY_NAME. The namespace parsed from the Hub command
-must be the gateway Distr deployment and Helm release name.
+The cluster name is derived as <INFRA_DEPLOY_NAME>-gke. The namespace parsed
+from the Hub command must be the gateway Distr deployment and Helm release name.
 EOF
 }
 
@@ -27,10 +27,11 @@ if [[ $# -ne 3 ]]; then
 fi
 
 ENVIRONMENT_ARG="$1"
-CLUSTER_NAME="$2"
+INFRA_DEPLOY_NAME="$2"
 HUB_LINE="$3"
 
-bootstrap_assert_dns1123 "${CLUSTER_NAME}" "INFRA_DEPLOY_NAME"
+bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
+CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"
 
 if [[ ! "${HUB_LINE}" =~ -n[[:space:]]+([a-z0-9]([-a-z0-9]*[a-z0-9])?) ]]; then
   printf 'ERROR: could not find -n <namespace> in the Hub command\n' >&2
