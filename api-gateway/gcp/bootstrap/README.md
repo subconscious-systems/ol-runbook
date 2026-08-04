@@ -58,6 +58,13 @@ These are rights for the **human foundation apply**, not the long-lived VM.
 Remove temporary parent-level grants after each approved project foundation
 passes preflight.
 
+If Domain Restricted Sharing is enforced and Datadog GCP cloud metrics are
+enabled, a human with `roles/orgpolicy.policyAdmin` must create the
+project-scoped Datadog customer-identity exception documented in
+[`../datadog-operations.md`](../datadog-operations.md#domain-restricted-sharing-prerequisite).
+The bootstrap enables `orgpolicy.googleapis.com` but grants the long-lived
+platform service account only `roles/orgpolicy.policyViewer`.
+
 ### Install and configure gcloud
 
 macOS (Homebrew) or Debian/Ubuntu:

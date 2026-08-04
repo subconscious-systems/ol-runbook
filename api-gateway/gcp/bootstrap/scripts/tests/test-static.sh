@@ -94,6 +94,9 @@ for api in \
   serviceusage.googleapis.com; do
   grep -Fq "${api}" "${SCRIPTS_DIR}/setup-gcloud.sh"
 done
+grep -Fq '"orgpolicy.googleapis.com"' "${BOOTSTRAP_DIR}/locals.tf"
+grep -Fq '"roles/orgpolicy.policyViewer"' "${BOOTSTRAP_DIR}/locals.tf"
+grep -Fq 'C0147pk0i' "${GCP_DIR}/datadog-operations.md"
 
 if grep -Eq '(BEGIN (RSA|OPENSSH|PRIVATE) KEY|\"type\"[[:space:]]*:[[:space:]]*\"service_account\")' \
   "${GCP_DIR}"/*.md "${GCP_DIR}"/*.env "${BOOTSTRAP_DIR}"/*.tf; then
