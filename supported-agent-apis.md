@@ -53,7 +53,12 @@ or LiteLLM.
 | Cursor | Install the hook via [`coding-agents/cursor/`](coding-agents/cursor/). One `POST /v1/agent-hooks` per prompt; the gateway chains the rest of the conversation onto it. |
 | GitHub Copilot (VS Code) | Install the hook via [`coding-agents/copilot/`](coding-agents/copilot/). Same one-call-per-prompt contract as Cursor, plus `x-subconscious-client: copilot` on model requests. |
 
-Bare SDK traffic without those signals stays on **Requests** only.
+Traffic without those signals still lands in **Conversations**: the gateway
+chains turns by matching the assistant turn each request's history ends with,
+and auto-binds the chain root into a Conversation. Native headers remain the
+preferred identity when present. Cursor and Copilot hooks remain preferred for
+editor conversation naming and nesting; a late hook announcement claims an
+auto-bound chain onto the editor id.
 
 Cursor and Copilot hooks do not modify model HTTP — neither editor can stamp a
 conversation onto an inference request. Instead each announces a prompt once,
@@ -65,8 +70,8 @@ subagents without any further hook events. See
 
 For correlated traffic, the gateway’s OpenTelemetry / Datadog `trace_id` is the
 conversation UUID as 32 lowercase hex characters (no dashes). Filter on that
-value in Datadog APM to see the full agent run. Uncorrelated requests keep a
-per-request `trace_id`.
+value in Datadog APM to see the full agent run. Requests that never enter a
+Conversation keep a per-request `trace_id`.
 
 ### Gateway Conversations vs Datadog Agent Observability Sessions
 
