@@ -120,6 +120,121 @@ Enable in Helm: `observability.llmObs.enabled=true` and
 Use the dashboard **LLM Observability** group for recent LLM spans and
 correlated sessions.
 
+## Expert request and trace debugging
+
+Start from the gateway dashboard request-detail page. Capture these values
+before opening Datadog:
+
+- request ID;
+- trace ID;
+- suspect layer span ID;
+- request start and end time;
+- request status and error type;
+- provider, worker, and endpoint identifiers when present.
+
+The request ID identifies one gateway call. The trace ID identifies the
+distributed operation, but correlated gateway conversations intentionally use
+the conversation UUID without dashes as their trace ID. Multiple requests can
+therefore share one trace. The span ID identifies one exact operation inside
+that trace.
+
+### Find the request in Datadog
+
+Set a narrow time range around the request, select the correct deployment
+environment, and search Logs Explorer:
+
+```text
+source:subconscious-gateway env:<DATADOG_ENV> @request_id:<REQUEST_ID>
+```
+
+The managed gateway dashboard provides the same filter through
+`$request_id`. Inspect `@outcome`, `@error_type`,
+`@provider_status_code`, `@provider_request_id`, and
+`@provider_error_message`. Keep the request ID in the query when a
+conversation trace contains many requests.
+
+In APM Trace Explorer, trace and span IDs are reserved attributes and do not
+use an `@` prefix:
+
+```text
+trace_id:<32-character-hex-trace-id>
+span_id:<16-character-hex-span-id>
+```
+
+Open the trace waterfall and confirm that the selected span has the same
+`request_id` as the gateway request-detail page. The gateway exports the exact
+hex IDs displayed by that page over OTLP.
+
+### Read the waterfall
+
+Follow the request from `gateway.request` through `validate`, `auth`,
+`routing`, `limits`, `metering_start`, `model_call`, and `model_stream`.
+Router or adapter services may add downstream proxy and worker spans.
+
+1. Find the first span marked as an error or partial outcome.
+2. Compare its duration with its parent and siblings.
+3. Inspect its provider status, provider request ID, worker, endpoint, and
+   error attributes.
+4. Open correlated logs for that span and include a few seconds before and
+   after its timestamps.
+5. Check sibling requests with the same trace ID only after confirming their
+   distinct request IDs.
+
+Typical interpretations:
+
+- `partial` with no error type means the client disconnected, the stream ended
+  without final usage, or stream finalization was incomplete. It is not proof
+  of a provider timeout.
+- `provider_error` with `gateway_timeout`, `service_unavailable`, or
+  `provider_5xx` is an explicit upstream failure.
+- `provider_4xx` should be inspected for its original status and provider code.
+  Payload or context-size failures require a smaller follow-up request rather
+  than blind replay.
+- A long `model_call` points to connection, response-header, or first-event
+  latency. A long or failed `model_stream` points to an interruption after the
+  provider accepted the request.
+
+### HTTP status and streaming errors
+
+A failure known before the first client-visible stream event can return a real
+HTTP status such as `429`, `502`, `503`, or `504`, allowing compatible coding
+agents to retry. Once any stream event has reached the client, HTTP `200` is
+already committed. Later failures are delivered as an in-band stream error
+with status, retryability, provider code, retry timing, and request ID
+metadata. Client retry behavior after partial output varies by coding agent.
+
+HTTP `413` remains a payload-size error. Reduce or compact the request instead
+of treating it as a transient gateway failure.
+
+### When Datadog has no matching trace
+
+Check the following before treating missing APM data as a gateway defect:
+
+- OTLP tracing and Datadog log collection are enabled;
+- the Datadog environment and time range match the request;
+- the span is still available under the account's indexing and retention
+  policy;
+- the JSON log pipeline parsed `trace_id` and `span_id` as strings and remapped
+  them to Datadog's reserved correlation fields;
+- trace sampling did not discard the trace while independently retaining its
+  logs.
+
+The gateway request-detail page is backed by local trace events and remains a
+useful fallback when an external provider sampled out the trace.
+
+### Equivalent OpenTelemetry backends
+
+The IDs are standard OpenTelemetry/W3C trace-context identifiers:
+
+- Grafana Tempo: paste the trace ID into Explore, or use
+  `{ trace:id = "<TRACE_ID>" }` and `{ span:id = "<SPAN_ID>" }`.
+- Honeycomb: filter on `trace.trace_id` and `trace.span_id`, then open the trace
+  waterfall.
+- Elastic Observability: filter on `trace.id` and `span.id` in Discover or APM.
+
+The investigation order stays the same: request ID and time window, then trace
+ID, then the exact failing span and its correlated logs.
+
 ## Tenant debugging
 
 Prometheus metrics are **not** tagged with `org_id` (cardinality). For per-org
