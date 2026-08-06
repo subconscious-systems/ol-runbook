@@ -11,6 +11,12 @@ Claude Code sends `x-claude-code-session-id` and `x-claude-code-agent-id`
 headers natively. The gateway uses these to group requests into the dashboard
 **Conversations** view automatically.
 
+With OTEL enabled (default in `run.sh` / `install`), Claude exports
+[`api_request`](https://code.claude.com/docs/en/monitoring-usage#api-request-event)
+log events to the gateway's Claude Code-only `POST /v1/logs` endpoint so it can
+back-fill `query_source` (main turn vs session title / compact / etc.). Requires
+Claude Code **v2.1.152+**. No hooks. Traces are not exported.
+
 | Env var | Purpose |
 | --- | --- |
 | `ANTHROPIC_BASE_URL` | Gateway origin (e.g. `https://gateway.example`) |
@@ -21,6 +27,9 @@ headers natively. The gateway uses these to group requests into the dashboard
 | `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | Max subagents running at once (set to `4`; Claude default `20`) |
 | `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` | Max subagent nesting depth (set to `1` — nesting off; Claude default `3`) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | Context window for auto-compaction (default `500000`) |
+| `CLAUDE_CODE_ENABLE_TELEMETRY` | Enable OTEL pipeline for log export |
+| `OTEL_LOGS_EXPORTER` / `OTEL_EXPORTER_OTLP_*` | Export `api_request` events to `${ANTHROPIC_BASE_URL}/v1/logs` (`x-api-key`) |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | Block Anthropic Statsig / surveys / auto-update side traffic |
 
 Subagent traffic will be its own conversation and have a link back to the parent session.
 
@@ -99,7 +108,9 @@ Check status / uninstall:
 | `~/.claude/subconscious-gateway.env` | Gateway env exports (mode 600, not committed) |
 
 No hooks are needed for Claude Code. Session correlation uses native
-`x-claude-code-*` headers.
+`x-claude-code-*` headers. Purpose (`query_source`) uses OTEL
+[`api_request`](https://code.claude.com/docs/en/monitoring-usage#api-request-event)
+logs to the Claude Code-only `/v1/logs` ingest (see env table above).
 
 ## Multiple gateways
 

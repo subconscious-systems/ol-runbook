@@ -32,6 +32,9 @@ if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
   exit 1
 fi
 
+# Optional CLAUDE_GATEWAY_URL in shared .env overrides GATEWAY_URL for Claude only.
+EFFECTIVE_GATEWAY_URL="${CLAUDE_GATEWAY_URL:-$GATEWAY_URL}"
+
 # Parse args (only when executed, not sourced)
 PASSTHRU=()
 if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
@@ -50,16 +53,29 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   done
 fi
 
-export ANTHROPIC_BASE_URL="$GATEWAY_URL"
+export ANTHROPIC_BASE_URL="$EFFECTIVE_GATEWAY_URL"
 export ANTHROPIC_AUTH_TOKEN="$API_KEY"
 export ANTHROPIC_MODEL="$MODEL"
 export ANTHROPIC_SMALL_FAST_MODEL="$MODEL"
 export CLAUDE_CODE_SUBAGENT_MODEL="$MODEL"
 export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4
 export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1
-export CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000
-export CLAUDE_CODE_MAX_CONTEXT_TOKENS=500000
-
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW=3000000
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS=3000000
+# Claude Code purpose attribution only: api_request logs → gateway POST /v1/logs
+# (not a general logs API). Docs:
+# https://code.claude.com/docs/en/monitoring-usage#api-request-event
+# Requires Claude Code >= 2.1.152.
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+export OTEL_EXPORTER_OTLP_LOGS_ENDPOINT="${EFFECTIVE_GATEWAY_URL%/}/v1/logs"
+export OTEL_EXPORTER_OTLP_HEADERS="x-api-key=${API_KEY}"
+export OTEL_EXPORTER_OTLP_TIMEOUT=2000
+export OTEL_LOGS_EXPORT_INTERVAL="${OTEL_LOGS_EXPORT_INTERVAL:-2000}"
+# Do not set OTEL_TRACES_EXPORTER / OTEL_METRICS_EXPORTER (including to "none") -
+# Claude's telemetry init can abort the whole pipeline on unknown exporter types.
 # If sourced, export env and return (caller can unset when done).
 if [[ "${BASH_SOURCE[0]:-$0}" != "${0}" ]]; then
   return 0 2>/dev/null || true
