@@ -74,10 +74,14 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
 COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
-API_KEY="${API_KEY:-}"
+API_KEY="${CODEX_API_KEY:-${API_KEY:-}}"
 MODEL="${MODEL:-gw-glm-5.2}"
 SUBAGENTS=false
 MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS:-4}"
+CODEX_CONTEXT_WINDOW="${CODEX_CONTEXT_WINDOW:-5000000}"
+# Empty means "same as context window" after CLI/env resolution.
+CODEX_MAX_CONTEXT_WINDOW="${CODEX_MAX_CONTEXT_WINDOW:-}"
+CODEX_AUTO_COMPACT_TOKEN_LIMIT="${CODEX_AUTO_COMPACT_TOKEN_LIMIT:-4500000}"
 
 # Codex version that supports the legacy multi-agent v1 config (plain tool names).
 SUBAGENT_CODEX_VERSION="0.132.0"
@@ -87,6 +91,8 @@ usage() {
 Usage:
   install.sh [install] --gateway-url URL --api-key KEY [--model MODEL]
                          [--subagents] [--max-concurrent-subagents N]
+                         [--context-window N] [--max-context-window N]
+                         [--auto-compact-token-limit N]
   install.sh use [-- CODEX_ARGS...]
   install.sh env
   install.sh unset
@@ -107,6 +113,9 @@ Options:
   --gateway-url URL            Gateway origin (e.g. https://gateway.example)
   --api-key KEY                Gateway API key (sk-gw-...)
   --model MODEL                Model name (default: gw-glm-5.2)
+  --context-window N           Catalog context_window (default: 5000000 / CODEX_CONTEXT_WINDOW)
+  --max-context-window N       Catalog max_context_window (default: same as context window)
+  --auto-compact-token-limit N Catalog auto_compact_token_limit (default: 4500000)
   --subagents                  Enable subagents (pins codex@0.132.0, writes legacy
                                multi-agent v1 config with plain tool names)
   --max-concurrent-subagents N Max concurrent subagent threads (default: 4,
@@ -130,6 +139,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --model)
       MODEL="${2:-}"
+      shift 2
+      ;;
+    --context-window)
+      CODEX_CONTEXT_WINDOW="${2:-}"
+      shift 2
+      ;;
+    --max-context-window)
+      CODEX_MAX_CONTEXT_WINDOW="${2:-}"
+      shift 2
+      ;;
+    --auto-compact-token-limit)
+      CODEX_AUTO_COMPACT_TOKEN_LIMIT="${2:-}"
       shift 2
       ;;
     --subagents)
@@ -156,6 +177,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Default max_context_window to context_window when unset.
+CODEX_MAX_CONTEXT_WINDOW="${CODEX_MAX_CONTEXT_WINDOW:-${CODEX_CONTEXT_WINDOW}}"
+
 CODEX_DIR="${HOME}/.codex"
 CONFIG_TOML="${CODEX_DIR}/config.toml"
 ENV_FILE="${CODEX_DIR}/subconscious.env"
@@ -178,9 +202,9 @@ write_config() {
       "slug": "__MODEL__",
       "display_name": "Subconscious GLM 5.2",
       "description": "Subconscious API Gateway GLM 5.2",
-      "context_window": 200000,
-      "max_context_window": 200000,
-      "auto_compact_token_limit": 180000,
+      "context_window": __CONTEXT_WINDOW__,
+      "max_context_window": __MAX_CONTEXT_WINDOW__,
+      "auto_compact_token_limit": __AUTO_COMPACT_TOKEN_LIMIT__,
       "effective_context_window_percent": 95,
       "supported_reasoning_levels": [],
       "shell_type": "shell_command",
@@ -201,9 +225,14 @@ write_config() {
   ]
 }
 ENDJSON
-  # Substitute the model slug into the catalog.
+  # Substitute model slug + context limits into the catalog.
   # On macOS, sed -i requires an empty backup extension arg.
-  sed -i '' "s/__MODEL__/${MODEL}/g" "$CATALOG_FILE"
+  sed -i '' \
+    -e "s/__MODEL__/${MODEL}/g" \
+    -e "s/__CONTEXT_WINDOW__/${CODEX_CONTEXT_WINDOW}/g" \
+    -e "s/__MAX_CONTEXT_WINDOW__/${CODEX_MAX_CONTEXT_WINDOW}/g" \
+    -e "s/__AUTO_COMPACT_TOKEN_LIMIT__/${CODEX_AUTO_COMPACT_TOKEN_LIMIT}/g" \
+    "$CATALOG_FILE"
 
   # Write config.toml. When --subagents is set, write the legacy multi-agent v1
   # config that uses plain tool names (not namespace wrappers), which the model

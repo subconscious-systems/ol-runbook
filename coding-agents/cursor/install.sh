@@ -51,7 +51,7 @@ SHARED_ENV="${MBTA_ENV_FILE:-${SCRIPT_DIR}/../.env}"
 if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
 GATEWAY_URL="${GATEWAY_URL:-}"
-API_KEY="${API_KEY:-}"
+API_KEY="${CURSOR_API_KEY:-${API_KEY:-}}"
 COMMAND="install"
 
 usage() {

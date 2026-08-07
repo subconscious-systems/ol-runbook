@@ -19,6 +19,16 @@ you need two things in your `models.json`:
    into conversations. The `openai-nosession` format avoids the underscore
    `session_id` header that strict proxies may drop.
 
+### Token reporting and compaction
+
+Use an API key with **Full list context** reporting (edit the key in the
+dashboard if it still says TIMRUN - new keys default to TIMRUN). Set
+`contextWindow` / `maxTokens` on the model (installer defaults `5000000` /
+`65536`) and leave Pi auto-compaction on so it fires when
+`contextTokens > contextWindow - reserveTokens`.
+
+Docs: [Pi compaction](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/compaction.md).
+
 ## Requirements
 
 - `jq`
@@ -28,7 +38,9 @@ you need two things in your `models.json`:
 ## Shared env (preferred)
 
 Prefer the shared `coding-agents/.env` one level up for `GATEWAY_URL`,
-`API_KEY`, and optional `MODEL`. Set that once, then install without flags:
+`API_KEY` (or `PI_API_KEY`), and optional `MODEL`. Set that once, then install
+without flags. Prefer a **Full list** key via `PI_API_KEY` when `API_KEY` is
+TIMRUN for other agents.
 
 ```bash
 cd ol-runbook/coding-agents
@@ -76,6 +88,8 @@ If you prefer to configure Pi manually, set this in your
       "models": [
         {
           "id": "gw-glm-5.2",
+          "contextWindow": 5000000,
+          "maxTokens": 65536,
           "compat": {
             "sendSessionAffinityHeaders": true,
             "sessionAffinityFormat": "openai-nosession"
@@ -104,6 +118,13 @@ The gateway detects Pi via two mechanisms (checked in order):
 Without `sendSessionAffinityHeaders: true`, Pi sends no session headers and
 traffic will appear on the **Requests** view only (not grouped into
 Conversations).
+
+Auto-compaction uses `contextWindow` on the model entry
+(`contextTokens > contextWindow - reserveTokens`). The installer sets
+`contextWindow: 5000000` by default. Override with `--context-window` /
+`PI_CONTEXT_WINDOW`. Compaction knobs (`reserveTokens`, `keepRecentTokens`)
+live in `~/.pi/agent/settings.json` — see
+[Pi compaction docs](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/compaction.md).
 
 ### Subagent plugin (`pi install npm:pi-subagents`)
 

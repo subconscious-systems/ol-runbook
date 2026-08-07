@@ -4,6 +4,23 @@ First go into Cursor settings and enable the "OpenAI API Key Override" setting. 
 
 Use base url `https://<your-gateway-url>`, an API key from the Subconscious dashboard, and the configured model name from the dashboard.
 
+### Token reporting and compaction
+
+Use an API key with **TIMRUN context** reporting (the default for new keys).
+TIMRUN-reported `input_tokens` stay near the retained window (typically well
+under ~150k), so Cursor's assumed compaction budget almost never fires.
+
+Cursor does **not** expose a setting for custom OpenAI-compatible model
+context windows. Uncataloged custom / base URL models currently default to a
+**1M** assumed window (staff: by design; no auto-detect and no BYOK context UI):
+
+- [Custom models set the context window to 1M](https://forum.cursor.com/t/custom-models-set-the-context-window-to-1m/160106)
+- [Custom OpenAI-compatible model shows 200K for GLM-5.2](https://forum.cursor.com/t/custom-openai-compatible-model-shows-200k-context-limit-for-glm-5-2-even-though-it-supports-1m-context/163360)
+- Feature request cited from those threads: **Unlock Full Context Window with Own API Keys**
+
+If request bodies grow too large (gateway **50 MiB**) or round-trips feel slow,
+use `/compact` manually. Hooks below only handle conversation correlation.
+
 # Cursor hooks — Conversations correlation
 
 Install one local [Cursor agent hook](https://cursor.com/docs/agent/hooks) so the
@@ -34,7 +51,8 @@ No SHA-256 tool is needed: the hook sends the prompt and the gateway hashes it.
 ## Shared env (preferred)
 
 Prefer the shared `coding-agents/.env` one level up for `GATEWAY_URL`,
-`API_KEY`, and optional `MODEL`. Set that once, then install without flags:
+`API_KEY` (or `CURSOR_API_KEY`), and optional `MODEL`. Set that once, then
+install without flags. `CURSOR_API_KEY` overrides shared `API_KEY` when set.
 
 ```bash
 cd ol-runbook/coding-agents

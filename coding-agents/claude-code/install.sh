@@ -25,8 +25,11 @@
 #   export CLAUDE_CODE_SUBAGENT_MODEL=gw-glm-5.2
 #   export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4
 #   export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1
-#   export CLAUDE_CODE_AUTO_COMPACT_WINDOW=3000000
+#   export CLAUDE_CODE_AUTO_COMPACT_WINDOW=1000000
 #   export CLAUDE_CODE_MAX_CONTEXT_TOKENS=3000000
+#   # AUTO_COMPACT_WINDOW range 100000–1000000 (leave on; TIMRUN keys rarely hit it):
+#   # https://code.claude.com/docs/en/env-vars
+#   # https://code.claude.com/docs/en/context-window#set-the-auto-compact-window
 #   export CLAUDE_CODE_ENABLE_TELEMETRY=1
 #   export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 #   export OTEL_LOGS_EXPORTER=otlp
@@ -55,14 +58,16 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 CLAUDE_DIR="${HOME}/.claude"
 ENV_FILE="${CLAUDE_DIR}/subconscious-gateway.env"
 DEFAULT_MODEL="gw-glm-5.2"
-DEFAULT_COMPACT_WINDOW="3000000"
+DEFAULT_COMPACT_WINDOW="1000000"
+DEFAULT_MAX_CONTEXT_TOKENS="3000000"
 DEFAULT_MAX_CONCURRENT_SUBAGENTS="4"
 DEFAULT_MAX_SUBAGENT_SPAWN_DEPTH="1"
 
 GATEWAY_URL="${GATEWAY_URL:-}"
-API_KEY="${API_KEY:-}"
+API_KEY="${CLAUDE_CODE_API_KEY:-${API_KEY:-}}"
 MODEL="${MODEL:-$DEFAULT_MODEL}"
-COMPACT_WINDOW="${COMPACT_WINDOW:-$DEFAULT_COMPACT_WINDOW}"
+COMPACT_WINDOW="${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-${COMPACT_WINDOW:-$DEFAULT_COMPACT_WINDOW}}"
+MAX_CONTEXT_TOKENS="${CLAUDE_CODE_MAX_CONTEXT_TOKENS:-${MAX_CONTEXT_TOKENS:-$DEFAULT_MAX_CONTEXT_TOKENS}}"
 MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS:-$DEFAULT_MAX_CONCURRENT_SUBAGENTS}"
 MAX_SUBAGENT_SPAWN_DEPTH="${MAX_SUBAGENT_SPAWN_DEPTH:-$DEFAULT_MAX_SUBAGENT_SPAWN_DEPTH}"
 COMMAND="install"
@@ -91,7 +96,11 @@ Options:
   --gateway-url URL     Gateway origin (e.g. https://gateway.example)
   --api-key KEY         Gateway API key (sk-gw-...)
   --model MODEL         Model name (default: gw-glm-5.2)
-  --compact-window N    CLAUDE_CODE_AUTO_COMPACT_WINDOW (default: 500000)
+  --compact-window N    CLAUDE_CODE_AUTO_COMPACT_WINDOW (default: 1000000; Claude Code clamps to 100000–1000000)
+                        See https://code.claude.com/docs/en/env-vars and
+                        https://code.claude.com/docs/en/context-window#set-the-auto-compact-window
+  --max-context-tokens N CLAUDE_CODE_MAX_CONTEXT_TOKENS (default: 3000000)
+                        See https://code.claude.com/docs/en/env-vars
 EOF
 }
 
@@ -115,6 +124,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --compact-window)
       COMPACT_WINDOW="${2:-}"
+      shift 2
+      ;;
+    --max-context-tokens)
+      MAX_CONTEXT_TOKENS="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -153,7 +166,7 @@ export CLAUDE_CODE_SUBAGENT_MODEL="${MODEL}"
 export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS}"
 export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH="${MAX_SUBAGENT_SPAWN_DEPTH}"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${COMPACT_WINDOW}"
-export CLAUDE_CODE_MAX_CONTEXT_TOKENS="500000"
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS="${MAX_CONTEXT_TOKENS}"
 export CLAUDE_CODE_ENABLE_TELEMETRY=1
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 # Claude Code purpose attribution only (api_request → /v1/logs):

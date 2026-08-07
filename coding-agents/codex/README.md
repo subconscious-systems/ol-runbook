@@ -15,6 +15,22 @@ gateway's `POST /v1/responses` endpoint, and `env_key = "SUBCONSCIOUS_API_KEY"`
 for authentication. Web search is disabled (`web_search = "disabled"`) so
 Codex doesn't send hosted tools the gateway can't execute.
 
+### Token reporting and compaction
+
+Use an API key with **TIMRUN context** reporting (the default for new keys).
+TIMRUN-reported `input_tokens` stay near the retained window (typically well
+under ~150k), so Codex auto-compaction driven by the model catalog almost never
+fires even though our catalog windows are large (`context_window` /
+`auto_compact_token_limit` defaults `5000000` / `4500000`). Leave catalog
+auto-compact enabled. If request bodies grow too large (gateway **50 MiB**) or
+round-trips feel slow, compact or start a fresh thread manually.
+
+Related upstream notes (no first-party “raise auto-compact past product
+defaults” page comparable to Claude Code):
+[openai/codex#19409](https://github.com/openai/codex/issues/19409) (catalog /
+auto-compact mismatch),
+[openai/codex#11805](https://github.com/openai/codex/issues/11805) (90% clamp).
+
 ## Requirements
 
 - A gateway API key (create one in the Subconscious dashboard)
@@ -22,9 +38,10 @@ Codex doesn't send hosted tools the gateway can't execute.
 
 ## Shared env (preferred)
 
-All scripts read `GATEWAY_URL`, `API_KEY`, and optional `MODEL` from the shared
-`coding-agents/.env` one level up. Set that once, then run install/run without
-passing credentials on the command line:
+All scripts read `GATEWAY_URL`, `API_KEY` (or `CODEX_API_KEY`), and optional
+`MODEL` from the shared `coding-agents/.env` one level up. Set that once, then
+run install/run without passing credentials on the command line. `CODEX_API_KEY`
+overrides shared `API_KEY` when set.
 
 ```bash
 cd ol-runbook/coding-agents
@@ -175,9 +192,9 @@ a "Model metadata not found" warning on every turn):
       "slug": "gw-glm-5.2",
       "display_name": "Subconscious GLM 5.2",
       "description": "Subconscious API Gateway GLM 5.2",
-      "context_window": 200000,
-      "max_context_window": 200000,
-      "auto_compact_token_limit": 180000,
+      "context_window": 5000000,
+      "max_context_window": 5000000,
+      "auto_compact_token_limit": 4500000,
       "effective_context_window_percent": 95,
       "supported_reasoning_levels": [],
       "shell_type": "shell_command",
@@ -198,6 +215,12 @@ a "Model metadata not found" warning on every turn):
   ]
 }
 ```
+
+Catalog windows default to `CODEX_CONTEXT_WINDOW=5000000`,
+`CODEX_MAX_CONTEXT_WINDOW=5000000`, and
+`CODEX_AUTO_COMPACT_TOKEN_LIMIT=4500000` from `coding-agents/.env` (or
+`--context-window` / `--max-context-window` / `--auto-compact-token-limit` on
+`install.sh` / `run.sh`).
 
 Then set these in your `~/.codex/config.toml` (without subagents):
 

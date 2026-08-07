@@ -14,6 +14,23 @@ The install script also sets `x-subconscious-client: opencode` as a custom
 provider header, which unambiguously identifies the agent to the gateway
 regardless of session-header heuristics.
 
+It also sets model `limit.context` / `limit.output` (defaults `5000000` /
+`65536`). OpenCode auto-compaction stays enabled and uses that window
+(`estimated tokens > context − max(output, buffer)`). Custom
+openai-compatible providers do not inherit limits from models.dev or from
+`baseURL` alone, so without `limit` OpenCode may compact far too early.
+
+### Token reporting and compaction
+
+Use an API key with **Full list context** reporting (edit the key in the
+dashboard if it still says TIMRUN - new keys default to TIMRUN). Full-list
+`input_tokens` grow with the client message list so OpenCode's configurable
+auto-compaction can fire on real payload growth.
+
+Docs: [Compaction](https://opencode.ai/v2/docs/compaction),
+[Config / compaction](https://opencode.ai/docs/config/),
+[Providers / model `limit`](https://opencode.ai/docs/providers/).
+
 With OpenCode, subagent traffic will be its own conversation and have a link back to the parent session.
 
 ## Requirements
@@ -24,9 +41,10 @@ With OpenCode, subagent traffic will be its own conversation and have a link bac
 
 ## Shared env (preferred)
 
-All scripts read `GATEWAY_URL`, `API_KEY`, and optional `MODEL` from the shared
-`coding-agents/.env` one level up. Set that once, then run install/run without
-passing credentials on the command line:
+All scripts read `GATEWAY_URL`, `API_KEY` (or `OPENCODE_API_KEY`), and optional
+`MODEL` from the shared `coding-agents/.env` one level up. Set that once, then
+run install/run without passing credentials on the command line. Prefer a
+**Full list** key via `OPENCODE_API_KEY` when `API_KEY` is TIMRUN for other agents.
 
 ```bash
 cd ol-runbook/coding-agents
@@ -91,7 +109,11 @@ If you prefer to configure opencode manually, set these in your
       "models": {
         "gw-glm-5.2": {
           "name": "gw-glm-5.2",
-          "tools": true
+          "tools": true,
+          "limit": {
+            "context": 5000000,
+            "output": 65536
+          }
         }
       }
     }
@@ -99,6 +121,13 @@ If you prefer to configure opencode manually, set these in your
   "model": "subconscious/gw-glm-5.2"
 }
 ```
+
+Optional overrides in `coding-agents/.env`: `OPENCODE_CONTEXT_LIMIT`,
+`OPENCODE_OUTPUT_LIMIT`. CLI: `--context-limit` / `--output-limit` on install
+(CLI wins over `.env`). There is no shared `CONTEXT_LIMIT`.
+Docs: [compaction](https://opencode.ai/v2/docs/compaction),
+[providers / limit](https://opencode.ai/docs/providers/),
+[models](https://opencode.ai/v2/docs/models).
 
 Export the API key:
 
@@ -110,7 +139,7 @@ export SUBCONSCIOUS_API_KEY="sk-gw-..."
 
 | Path | Purpose |
 | --- | --- |
-| `~/.opencode/opencode.json` | Provider config pointing to your gateway with `x-subconscious-client` header |
+| `~/.opencode/opencode.json` | Provider config pointing to your gateway with `x-subconscious-client` and model `limit` (drives auto-compaction) |
 | `~/.opencode/subconscious.env` | `SUBCONSCIOUS_API_KEY` env var (mode 600) |
 
 ## Conversation correlation

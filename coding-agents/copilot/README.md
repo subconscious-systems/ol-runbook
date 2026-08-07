@@ -19,6 +19,17 @@ id means you only do this once, even if you re-run the installer.
 A static `x-subconscious-client: copilot` header is attached per-model via the
 `requestHeaders` field so the gateway can identify the traffic source.
 
+### Token reporting and compaction
+
+Use an API key with **Full list context** reporting (edit the key in the
+dashboard if it still says TIMRUN - new keys default to TIMRUN). The installer
+sets Custom Endpoint `maxInputTokens` / `maxOutputTokens` (defaults
+`5000000` / `65536`) so VS Code budgets context against the growing full-list
+usage.
+
+Docs: [VS Code AI language models](https://code.visualstudio.com/docs/agent-customization/language-models)
+(`maxInputTokens`, `maxOutputTokens`, `contextWindow`).
+
 ## Requirements
 
 - VS Code installed globally (stable `Code` or `Code - Insiders`; also supports
@@ -38,8 +49,9 @@ cp env.example .env   # one-time: paste GATEWAY_URL (+ optional MODEL)
 ```
 
 `--gateway-url` and related flags still override `.env` when you need a
-one-off value. The API key is never taken from `.env` for Copilot — VS Code
-requires it via the UI secret store (see below).
+one-off value. The Chat Completions API key is never taken from `.env` for
+Copilot — VS Code requires it via the UI secret store (see below). Hooks use
+`COPILOT_API_KEY` when set, otherwise shared `API_KEY` (prefer a Full list key).
 
 ## Install
 
@@ -74,8 +86,8 @@ Check status / uninstall:
 | --- | --- | --- |
 | `--gateway-url URL` | (from `.env`) | Gateway origin |
 | `--model MODEL` | `gw-glm-5.2` | Model id sent to the gateway |
-| `--max-input-tokens N` | `200000` | Model context window input tokens |
-| `--max-output-tokens N` | `16000` | Model max output tokens |
+| `--max-input-tokens N` | `5000000` | Model context window input tokens (drives Copilot context budgeting) |
+| `--max-output-tokens N` | `65536` | Model max output tokens |
 | `--vscode-app APP` | auto | `Code`, `Code - Insiders`, or `VSCodium` |
 
 ## What gets installed
@@ -111,8 +123,8 @@ If you prefer to configure VS Code entirely by hand:
         "url": "https://your-gateway.example/v1/chat/completions",
         "toolCalling": true,
         "vision": false,
-        "maxInputTokens": 256000,
-        "maxOutputTokens": 64000,
+        "maxInputTokens": 5000000,
+        "maxOutputTokens": 65536,
         "streaming": true,
         "requestHeaders": { "x-subconscious-client": "copilot" }
       }

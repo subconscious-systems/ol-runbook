@@ -22,6 +22,8 @@
 #         "headers": { "x-subconscious-client": "pi" },
 #         "models": [{
 #           "id": "gw-glm-5.2",
+#           "contextWindow": 5000000,
+#           "maxTokens": 65536,
 #           "compat": {
 #             "sendSessionAffinityHeaders": true,
 #             "sessionAffinityFormat": "openai-nosession"
@@ -46,13 +48,16 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
 COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
-API_KEY="${API_KEY:-}"
+API_KEY="${PI_API_KEY:-${API_KEY:-}}"
 MODEL="${MODEL:-gw-glm-5.2}"
+CONTEXT_WINDOW="${PI_CONTEXT_WINDOW:-5000000}"
+MAX_TOKENS="${PI_MAX_TOKENS:-65536}"
 
 usage() {
   cat <<'EOF'
 Usage:
   install.sh [install] --gateway-url URL --api-key KEY [--model MODEL]
+             [--context-window N] [--max-tokens N]
   install.sh uninstall
   install.sh status
 
@@ -61,6 +66,9 @@ Usage:
 Writes a models.json that points Pi at your Subconscious gateway with
 x-subconscious-client: pi and session-affinity headers enabled so the gateway
 can group requests into Conversations.
+
+Also sets model contextWindow (default 5000000) so Pi auto-compaction
+(`contextTokens > contextWindow - reserveTokens`) respects the gateway window.
 
 Pi does not send session headers by default; this script enables
 sendSessionAffinityHeaders with sessionAffinityFormat "openai-nosession"
@@ -87,6 +95,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --model)
       MODEL="${2:-}"
+      shift 2
+      ;;
+    --context-window)
+      CONTEXT_WINDOW="${2:-}"
+      shift 2
+      ;;
+    --max-tokens)
+      MAX_TOKENS="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -135,6 +151,8 @@ write_config() {
       "models": [
         {
           "id": "${MODEL}",
+          "contextWindow": ${CONTEXT_WINDOW},
+          "maxTokens": ${MAX_TOKENS},
           "compat": {
             "sendSessionAffinityHeaders": true,
             "sessionAffinityFormat": "openai-nosession"
@@ -166,6 +184,7 @@ status() {
   if [[ -f "$MODELS_JSON" ]] && grep -q "$MARKER" "$MODELS_JSON" 2>/dev/null; then
     echo "status: installed"
     echo "model: $(jq -r '.providers.subconscious.models[0].id // "unset"' "$MODELS_JSON" 2>/dev/null || echo 'unknown')"
+    echo "contextWindow: $(jq -r '.providers.subconscious.models[0].contextWindow // "unset"' "$MODELS_JSON" 2>/dev/null || echo 'unknown')"
   else
     echo "status: not installed"
   fi

@@ -17,7 +17,7 @@
 #
 # Usage:
 #   ./run.sh                         # uses GATEWAY_URL/API_KEY from ../.env
-#   ./run.sh -- --resume              # pass args through to codex
+#   ./run.sh --context-window 5000000 -- --resume
 #   ./run.sh --subagents              # run codex@0.132.0 with subagents enabled
 #   ./run.sh --subagents -- --resume  # subagents + passthrough args
 #
@@ -37,24 +37,34 @@ SHARED_ENV="${MBTA_ENV_FILE:-${SCRIPT_DIR}/../.env}"
 if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
 GATEWAY_URL="${GATEWAY_URL:-}"
-API_KEY="${API_KEY:-}"
+API_KEY="${CODEX_API_KEY:-${API_KEY:-}}"
 MODEL="${MODEL:-gw-glm-5.2}"
 MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS:-4}"
 SUBAGENTS=false
+CODEX_CONTEXT_WINDOW="${CODEX_CONTEXT_WINDOW:-5000000}"
+CODEX_MAX_CONTEXT_WINDOW="${CODEX_MAX_CONTEXT_WINDOW:-}"
+CODEX_AUTO_COMPACT_TOKEN_LIMIT="${CODEX_AUTO_COMPACT_TOKEN_LIMIT:-4500000}"
 
 # Codex version that supports the legacy multi-agent v1 config (plain tool names).
 SUBAGENT_CODEX_VERSION="0.132.0"
-
-if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
-  echo "error: GATEWAY_URL and API_KEY must be set in ../.env" >&2
-  exit 1
-fi
 
 # Parse args (only when executed, not sourced)
 PASSTHRU=()
 if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --context-window)
+        CODEX_CONTEXT_WINDOW="${2:-}"
+        shift 2
+        ;;
+      --max-context-window)
+        CODEX_MAX_CONTEXT_WINDOW="${2:-}"
+        shift 2
+        ;;
+      --auto-compact-token-limit)
+        CODEX_AUTO_COMPACT_TOKEN_LIMIT="${2:-}"
+        shift 2
+        ;;
       --subagents)
         SUBAGENTS=true
         shift
@@ -72,6 +82,13 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   done
 fi
 
+CODEX_MAX_CONTEXT_WINDOW="${CODEX_MAX_CONTEXT_WINDOW:-${CODEX_CONTEXT_WINDOW}}"
+
+if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
+  echo "error: GATEWAY_URL and API_KEY must be set in ../.env" >&2
+  exit 1
+fi
+
 export SUBCONSCIOUS_API_KEY="$API_KEY"
 
 # Write a temp model catalog so Codex doesn't print "model metadata not found".
@@ -87,9 +104,9 @@ cat >"$CATALOG_FILE" <<'ENDJSON'
       "slug": "__MODEL__",
       "display_name": "Subconscious GLM 5.2",
       "description": "Subconscious API Gateway GLM 5.2",
-      "context_window": 200000,
-      "max_context_window": 200000,
-      "auto_compact_token_limit": 180000,
+      "context_window": __CONTEXT_WINDOW__,
+      "max_context_window": __MAX_CONTEXT_WINDOW__,
+      "auto_compact_token_limit": __AUTO_COMPACT_TOKEN_LIMIT__,
       "effective_context_window_percent": 95,
       "supported_reasoning_levels": [],
       "shell_type": "shell_command",
@@ -110,7 +127,12 @@ cat >"$CATALOG_FILE" <<'ENDJSON'
   ]
 }
 ENDJSON
-sed -i '' "s/__MODEL__/${MODEL}/g" "$CATALOG_FILE"
+sed -i '' \
+  -e "s/__MODEL__/${MODEL}/g" \
+  -e "s/__CONTEXT_WINDOW__/${CODEX_CONTEXT_WINDOW}/g" \
+  -e "s/__MAX_CONTEXT_WINDOW__/${CODEX_MAX_CONTEXT_WINDOW}/g" \
+  -e "s/__AUTO_COMPACT_TOKEN_LIMIT__/${CODEX_AUTO_COMPACT_TOKEN_LIMIT}/g" \
+  "$CATALOG_FILE"
 
 # If sourced, just export env and return.
 if [[ "${BASH_SOURCE[0]:-$0}" != "${0}" ]]; then

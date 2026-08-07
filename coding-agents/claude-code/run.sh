@@ -7,6 +7,8 @@
 # Usage:
 #   ./run.sh                         # uses GATEWAY_URL/API_KEY from ../.env
 #   ./run.sh --continue               # pass args through to claude
+#   ./run.sh --compact-window 1000000 -- --continue
+#   ./run.sh --model gw-glm-5.2 -p "hi"
 #
 # Config: copy ../env.example to ../.env and edit. .env is gitignored.
 # All agents share one coding-agents/.env file.
@@ -23,23 +25,70 @@ SHARED_ENV="${MBTA_ENV_FILE:-${SCRIPT_DIR}/../.env}"
 [[ -f "$SHARED_ENV" ]] || SHARED_ENV="${SCRIPT_DIR}/../env.example"
 if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 
+DEFAULT_MODEL="gw-glm-5.2"
+DEFAULT_COMPACT_WINDOW="1000000"
+DEFAULT_MAX_CONTEXT_TOKENS="3000000"
+DEFAULT_MAX_CONCURRENT_SUBAGENTS="4"
+DEFAULT_MAX_SUBAGENT_SPAWN_DEPTH="1"
+
 GATEWAY_URL="${GATEWAY_URL:-}"
-API_KEY="${API_KEY:-}"
-MODEL="${MODEL:-gw-glm-5.2}"
+API_KEY="${CLAUDE_CODE_API_KEY:-${API_KEY:-}}"
+MODEL="${MODEL:-$DEFAULT_MODEL}"
+COMPACT_WINDOW="${CLAUDE_CODE_AUTO_COMPACT_WINDOW:-${COMPACT_WINDOW:-$DEFAULT_COMPACT_WINDOW}}"
+MAX_CONTEXT_TOKENS="${CLAUDE_CODE_MAX_CONTEXT_TOKENS:-${MAX_CONTEXT_TOKENS:-$DEFAULT_MAX_CONTEXT_TOKENS}}"
+MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS:-$DEFAULT_MAX_CONCURRENT_SUBAGENTS}"
+MAX_SUBAGENT_SPAWN_DEPTH="${MAX_SUBAGENT_SPAWN_DEPTH:-$DEFAULT_MAX_SUBAGENT_SPAWN_DEPTH}"
 
-if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
-  echo "error: GATEWAY_URL and API_KEY must be set in ../.env" >&2
-  exit 1
-fi
+usage() {
+  cat <<'EOF'
+Usage:
+  run.sh [options] [-- CLAUDE_ARGS...]
+  run.sh [options] CLAUDE_ARGS...
 
-# Optional CLAUDE_GATEWAY_URL in shared .env overrides GATEWAY_URL for Claude only.
-EFFECTIVE_GATEWAY_URL="${CLAUDE_GATEWAY_URL:-$GATEWAY_URL}"
+Options (same as install.sh; override coding-agents/.env for this run):
+  --gateway-url URL      Gateway origin (e.g. https://gateway.example)
+  --api-key KEY          Gateway API key (sk-gw-...)
+  --model MODEL          Model name (default: gw-glm-5.2)
+  --compact-window N     CLAUDE_CODE_AUTO_COMPACT_WINDOW (default: 1000000; Claude Code clamps to 100000–1000000)
+                         See https://code.claude.com/docs/en/env-vars and
+                         https://code.claude.com/docs/en/context-window#set-the-auto-compact-window
+  --max-context-tokens N CLAUDE_CODE_MAX_CONTEXT_TOKENS (default: 3000000)
+                         See https://code.claude.com/docs/en/env-vars
+  -h, --help             Show this help
+
+Anything after --, or unrecognized flags/args, is passed through to `claude`.
+EOF
+}
 
 # Parse args (only when executed, not sourced)
 PASSTHRU=()
 if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --gateway-url)
+        GATEWAY_URL="${2:-}"
+        shift 2
+        ;;
+      --api-key)
+        API_KEY="${2:-}"
+        shift 2
+        ;;
+      --model)
+        MODEL="${2:-}"
+        shift 2
+        ;;
+      --compact-window)
+        COMPACT_WINDOW="${2:-}"
+        shift 2
+        ;;
+      --max-context-tokens)
+        MAX_CONTEXT_TOKENS="${2:-}"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
       --)
         shift
         PASSTHRU+=("$@")
@@ -53,15 +102,24 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   done
 fi
 
+if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
+  echo "error: GATEWAY_URL and API_KEY must be set in ../.env (or pass --gateway-url / --api-key)" >&2
+  exit 1
+fi
+
+# Optional CLAUDE_GATEWAY_URL in shared .env overrides GATEWAY_URL for Claude only
+# (CLI --gateway-url already updated GATEWAY_URL above).
+EFFECTIVE_GATEWAY_URL="${CLAUDE_GATEWAY_URL:-$GATEWAY_URL}"
+
 export ANTHROPIC_BASE_URL="$EFFECTIVE_GATEWAY_URL"
 export ANTHROPIC_AUTH_TOKEN="$API_KEY"
 export ANTHROPIC_MODEL="$MODEL"
 export ANTHROPIC_SMALL_FAST_MODEL="$MODEL"
 export CLAUDE_CODE_SUBAGENT_MODEL="$MODEL"
-export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=4
-export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1
-export CLAUDE_CODE_AUTO_COMPACT_WINDOW=3000000
-export CLAUDE_CODE_MAX_CONTEXT_TOKENS=3000000
+export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS="${MAX_CONCURRENT_SUBAGENTS}"
+export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH="${MAX_SUBAGENT_SPAWN_DEPTH}"
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="${COMPACT_WINDOW}"
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS="${MAX_CONTEXT_TOKENS}"
 # Claude Code purpose attribution only: api_request logs → gateway POST /v1/logs
 # (not a general logs API). Docs:
 # https://code.claude.com/docs/en/monitoring-usage#api-request-event
