@@ -47,14 +47,17 @@
 #     }
 #   ]
 #
-# And installs a VS Code agent hook (~/.copilot/hooks/) that POSTs
-# conversation_ensure to /v1/agent-hooks with the raw prompt text once per
-# submission. The gateway fingerprints the prompt itself, binds the first LLM
-# request of that prompt, then chains every later turn of the conversation onto
-# it -- including subagents, which UserPromptSubmit also fires for. The
-# x-subconscious-client: copilot header (sent by both the hook script and the
-# model requestHeaders) tells the gateway to classify the traffic as Copilot.
-# hooks reference: https://code.visualstudio.com/docs/agent-customization/hooks
+# And installs VS Code agent hooks (~/.copilot/hooks/) that POST to
+# /v1/agent-hooks:
+#   UserPromptSubmit -> conversation_ensure (+ compaction end if pending)
+#   PreCompact       -> conversation_compaction phase start
+# There is no PostCompact; the next UserPromptSubmit closes the window so the
+# summarization LLM turn between them is billed as compaction. Manual compact
+# does not fire PreCompact (accepted gap). The gateway fingerprints prompts and
+# chains turns; subagents need no extra hooks. The x-subconscious-client:
+# copilot header (hook script + model requestHeaders) classifies the traffic.
+# hooks: https://code.visualstudio.com/docs/copilot/customization/hooks
+# PreCompact: https://code.visualstudio.com/docs/agents/reference/hooks-reference#precompact
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -343,6 +346,7 @@ write_hooks_json() {
 
 uninstall_hooks() {
   rm -f "$HOOK_DST" "$HOOKS_JSON" "$ENV_FILE"
+  rm -rf "${COPILOT_DIR}/subconscious-compact-pending"
 }
 
 hooks_status() {

@@ -27,8 +27,14 @@ sets Custom Endpoint `maxInputTokens` / `maxOutputTokens` (defaults
 `5000000` / `65536`) so VS Code budgets context against the growing full-list
 usage.
 
+Copilot compaction is an LLM request through the Custom Endpoint (your
+gateway). The hooks below report auto-compactions so the dashboard can restart
+the context profile and bill the summarization turn as compaction rather than
+as a normal main-thread turn.
+
 Docs: [VS Code AI language models](https://code.visualstudio.com/docs/agent-customization/language-models)
-(`maxInputTokens`, `maxOutputTokens`, `contextWindow`).
+(`maxInputTokens`, `maxOutputTokens`, `contextWindow`),
+[PreCompact hook](https://code.visualstudio.com/docs/agents/reference/hooks-reference#precompact).
 
 ## Requirements
 
@@ -144,16 +150,25 @@ via `~/.copilot/hooks/` — a directory of JSON files that invoke shell scripts
 on chat lifecycle events.
 
 The installer writes a `subconscious-hooks.json` + `subconscious-hook.sh` pair
-into `~/.copilot/hooks/`. The hook makes exactly one call, on one event:
+into `~/.copilot/hooks/`. Two lifecycle events are registered:
 
 | VS Code hook | Gateway event |
 | --- | --- |
-| `UserPromptSubmit` | `conversation_ensure` with `conversation_id` (the VS Code `session_id`) and the raw `prompt` |
+| `UserPromptSubmit` | `conversation_ensure` with `conversation_id` (the VS Code `session_id`) and the raw `prompt`. If a pending auto-compact marker exists for that session, also `conversation_compaction` with `phase: "end"`. |
+| `PreCompact` | `conversation_compaction` with `phase: "start"`, then writes a per-session pending marker under `~/.copilot/subconscious-compact-pending/` |
 
-Nothing else is registered. The gateway fingerprints the prompt itself, binds
-the first LLM request of that prompt, and chains every later turn of the
-conversation onto it — so the hook keeps no local state, does no hashing, and
-never calls back to patch anything up.
+There is no `PostCompact` in VS Code. Auto-compaction is an LLM turn through
+the gateway, so `PreCompact` opens a window and the **next** `UserPromptSubmit`
+closes it. That brackets the summarization request between the two signals.
+
+**Manual compact gap:** `PreCompact` does **not** fire after a manual compact
+in current VS Code. Manual compact will not open an agent-compaction epoch in
+the dashboard. Auto-compact remains the covered path.
+
+The gateway fingerprints the prompt itself, binds the first LLM request of that
+prompt, and chains every later turn of the conversation onto it — so the ensure
+path does no hashing. The only local state is the short-lived pending marker
+used to close a compaction window.
 
 **Subagent fan-out** needs no hooks at all. `UserPromptSubmit` fires for each
 subagent's prompt too, and the parent's `runSubagent` tool call carries that same
@@ -164,9 +179,10 @@ traffic alone. `SubagentStart` / `SubagentStop` are not registered.
 
 | Path | Purpose |
 | --- | --- |
-| `~/.copilot/hooks/subconscious-hooks.json` | Hook registration (PascalCase event names) |
+| `~/.copilot/hooks/subconscious-hooks.json` | Hook registration (PascalCase event names: `UserPromptSubmit`, `PreCompact`) |
 | `~/.copilot/hooks/subconscious-hook.sh` | Fail-open hook script (POSTs to `/v1/agent-hooks`) |
 | `~/.copilot/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
+| `~/.copilot/subconscious-compact-pending/` | Short-lived per-session markers so the next prompt can close an auto-compact window |
 
 ### Fingerprint contract
 

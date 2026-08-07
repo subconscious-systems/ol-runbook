@@ -56,6 +56,9 @@ fi
 BASE_URL="${GATEWAY_URL%/}/v1"
 
 export SUBCONSCIOUS_API_KEY="$API_KEY"
+# Read by the compaction plugin when it is installed. run.sh writes nothing to disk, so
+# use install.sh if you want compaction reporting.
+export SUBCONSCIOUS_GATEWAY_URL="${GATEWAY_URL%/}"
 export OPENCODE_CONFIG_CONTENT=$(cat <<EOF
 {"\$schema":"https://opencode.ai/config.json","provider":{"subconscious":{"npm":"@ai-sdk/openai-compatible","name":"Subconscious Gateway","options":{"baseURL":"${BASE_URL}","apiKey":"{env:SUBCONSCIOUS_API_KEY}","headers":{"x-subconscious-client":"opencode"}},"models":{"${MODEL}":{"name":"${MODEL}","tools":true,"limit":{"context":${CONTEXT_LIMIT},"output":${OUTPUT_LIMIT}}}}}},"model":"subconscious/${MODEL}"}
 EOF

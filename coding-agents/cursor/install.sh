@@ -23,7 +23,8 @@
 #        {
 #          "version": 1,
 #          "hooks": {
-#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
+#            "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }],
+#            "preCompact": [{ "command": "~/.cursor/hooks/subconscious-hook.sh", "timeout": 2 }]
 #          }
 #        }
 #
@@ -63,9 +64,10 @@ Usage:
 
 `install` is the default subcommand and may be omitted.
 
-Installs a Cursor hook (user-wide under ~/.cursor) that POSTs conversation_ensure to
-/v1/agent-hooks on each prompt submission so the gateway can group
-Conversations for Cursor traffic.
+Installs Cursor hooks (user-wide under ~/.cursor) that POST to /v1/agent-hooks:
+conversation_ensure on each prompt submission so the gateway can group
+Conversations for Cursor traffic, and conversation_compaction on preCompact so
+context accounting restarts at the right turn.
 
 Requires: jq, curl. Restart Cursor after install.
 EOF
@@ -193,9 +195,9 @@ merge_hooks_json() {
     sed "s|HOOK_SH_PATH|${HOOK_DST}|g" "$HOOKS_TEMPLATE" >"$HOOKS_JSON"
     return
   fi
-  # Replace our marker entries, then register beforeSubmitPrompt only.
+  # Replace our marker entries, then register the two lifecycle events we use.
   remove_hook_entries "$HOOKS_JSON" "$MARKER"
-  merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" beforeSubmitPrompt
+  merge_hook_entries "$HOOKS_JSON" "$MARKER" "$HOOK_DST" beforeSubmitPrompt preCompact
 }
 
 uninstall_hooks() {

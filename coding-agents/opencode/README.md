@@ -31,6 +31,32 @@ Docs: [Compaction](https://opencode.ai/v2/docs/compaction),
 [Config / compaction](https://opencode.ai/docs/config/),
 [Providers / model `limit`](https://opencode.ai/docs/providers/).
 
+### Compaction reporting
+
+`install.sh` also installs a plugin that tells the gateway when a session
+compacts. This matters because OpenCode summarizes by issuing an ordinary
+completion through the configured provider: without the plugin, the gateway sees
+the summarization as the largest main-thread turn of the conversation, which
+inflates peak context and the traditional comparison.
+
+The plugin uses two OpenCode callbacks:
+
+| Callback | Reported phase |
+| --- | --- |
+| `experimental.session.compacting` | `start`, before the summary is generated |
+| `session.compacted` event | `end`, after it completes |
+
+Requests between the two are recorded as the compaction itself. The dashboard
+then restarts the context profile at the following turn while keeping cumulative
+pruned tokens and token savings for the whole conversation.
+
+The plugin never modifies your compaction prompt, and fails open: if the gateway
+is unreachable it gives up after 2 seconds and the session continues. If a
+signal is lost the conversation still works, it just keeps the pre-compaction
+context profile.
+
+Docs: [Plugins](https://opencode.ai/docs/plugins/).
+
 With OpenCode, subagent traffic will be its own conversation and have a link back to the parent session.
 
 ## Requirements
@@ -140,7 +166,8 @@ export SUBCONSCIOUS_API_KEY="sk-gw-..."
 | Path | Purpose |
 | --- | --- |
 | `~/.opencode/opencode.json` | Provider config pointing to your gateway with `x-subconscious-client` and model `limit` (drives auto-compaction) |
-| `~/.opencode/subconscious.env` | `SUBCONSCIOUS_API_KEY` env var (mode 600) |
+| `~/.opencode/subconscious.env` | `SUBCONSCIOUS_API_KEY` + `SUBCONSCIOUS_GATEWAY_URL` env vars (mode 600) |
+| `~/.config/opencode/plugins/subconscious-compaction.ts` | Reports compaction start/end so context accounting restarts at the right turn |
 
 ## Conversation correlation
 
