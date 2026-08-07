@@ -19,12 +19,15 @@ context windows. Uncataloged custom / base URL models currently default to a
 - Feature request cited from those threads: **Unlock Full Context Window with Own API Keys**
 
 If request bodies grow too large (gateway **50 MiB**) or round-trips feel slow,
-use `/compact` manually. Hooks below only handle conversation correlation.
+use `/compact` manually. When a compaction does happen, the `preCompact` hook
+below tells the gateway so the dashboard restarts the context profile at the
+right turn.
 
 # Cursor hooks — Conversations correlation
 
-Install one local [Cursor agent hook](https://cursor.com/docs/agent/hooks) so the
-dashboard can group your Cursor traffic into conversations.
+Install two local [Cursor hooks](https://cursor.com/docs/hooks) so the dashboard
+can group your Cursor traffic into conversations and know when the context was
+compacted.
 
 Hooks **cannot** inject headers into model HTTP, which is the only reason this
 exists. The flow is deliberately small:
@@ -36,9 +39,9 @@ exists. The flow is deliberately small:
 3. Every later request of the conversation binds itself, by matching the
    assistant turn its history ends with. No further hook calls are involved.
 
-Step 3 is why one hook is enough: the gateway chains turns together server-side,
-so tool loops, plan-to-build handoffs, and subagents all attach without a
-lifecycle event per turn.
+Step 3 is why one hook covers correlation: the gateway chains turns together
+server-side, so tool loops, plan-to-build handoffs, and subagents all attach
+without a lifecycle event per turn.
 
 ## Requirements
 
@@ -90,7 +93,7 @@ Hooks install **user-wide** under `~/.cursor` only (API key stays out of git wor
 | --- | --- |
 | `~/.cursor/hooks/subconscious-hook.sh` | Fail-open hook script |
 | `~/.cursor/subconscious-hooks.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` (mode 600) |
-| `~/.cursor/hooks.json` | Merges `beforeSubmitPrompt` only |
+| `~/.cursor/hooks.json` | Merges `beforeSubmitPrompt` and `preCompact` |
 
 There is no local state file. The gateway resolves the Cursor `conversation_id`
 to its own UUID on every call, so the hook never needs to cache a mapping and
@@ -101,12 +104,37 @@ ignores the response body entirely.
 | Cursor hook | Gateway event |
 | --- | --- |
 | `beforeSubmitPrompt` | `conversation_ensure` with `conversation_id` and raw `prompt` |
+| `preCompact` | `conversation_compaction` with `phase: point` |
 
 Nothing else is registered. `afterAgentThought` never fires for gateway-served
 models; `afterAgentResponse` is empty in plan mode and tool-only turns;
 `preToolUse` only fires for a subset of tools and rewrites `Shell` tool ids; and
 `subagentStop` is unreliable for background Tasks. Correlation does not depend on
 any of them.
+
+Both registered hooks are conversation-lifecycle hooks, which also sidesteps a
+known Cursor bug: after a mid-turn compaction, **tool-execution** hooks emit an
+empty `conversation_id` until the next user prompt. Lifecycle hooks keep the
+correct id.
+
+## Compaction
+
+Cursor's `preCompact` is observational: it cannot block or modify compaction, and
+Cursor has no `postCompact`. So the hook reports a zero-width `point`, and the
+gateway places the context boundary on the first following turn whose retained
+context actually shrinks.
+
+Closing a window at the next `beforeSubmitPrompt` instead would be wrong: Cursor
+compacts **mid-turn** and keeps working without a new user prompt, so that window
+would misclassify real turns as part of the compaction.
+
+The hook forwards Cursor's own view of the context (`context_tokens`,
+`context_window_size`, `trigger`, `is_first_compaction`) as metadata, which is
+useful for comparing the client's numbers against the gateway's at the same
+boundary.
+
+After a compaction the dashboard restarts the context profile while keeping
+cumulative pruned tokens and token savings for the whole conversation.
 
 ## Fingerprint contract
 

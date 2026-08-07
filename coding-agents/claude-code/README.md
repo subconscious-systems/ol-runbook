@@ -17,6 +17,16 @@ log events to the gateway's Claude Code-only `POST /v1/logs` endpoint so it can
 back-fill `query_source` (main turn vs session title / compact / etc.). Requires
 Claude Code **v2.1.152+**. No hooks. Traces are not exported.
 
+The gateway counts the REPL (`repl_main_thread`) and **every** subagent
+(`agent:*`) as main-thread work, since a subagent turn is your own work
+delegated. That covers built-in agents like Explore and Plan, your own agents in
+`~/.claude/agents/` or `.claude/agents/`, and plugin-provided ones — see
+[subagent config](https://code.claude.com/docs/en/sub-agents). Each subagent gets
+its own conversation in the dashboard, linked to the one that spawned it.
+
+Compaction turns and everything else are still billed, but appear under
+**Background** rather than counting as conversation turns.
+
 | Env var | Purpose |
 | --- | --- |
 | `ANTHROPIC_BASE_URL` | Gateway origin (e.g. `https://gateway.example`) |
