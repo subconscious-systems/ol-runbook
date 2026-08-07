@@ -25,6 +25,18 @@ fires even though our catalog windows are large (`context_window` /
 auto-compact enabled. If request bodies grow too large (gateway **50 MiB**) or
 round-trips feel slow, compact or start a fresh thread manually.
 
+When compaction does run, custom (non-OpenAI-named) providers use the local
+path that calls the active model over Responses - so the summarization request
+hits your gateway. The installer registers [Codex hooks](https://developers.openai.com/codex/hooks)
+(`PreCompact` / `PostCompact`) that report `conversation_compaction` start/end
+so that turn is billed as compaction rather than as a main-thread peak.
+
+After install, trust the new hooks in the CLI with `/hooks` (Codex skips
+untrusted hooks), then start a **new** Codex session so discovery picks up the
+trusted handlers - a session that began while hooks were still untrusted will
+not run them. For one-off automation you can pass
+`--dangerously-bypass-hook-trust`.
+
 Related upstream notes (no first-party “raise auto-compact past product
 defaults” page comparable to Claude Code):
 [openai/codex#19409](https://github.com/openai/codex/issues/19409) (catalog /
@@ -290,7 +302,25 @@ codex \
 | --- | --- |
 | `~/.codex/config.toml` | Provider config pointing to your gateway with `wire_api = "responses"` and `web_search = "disabled"`. With `--subagents`, also includes `[features] multi_agent = true` and `[agents]` block (max 4 threads, depth 1) |
 | `~/.codex/model-catalog.json` | Model metadata catalog (context window, tool support) so Codex doesn't print a "Model metadata not found" warning |
-| `~/.codex/subconscious.env` | `SUBCONSCIOUS_API_KEY` env var (mode 600) |
+| `~/.codex/subconscious.env` | `SUBCONSCIOUS_API_KEY` + `SUBCONSCIOUS_GATEWAY_URL` (mode 600) |
+| `~/.codex/hooks.json` | Registers `PreCompact` / `PostCompact` compaction reporting |
+| `~/.codex/subconscious-hook.sh` | Fail-open hook script (POSTs to `/v1/agent-hooks`) |
+| `~/.codex/subconscious-hooks.env` | Gateway URL + API key for the hook script (mode 600) |
+
+## Compaction hooks
+
+| Codex hook | Gateway event |
+| --- | --- |
+| `PreCompact` | `conversation_compaction` with `phase: "start"` |
+| `PostCompact` | `conversation_compaction` with `phase: "end"` |
+
+`conversation_id` is the hook `session_id` (typically the same `thr_…` value
+Codex sends as `thread-id` on model requests). Matcher accepts both `manual`
+and `auto` triggers. The hook never returns `continue: false`, so it cannot
+block compaction.
+
+Validate with `/compact` after trusting hooks - under TIMRUN + large catalog
+windows, auto-compact rarely fires.
 
 ## Conversation correlation
 

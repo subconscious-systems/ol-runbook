@@ -27,7 +27,17 @@ dashboard if it still says TIMRUN - new keys default to TIMRUN). Set
 `65536`) and leave Pi auto-compaction on so it fires when
 `contextTokens > contextWindow - reserveTokens`.
 
-Docs: [Pi compaction](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/compaction.md).
+Pi compaction summarizes through the configured provider (your gateway). The
+installer also drops an observational extension into
+`~/.pi/agent/extensions/` that reports `session_before_compact` /
+`session_compact` as `conversation_compaction` start/end so the summarization
+turn is billed as compaction rather than as a main-thread peak. Source
+`~/.pi/agent/subconscious.env` before launching Pi so the extension can reach
+the gateway.
+
+Docs: [Pi compaction](https://pi.dev/docs/latest/compaction),
+[Extensions](https://pi.dev/docs/latest/extensions),
+[source compaction.md](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/compaction.md).
 
 ## Requirements
 
@@ -106,6 +116,25 @@ If you prefer to configure Pi manually, set this in your
 | Path | Purpose |
 | --- | --- |
 | `~/.pi/agent/models.json` | Provider config with `x-subconscious-client` header + session affinity compat |
+| `~/.pi/agent/extensions/subconscious-compaction.ts` | Reports compaction start/end to `/v1/agent-hooks` (observational; does not replace summarization) |
+| `~/.pi/agent/subconscious.env` | `SUBCONSCIOUS_GATEWAY_URL` + `SUBCONSCIOUS_API_KEY` for the extension (mode 600) |
+
+## Compaction extension
+
+| Pi event | Gateway event |
+| --- | --- |
+| `session_before_compact` | `conversation_compaction` with `phase: "start"` |
+| `session_compact` | `conversation_compaction` with `phase: "end"` |
+
+`conversation_id` is `ctx.sessionManager.getSessionId()`, which should match
+the `x-session-affinity` value used for conversation grouping. The extension
+never cancels compaction or supplies a custom summary.
+
+Pi docs note that compaction/branch-summary requests may use fresh routing
+session IDs. If affinity on the summarization call differs from the session
+id, start/end still open the epoch on the parent conversation (retained-drop
+guard), but the boundary charge may be empty. Branch summarization
+(`session_before_tree`) is not reported in v1.
 
 ## Conversation correlation
 
