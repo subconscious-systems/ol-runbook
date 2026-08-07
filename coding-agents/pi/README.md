@@ -30,10 +30,11 @@ dashboard if it still says TIMRUN - new keys default to TIMRUN). Set
 Pi compaction summarizes through the configured provider (your gateway). The
 installer also drops an observational extension into
 `~/.pi/agent/extensions/` that reports `session_before_compact` /
-`session_compact` as `conversation_compaction` start/end so the summarization
-turn is billed as compaction rather than as a main-thread peak. Source
-`~/.pi/agent/subconscious.env` before launching Pi so the extension can reach
-the gateway.
+`session_compact` as `conversation_compaction` start/end on the **parent**
+session id. The summarization HTTP call itself uses a fresh routing session
+id (Pi quirk), so it usually shows up as a separate one-request Conversation -
+that is expected. The extension reads `~/.pi/agent/subconscious.env` on its
+own; sourcing that file before launch is optional.
 
 Docs: [Pi compaction](https://pi.dev/docs/latest/compaction),
 [Extensions](https://pi.dev/docs/latest/extensions),
@@ -130,11 +131,13 @@ If you prefer to configure Pi manually, set this in your
 the `x-session-affinity` value used for conversation grouping. The extension
 never cancels compaction or supplies a custom summary.
 
-Pi docs note that compaction/branch-summary requests may use fresh routing
-session IDs. If affinity on the summarization call differs from the session
-id, start/end still open the epoch on the parent conversation (retained-drop
-guard), but the boundary charge may be empty. Branch summarization
-(`session_before_tree`) is not reported in v1.
+Pi docs note that compaction/branch-summary requests use fresh routing session
+IDs - confirmed in capture: the compact LLM call is a separate Conversation
+from the parent. start/end still open the epoch on the parent via
+`getSessionId()` (retained-drop guard); the orphan row may hold the only
+summarization tokens. Split-turn `/compact` (huge mid-turn) may barely shrink
+retained context because `keepRecentTokens` keeps most of the active turn.
+Branch summarization (`session_before_tree`) is not reported in v1.
 
 ## Conversation correlation
 

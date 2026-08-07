@@ -19,7 +19,7 @@ context windows. Uncataloged custom / base URL models currently default to a
 - Feature request cited from those threads: **Unlock Full Context Window with Own API Keys**
 
 If request bodies grow too large (gateway **50 MiB**) or round-trips feel slow,
-use `/compact` manually. When a compaction does happen, the `preCompact` hook
+use `/summarize` manually. When a compaction does happen, the `preCompact` hook
 below tells the gateway so the dashboard restarts the context profile at the
 right turn.
 
