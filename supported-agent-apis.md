@@ -17,6 +17,7 @@ dashboard and send it on every request.
 | `POST` | `/v1/chat/completions` | OpenAI Chat Completions clients |
 | `POST` | `/v1/responses` | OpenAI Codex (`wire_api = "responses"`) |
 | `POST` | `/v1/messages` | Anthropic Messages / Claude Code |
+| `POST` | `/v1/messages/count_tokens` | Anthropic token counting / Claude Code |
 
 Streaming and non-streaming are supported on the chat, Responses, and Messages
 paths.
@@ -25,7 +26,7 @@ paths.
 
 - OpenAI-shaped endpoints (`/v1/models`, `/v1/chat/completions`, `/v1/responses`):
   `Authorization: Bearer <gateway-api-key>`
-- Anthropic Messages (`/v1/messages`): `x-api-key: <gateway-api-key>`, or the
+- Anthropic Messages (`/v1/messages`, `/v1/messages/count_tokens`): `x-api-key: <gateway-api-key>`, or the
   same Bearer header as above
 
 `GET /v1/models` returns only models available to the authenticated key. An
@@ -268,6 +269,12 @@ nested under `[model_providers.*]`.
 Code. Requests are translated into the same internal chat pipeline as
 `/v1/chat/completions`, so auth, model access, limits, metering, and retries are
 identical. Streaming responses are emitted as Anthropic SSE events.
+
+`POST /v1/messages/count_tokens` accepts the same Messages-shaped body (without
+requiring `max_tokens`) and returns `{ "input_tokens": N }` using the route
+tokenizer when configured, otherwise a local heuristic. It does not run
+inference or create usage events. Claude Code uses this to measure context
+instead of falling back to a sidecar `max_tokens: 1` Messages call.
 
 Point Claude Code (or any Anthropic Messages client) at your gateway origin and
 authenticate with your gateway API key via `x-api-key` (or Bearer). Use model
