@@ -18,10 +18,17 @@ context windows. Uncataloged custom / base URL models currently default to a
 - [Custom OpenAI-compatible model shows 200K for GLM-5.2](https://forum.cursor.com/t/custom-openai-compatible-model-shows-200k-context-limit-for-glm-5-2-even-though-it-supports-1m-context/163360)
 - Feature request cited from those threads: **Unlock Full Context Window with Own API Keys**
 
-If request bodies grow too large (gateway **50 MiB**) or round-trips feel slow,
-use `/summarize` manually. When a compaction does happen, the `preCompact` hook
-below tells the gateway so the dashboard restarts the context profile at the
-right turn.
+**Known Cursor bug:** with OpenAI API Key Override / a custom base URL,
+`/summarize` (and Cursor's summarize feature generally) does **not** use that
+endpoint - it goes through Cursor's internal infrastructure instead. Cursor
+staff confirmed this; there is no ETA. See
+[Unable to automatically summarize; the summarization feature cannot specify a model](https://forum.cursor.com/t/unable-to-automatically-summarize-the-summarization-feature-cannot-specify-a-model/156959/9).
+
+If request bodies grow too large (gateway **50 MiB**) or rounds feel slow under
+override, **start a new chat**. Do not expect `/summarize` to reclaim context
+through the gateway. The installer still registers `preCompact` so that if
+auto-compaction does fire, the dashboard can place a zero-width `point`
+boundary.
 
 # Cursor hooks — Conversations correlation
 
@@ -132,6 +139,11 @@ The hook forwards Cursor's own view of the context (`context_tokens`,
 `context_window_size`, `trigger`, `is_first_compaction`) as metadata, which is
 useful for comparing the client's numbers against the gateway's at the same
 boundary.
+
+Under OpenAI API Key Override, manual `/summarize` is not available through the
+gateway (see **Known Cursor bug** above). Keep `preCompact` installed for any
+auto-compaction that still fires. When request size or latency becomes a
+problem, start a new chat rather than relying on summarize.
 
 After a compaction the dashboard restarts the context profile while keeping
 cumulative pruned tokens and token savings for the whole conversation.

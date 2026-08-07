@@ -93,7 +93,7 @@ API keys have a **Client context reporting** setting on the dashboard that contr
 TIMRUN can compress context on the GPU so a conversation can run for a long time without the *server-side* retained window growing without bound. Clients still resend large message lists over the network. Harness auto-compaction budgets off the `input_tokens` the gateway returns, so reporting mode and IDE/CLI compaction interact:
 
 - With **full list** reporting, `input_tokens` track the growing client payload. Agents that let you configure a large context window (OpenCode, Pi, Copilot) should use full-list reporting and rely on their auto-compaction knobs.
-- With **TIMRUN** reporting, `input_tokens` stay near the retained window (typically well under ~150k). Harnesses that hard-cap auto-compact around 1M (Claude Code, Cursor) almost never auto-compact. Use manual `/compact` when request bodies get too large or round-trips feel slow.
+- With **TIMRUN** reporting, `input_tokens` stay near the retained window (typically well under ~150k). Harnesses that hard-cap auto-compact around 1M (Claude Code, Cursor) almost never auto-compact. For Claude Code / Codex, use manual `/compact` when request bodies get too large or round-trips feel slow. For **Cursor** with OpenAI API Key Override, `/summarize` does not use the custom base URL ([Cursor forum](https://forum.cursor.com/t/unable-to-automatically-summarize-the-summarization-feature-cannot-specify-a-model/156959/9)) - start a new chat instead.
 
 New keys default to **TIMRUN context**. For OpenCode / Pi / Copilot, edit the key (or create a second key) and set **Full list context**. Per-agent recommendations and upstream docs live in each agent README linked below.
 
@@ -108,7 +108,7 @@ Token windows are sized to stay under the **HTTP request-body** limit that actua
 | **Copilot** | Full list | `COPILOT_MAX_INPUT_TOKENS` / `COPILOT_MAX_OUTPUT_TOKENS` | `5000000` / `65536` | Gateway **50 MiB** | VS Code Custom Endpoint budgeting |
 | **Claude Code** | TIMRUN | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` / `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `1000000` / `3000000` | Anthropic Messages API **32 MB** | Auto-compact capped at 1M; under TIMRUN it rarely fires - leave on; manual `/compact` for payload/latency |
 | **Codex** | TIMRUN | `CODEX_CONTEXT_WINDOW` / `CODEX_AUTO_COMPACT_TOKEN_LIMIT` | `5000000` / `4500000` | Gateway **50 MiB** | Same TIMRUN pattern as Claude Code |
-| **Cursor** | TIMRUN | (none) | ~`1000000` assumed | Gateway **50 MiB** | No custom-model context UI; ~1M hardcoded for base URL overrides |
+| **Cursor** | TIMRUN | (none) | ~`1000000` assumed | Gateway **50 MiB** | No custom-model context UI; ~1M hardcoded for base URL overrides; `/summarize` broken under override - start a new chat when requests get large |
 
 Prefer `mbta config` (or editing `.env`) over passing credentials on the command line. `install.sh` / `run.sh` flags override the env file for a one-off.
 
