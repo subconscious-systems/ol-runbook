@@ -4,7 +4,7 @@ set -euo pipefail
 
 STATUS_DIR=/opt/api-gateway-infra
 COMPOSE_VERSION="${COMPOSE_VERSION:-v2.32.4}"
-KUBECTL_VERSION="${KUBECTL_VERSION:-v1.34.10}"
+KUBECTL_VERSION="${KUBECTL_VERSION:-v1.35.7}"
 COMPOSE_PLUGIN=/usr/libexec/docker/cli-plugins/docker-compose
 
 mkdir -p "${STATUS_DIR}"
