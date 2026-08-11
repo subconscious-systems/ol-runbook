@@ -76,6 +76,7 @@ bootstrap_print_target
   printf 'PROJECT_ID=%q\n' "${PROJECT_ID}"
   printf 'REGION=%q\n' "${REGION}"
   printf 'INFRA_DEPLOY_NAME=%q\n' "${INFRA_DEPLOY_NAME}"
+  printf 'CLUSTER_NAME=%q\n' "${INFRA_DEPLOY_NAME}-gke"
   printf 'GATEWAY_DEPLOY_NAME=%q\n' "${GATEWAY_DEPLOY_NAME}"
   printf 'KEY=%q\n' "${ROTATE_KEY}"
   printf 'RUNNER_IMAGE=%q\n' "${RUNNER_IMAGE:-}"
@@ -85,7 +86,7 @@ bootstrap_print_target
   cat <<'REMOTE'
 set -euo pipefail
 
-gcloud container clusters get-credentials "${INFRA_DEPLOY_NAME}" \
+gcloud container clusters get-credentials "${CLUSTER_NAME}" \
   --project="${PROJECT_ID}" \
   --location="${REGION}" \
   --dns-endpoint
@@ -118,7 +119,7 @@ docker run --rm --network host \
   -e GOOGLE_CLOUD_PROJECT="${PROJECT_ID}" \
   -e GCP_REGION="${REGION}" \
   -e DEPLOY_NAME="${INFRA_DEPLOY_NAME}" \
-  -e CLUSTER_NAME="${INFRA_DEPLOY_NAME}" \
+  -e CLUSTER_NAME="${CLUSTER_NAME}" \
   -e GATEWAY_NAMESPACE="${GATEWAY_DEPLOY_NAME}" \
   -e KEY="${KEY}" \
   -e CLEAR_PREVIOUS="${CLEAR_PREVIOUS}" \

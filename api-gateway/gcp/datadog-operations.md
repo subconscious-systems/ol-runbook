@@ -120,7 +120,7 @@ addition to the manage permission used by Terraform.
 The infra release installs a pinned Datadog Agent chart in a dedicated
 namespace. Required settings:
 
-- cluster name = infra `DEPLOY_NAME`;
+- cluster name = `<infra DEPLOY_NAME>-gke`;
 - `env:<DATADOG_ENV>` and consistent `service`/`version` tags;
 - ARM64-compatible Agent images;
 - gateway/router/adapter OpenMetrics checks;

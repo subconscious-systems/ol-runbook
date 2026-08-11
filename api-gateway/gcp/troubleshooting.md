@@ -36,18 +36,19 @@ sudo docker manifest inspect <ENTITLED_IMAGE>
 Do not paste registry credentials into Docker configuration manually; reconnect
 the Distr target after entitlement correction.
 
-### First/second deploy confusion
+### Greenfield deployment order
 
 Required order:
 
-1. first infra apply with `GATEWAY_AUTO_DEPLOY=false`;
-2. create Helm deployment/target;
-3. connect K8s agent through the DNS endpoint;
-4. second infra apply with auto-deploy enabled.
+1. create both the infra Docker target and gateway Kubernetes target;
+2. dry-run with `GATEWAY_AUTO_DEPLOY=true` (the target is not required yet);
+3. apply once; the runner queues the generated gateway deployment;
+4. connect the Kubernetes agent so Distr reconciles the queued deployment.
 
-An empty gateway deployment before the Kubernetes target exists is expected to
-do nothing. Hand-edited Hub Helm values will be overwritten by the next runner
-fragment.
+Set `GATEWAY_TARGET_WAIT_SECONDS` when the gateway target may be created after
+the apply starts. A timeout skips only the gateway PUT; rerunning the same infra
+deployment safely resumes it. Hand-edited Hub Helm values will be overwritten
+by the next runner fragment.
 
 ## Foundation projects and APIs
 

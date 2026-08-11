@@ -112,7 +112,8 @@ acme-prod-api-gateway-infra / acme-prod-api-gateway
 
 Keep each Distr deployment name at most 32 characters. In each environment:
 
-- infra `DEPLOY_NAME` = GKE cluster name and secret-bundle name component;
+- infra `DEPLOY_NAME` = resource prefix and secret-bundle name component; the
+  GKE cluster is `<DEPLOY_NAME>-gke`;
 - gateway deployment name = Kubernetes namespace = Helm release;
 - state bucket and state prefix are environment-specific;
 - `DATADOG_ENV` is environment-specific;

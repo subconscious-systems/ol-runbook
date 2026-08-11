@@ -37,7 +37,8 @@ Record:
 export ENVIRONMENT=prod
 export GCP_PROJECT='<PRODUCTION_PROJECT>'
 export GCP_REGION='us-east1'
-export CLUSTER='<INFRA_DEPLOY_NAME>'
+export INFRA_DEPLOY_NAME='<INFRA_DEPLOY_NAME>'
+export CLUSTER="${INFRA_DEPLOY_NAME}-gke"
 export NAMESPACE='<GATEWAY_DEPLOY_NAME>'
 export PUBLIC_ORIGIN='https://<DOMAIN_NAME>'
 ```
@@ -46,7 +47,7 @@ Open the private bootstrap VM:
 
 ```bash
 cd api-gateway/gcp/bootstrap
-bash scripts/connect.sh "$ENVIRONMENT" "$CLUSTER"
+bash scripts/connect.sh "$ENVIRONMENT" "$INFRA_DEPLOY_NAME"
 sudo -i
 export HOME=/root KUBECONFIG=/root/.kube/config
 export USE_GKE_GCLOUD_AUTH_PLUGIN=True

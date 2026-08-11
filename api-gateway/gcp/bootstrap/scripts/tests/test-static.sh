@@ -73,13 +73,25 @@ required_env_lines=(
   "GCP_EXTERNAL_DNS_ENABLED=false"
   "DATADOG_GCP_CLOUD_METRICS_ENABLED=true"
   "DATADOG_DATABASE_MONITORS_ENABLED=false"
-  "GATEWAY_AUTO_DEPLOY=false"
+  "GATEWAY_AUTO_DEPLOY=true"
+  "GATEWAY_TARGET_WAIT_SECONDS=7200"
   "DISTR_DRY_RUN=1"
 )
 
 for line in "${required_env_lines[@]}"; do
   grep -Fxq "${line}" "${SAMPLE_ENV}" || {
     printf 'ERROR: sample environment is missing: %s\n' "${line}" >&2
+    exit 1
+  }
+done
+
+for script in \
+  "${SCRIPTS_DIR}/connect.sh" \
+  "${SCRIPTS_DIR}/connect-k8s-agent.sh" \
+  "${SCRIPTS_DIR}/rotate-app-secret.sh"; do
+  grep -Fq 'INFRA_DEPLOY_NAME}-gke' "${script}" || {
+    printf 'ERROR: %s does not derive the GKE cluster name from the infra deployment\n' \
+      "${script}" >&2
     exit 1
   }
 done
