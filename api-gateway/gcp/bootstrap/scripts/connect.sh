@@ -12,8 +12,9 @@ usage:
   connect.sh <sandbox|prod> [INFRA_DEPLOY_NAME]
 
 Uses IAP and OS Login; the VM has no public IP and no static SSH key. When a
-cluster name is supplied, root's kubeconfig is refreshed with --dns-endpoint
-before the interactive shell opens.
+deployment name is supplied, root's kubeconfig is refreshed for the derived
+<INFRA_DEPLOY_NAME>-gke cluster with --dns-endpoint before the interactive
+shell opens.
 EOF
 }
 
@@ -27,9 +28,11 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
 fi
 
 ENVIRONMENT_ARG="$1"
-CLUSTER_NAME="${2:-}"
-if [[ -n "${CLUSTER_NAME}" ]]; then
-  bootstrap_assert_dns1123 "${CLUSTER_NAME}" "INFRA_DEPLOY_NAME"
+INFRA_DEPLOY_NAME="${2:-}"
+CLUSTER_NAME=""
+if [[ -n "${INFRA_DEPLOY_NAME}" ]]; then
+  bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
+  CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"
 fi
 
 bootstrap_resolve_targets "${ENVIRONMENT_ARG}"

@@ -52,13 +52,15 @@ Keep deployment names at most 32 characters.
 | Item | Sandbox example | Production example |
 | --- | --- | --- |
 | GCP project | `acme-gateway-sbox` | `acme-gateway-prod` |
-| Infra Distr / GKE cluster | `acme-sbox-gw-infra` | `acme-prod-gw-infra` |
+| Infra Distr / GKE prefix | `acme-sbox-gw-infra` | `acme-prod-gw-infra` |
 | Gateway Distr / namespace / release | `acme-sbox-gateway` | `acme-prod-gateway` |
 | Cloud DNS managed zone | `acme-gw-sbox` | `acme-gw-prod` |
 | Hostname | `api.sbox.example.com` | `api.example.com` |
 | Datadog env | `acme-gateway-sbox` | `acme-gateway-prod` |
 
 Record one canonical, non-overlapping RFC1918 `/16` per environment:
+
+Terraform derives each GKE cluster name as `<infra Distr name>-gke`.
 
 ```text
 sandbox bootstrap subnet  10.40.0.0/24
@@ -243,7 +245,7 @@ Do not add a GCP credential JSON, database URL, Redis URL/AUTH string, CSRF
 secret, encryption key, or worker key to Hub. See
 [gateway-secrets.md](gateway-secrets.md).
 
-## 11. Admin: create the sandbox infra Docker deployment
+## 11. Admin: create both sandbox Distr deployments
 
 Create an `api-gateway-infra` Docker deployment/target named with the sandbox
 infra name. Start from [sample-gateway-infra.env](sample-gateway-infra.env):
@@ -252,13 +254,26 @@ infra name. Start from [sample-gateway-infra.env](sample-gateway-infra.env):
 - use the sandbox hostname, managed zone, CIDRs, names, state bucket, and
   Datadog env;
 - keep all locked GCP topology/security values unchanged;
-- set `GATEWAY_AUTO_DEPLOY=false`;
+- set `GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_TARGET_WAIT_SECONDS=7200`;
 - set `DISTR_DRY_RUN=1`;
 - use Hub secret references, never plaintext.
 
 Compare the sample with the selected release's own environment template. Every
 required field must be recognized by that release; unknown fields or a stub
 message are a hard stop.
+
+Also create the `api-gateway` Helm deployment and Kubernetes target now:
+
+- deployment/target name = gateway deployment name;
+- namespace = same gateway deployment name;
+- Helm release = same gateway deployment name;
+- leave values empty; the infra runner owns the generated fragment;
+- copy the Kubernetes-agent connect command, but do not run it before GKE
+  exists.
+
+Creating the target up front does not access GCP and does not install the
+gateway. It lets the approved infra apply queue the generated deployment as
+soon as GKE and ESO are ready.
 
 ## 12. Admin: connect the sandbox Docker agent
 
@@ -293,28 +308,23 @@ IP, Basic Redis, disabled AUTH/TLS, service-account key, plaintext secret,
 x86/T2A substitution, shared production resource, or destroy/replace outside
 the new sandbox project.
 
-## 14. Admin: first sandbox infra apply
+## 14. Admin: sandbox infra apply
 
 After approval, change only:
 
 ```text
 DISTR_DRY_RUN=0
-GATEWAY_AUTO_DEPLOY=false
 ```
 
 Trigger one infra run. Do not run concurrent applies. Require successful
-platform verification and Secret Manager/ESO setup before continuing.
+platform verification and Secret Manager/ESO setup before continuing. The
+runner finds the gateway target created in step 11, regenerates the GCP Helm
+fragment, ensures the app secret, and queues the gateway deployment. If the
+target was created late, the runner waits up to `GATEWAY_TARGET_WAIT_SECONDS`.
 
-## 15. Admin: create and connect the sandbox Helm deployment
+## 15. Admin: connect the sandbox Kubernetes agent
 
-Create the `api-gateway` Helm deployment:
-
-- deployment/target name = gateway deployment name;
-- namespace = same gateway deployment name;
-- Helm release = same gateway deployment name;
-- leave values empty; the infra runner owns the generated fragment.
-
-Copy the Hub Kubernetes-agent connect command and run:
+Run the Kubernetes-agent connect command saved in step 11:
 
 ```bash
 bash scripts/connect-k8s-agent.sh sandbox <SANDBOX_INFRA_DEPLOY_NAME> \
@@ -322,21 +332,10 @@ bash scripts/connect-k8s-agent.sh sandbox <SANDBOX_INFRA_DEPLOY_NAME> \
 ```
 
 The script obtains credentials with `--dns-endpoint`, verifies a `.gke.goog`
-server, creates the namespace if needed, and waits for `distr-agent`.
-
-## 16. Admin: second sandbox infra deploy
-
-Set:
-
-```text
-GATEWAY_AUTO_DEPLOY=true
-GATEWAY_CHART_VERSION=<PINNED_OR_SANDBOX_APPROVED_VERSION>
-DISTR_DRY_RUN=0
-```
-
-Trigger a second infra run. It must regenerate the GCP Helm fragment, ensure
-the app secret, wait for ESO, and update the gateway deployment. Hub hand-edits
-to Helm values are not durable and must not be used to bypass the fragment.
+server, creates the namespace if needed, and waits for `distr-agent`. Distr then
+reconciles the already queued gateway deployment; no second infra run or flag
+change is required. Hub hand-edits to Helm values are not durable and must not
+be used to bypass the generated fragment.
 
 Wait for:
 
@@ -347,7 +346,7 @@ Wait for:
 - BackendConfig `timeoutSec: 900`;
 - migrations, gateway, router, adapter, and Distr agent ready.
 
-## 17. FDE + Admin: enable Datadog and DBM in stages
+## 16. FDE + Admin: enable Datadog and DBM in stages
 
 Follow [datadog-operations.md](datadog-operations.md):
 
@@ -359,7 +358,7 @@ Follow [datadog-operations.md](datadog-operations.md):
 
 Do not put Datadog keys or the DBM password in gateway Helm values.
 
-## 18. Admin: run sandbox smoke checks
+## 17. Admin: run sandbox smoke checks
 
 Obtain Cloud SQL and Redis instance names from the reviewed Terraform outputs
 or runner log, then run:
@@ -391,13 +390,13 @@ Also verify dashboard login, user invitation/SSO, an org API key, rate limits,
 and a test provider route. Record evidence and leave the sandbox running for the
 agreed soak.
 
-## 19. Admin: promote independently to production
+## 18. Admin: promote independently to production
 
 First complete the approved platform-only sandbox teardown and rebuild in
 [rollback-teardown.md](rollback-teardown.md). Retain the sandbox foundation VM,
 state bucket, and project; destroy/recreate the Distr-managed platform, then
-repeat both Distr passes, Datadog checks, rotation, smoke checks, and selected
-failure recovery without undocumented steps.
+repeat the single resumable Distr flow, Datadog checks, rotation, smoke checks,
+and selected failure recovery without undocumented steps.
 
 Present that evidence, a current cost estimate, and the production foundation/
 platform plans. Do not continue without explicit production approval.
@@ -412,8 +411,8 @@ Production is a new deployment, not a state/data clone:
 5. Grant the production service account access to the approved DNS project/
    zone, then recheck DNS and N4A/data-service quota.
 6. Create production-specific Hub secrets and env from the sample.
-7. Repeat Docker connect, dry-run review, first apply, Kubernetes-agent connect,
-   second apply, Datadog stages, and smoke checks with `prod`.
+7. Repeat Docker connect, dry-run review, the single infra apply,
+   Kubernetes-agent connect, Datadog stages, and smoke checks with `prod`.
 8. Confirm production DNS and certificate independently.
 9. Keep sandbox available until production completes its soak and rollback
    owners accept the result.
@@ -422,7 +421,7 @@ Never copy the sandbox Secret Manager `app` bundle into production; production
 must generate independent crypto/router material. Do not restore an AWS
 snapshot or cache into this greenfield path.
 
-## 20. Handoff
+## 19. Handoff
 
 Record:
 

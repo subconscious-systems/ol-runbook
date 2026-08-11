@@ -90,4 +90,4 @@ REMOTE
   --command='sudo env HOME=/root KUBECONFIG=/root/.kube/config USE_GKE_GCLOUD_AUTH_PLUGIN=True bash -s'
 
 printf '[connect-k8s-agent] connected; verify the Kubernetes target in Distr Hub\n'
-printf '[connect-k8s-agent] next: set GATEWAY_AUTO_DEPLOY=true and run the second infra deployment\n'
+printf '[connect-k8s-agent] queued gateway deployment will reconcile automatically\n'
