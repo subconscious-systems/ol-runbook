@@ -62,7 +62,6 @@ Shared credentials apply to every agent. Optional per-agent `*_API_KEY` override
 | `OPENCODE_API_KEY` / `CLAUDE_CODE_API_KEY` / `CODEX_API_KEY` / `PI_API_KEY` / `COPILOT_API_KEY` / `CURSOR_API_KEY` | Optional per-agent key override (falls back to `API_KEY`) |
 | `MODEL` | Model name (default: `gw-glm-5.2`) |
 | `CLAUDE_GATEWAY_URL` | Optional Claude-only origin override |
-| `OPENCODE_CONTEXT_LIMIT` / `OPENCODE_OUTPUT_LIMIT` | OpenCode `limit.context` / `limit.output` |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` / `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | Claude Code compact (max 1M) / assumed window |
 | `CODEX_CONTEXT_WINDOW` / `CODEX_MAX_CONTEXT_WINDOW` / `CODEX_AUTO_COMPACT_TOKEN_LIMIT` | Codex model catalog |
 | `PI_CONTEXT_WINDOW` / `PI_MAX_TOKENS` | Pi `models.json` |
@@ -103,7 +102,7 @@ Token windows are sized to stay under the **HTTP request-body** limit that actua
 
 | Agent | Recommended reporting | `.env` knobs | Default | Binding transfer limit | Notes |
 | --- | --- | --- | --- | --- | --- |
-| **OpenCode** | Full list | `OPENCODE_CONTEXT_LIMIT` / `OPENCODE_OUTPUT_LIMIT` | `5000000` / `65536` | Gateway **50 MiB** | Configurable auto-compaction via `limit.context` |
+| **OpenCode** | Full list | (none) | OpenCode/provider default | Gateway **50 MiB** | Integration does not set `limit.context` / `limit.output` |
 | **Pi** | Full list | `PI_CONTEXT_WINDOW` / `PI_MAX_TOKENS` | `5000000` / `65536` | Gateway **50 MiB** | Same pattern as OpenCode |
 | **Copilot** | Full list | `COPILOT_MAX_INPUT_TOKENS` / `COPILOT_MAX_OUTPUT_TOKENS` | `5000000` / `65536` | Gateway **50 MiB** | VS Code Custom Endpoint budgeting |
 | **Claude Code** | TIMRUN | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` / `CLAUDE_CODE_MAX_CONTEXT_TOKENS` | `1000000` / `3000000` | Anthropic Messages API **32 MB** | Auto-compact capped at 1M; under TIMRUN it rarely fires - leave on; manual `/compact` for payload/latency |

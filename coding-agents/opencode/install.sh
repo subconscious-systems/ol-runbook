@@ -30,8 +30,7 @@
 #         "models": {
 #           "gw-glm-5.2": {
 #             "name": "gw-glm-5.2",
-#             "tools": true,
-#             "limit": { "context": 5000000, "output": 65536 }
+#             "tools": true
 #           }
 #         }
 #       }
@@ -43,8 +42,7 @@
 #
 # The x-subconscious-client header tells the gateway to classify traffic as
 # OpenCode. OpenCode also sends native x-session-affinity / x-session-id
-# headers for conversation correlation. Model limit.context drives auto
-# compaction (default on); custom providers do not inherit models.dev limits.
+# headers for conversation correlation.
 #
 # Also installs a plugin that reports compactions to the gateway. OpenCode
 # summarizes through the configured provider, so without it the gateway counts
@@ -64,16 +62,11 @@ COMMAND="install"
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${OPENCODE_API_KEY:-${API_KEY:-}}"
 MODEL="${MODEL:-gw-glm-5.2}"
-# OpenCode auto-compaction uses model limit.context. Custom openai-compatible
-# providers do not get that from baseURL/models.dev; set it explicitly.
-CONTEXT_LIMIT="${OPENCODE_CONTEXT_LIMIT:-5000000}"
-OUTPUT_LIMIT="${OPENCODE_OUTPUT_LIMIT:-65536}"
 
 usage() {
   cat <<'EOF'
 Usage:
   install.sh [install] --gateway-url URL --api-key KEY [--model MODEL]
-             [--context-limit N] [--output-limit N]
   install.sh uninstall
   install.sh status
 
@@ -83,10 +76,8 @@ Writes an opencode.json that points opencode at your Subconscious gateway with
 x-subconscious-client: opencode and x-session-affinity/x-session-id session
 headers so the gateway can group requests into Conversations.
 
-Also sets model limit.context / limit.output so OpenCode auto-compaction
-respects the gateway window (compaction.auto stays enabled / default), and
-installs a plugin that reports compactions so the dashboard can restart context
-accounting at the right turn.
+Also installs a plugin that reports compactions so the dashboard can restart
+context accounting at the right turn.
 
 Requires: jq. Restart opencode after install.
 EOF
@@ -108,14 +99,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --model)
       MODEL="${2:-}"
-      shift 2
-      ;;
-    --context-limit)
-      CONTEXT_LIMIT="${2:-}"
-      shift 2
-      ;;
-    --output-limit)
-      OUTPUT_LIMIT="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -173,11 +156,7 @@ write_config() {
       "models": {
         "${MODEL}": {
           "name": "${MODEL}",
-          "tools": true,
-          "limit": {
-            "context": ${CONTEXT_LIMIT},
-            "output": ${OUTPUT_LIMIT}
-          }
+          "tools": true
         }
       }
     }
@@ -228,11 +207,6 @@ status() {
   if [[ -f "$OPENCODE_CONFIG" ]] && grep -q "$MARKER" "$OPENCODE_CONFIG" 2>/dev/null; then
     echo "status: installed"
     echo "model: $(jq -r '.model // "unset"' "$OPENCODE_CONFIG" 2>/dev/null || echo 'unknown')"
-    echo "context limit: $(jq -r '
-      (.model // "") as $m
-      | ($m | split("/") | .[1] // $m) as $id
-      | .provider.subconscious.models[$id].limit.context // "unset"
-    ' "$OPENCODE_CONFIG" 2>/dev/null || echo 'unknown')"
     echo "compaction.auto: $(jq -r '.compaction.auto // true' "$OPENCODE_CONFIG" 2>/dev/null || echo 'unknown')"
   else
     echo "status: not installed"

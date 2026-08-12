@@ -27,8 +27,6 @@ if [[ -f "$SHARED_ENV" ]]; then set -a; source "$SHARED_ENV"; set +a; fi
 GATEWAY_URL="${GATEWAY_URL:-}"
 API_KEY="${OPENCODE_API_KEY:-${API_KEY:-}}"
 MODEL="${MODEL:-gw-glm-5.2}"
-CONTEXT_LIMIT="${OPENCODE_CONTEXT_LIMIT:-5000000}"
-OUTPUT_LIMIT="${OPENCODE_OUTPUT_LIMIT:-65536}"
 
 if [[ -z "$GATEWAY_URL" || -z "$API_KEY" ]]; then
   echo "error: GATEWAY_URL and API_KEY must be set in ../.env" >&2
@@ -60,7 +58,7 @@ export SUBCONSCIOUS_API_KEY="$API_KEY"
 # use install.sh if you want compaction reporting.
 export SUBCONSCIOUS_GATEWAY_URL="${GATEWAY_URL%/}"
 export OPENCODE_CONFIG_CONTENT=$(cat <<EOF
-{"\$schema":"https://opencode.ai/config.json","provider":{"subconscious":{"npm":"@ai-sdk/openai-compatible","name":"Subconscious Gateway","options":{"baseURL":"${BASE_URL}","apiKey":"{env:SUBCONSCIOUS_API_KEY}","headers":{"x-subconscious-client":"opencode"}},"models":{"${MODEL}":{"name":"${MODEL}","tools":true,"limit":{"context":${CONTEXT_LIMIT},"output":${OUTPUT_LIMIT}}}}}},"model":"subconscious/${MODEL}"}
+{"\$schema":"https://opencode.ai/config.json","provider":{"subconscious":{"npm":"@ai-sdk/openai-compatible","name":"Subconscious Gateway","options":{"baseURL":"${BASE_URL}","apiKey":"{env:SUBCONSCIOUS_API_KEY}","headers":{"x-subconscious-client":"opencode"}},"models":{"${MODEL}":{"name":"${MODEL}","tools":true}}}},"model":"subconscious/${MODEL}"}
 EOF
 )
 
