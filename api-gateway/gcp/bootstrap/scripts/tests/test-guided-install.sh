@@ -29,8 +29,8 @@ jq '
 jq '.network.bootstrapSubnetCidr = "192.0.2.0/24"' \
   "${CONFIG_FILE}" >"${TEST_ROOT}/invalid-cidr.json"
 if invalid_output="$(
-  bash "${SCRIPTS_DIR}/guided-install.sh" \
-    --config "${TEST_ROOT}/invalid-cidr.json" 2>&1
+  CONFIG_FILE="${TEST_ROOT}/invalid-cidr.json"
+  guided_validate_config 2>&1
 )"; then
   printf 'ERROR: guided installer accepted a non-RFC1918 bootstrap CIDR\n' >&2
   exit 1

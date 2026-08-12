@@ -237,7 +237,7 @@ guided_validate_config() {
       && "${route_suffix}" != "svc.cluster.local" ]] \
       || guided_die "each routeAllowedHostSuffixes entry must be a lowercase external DNS suffix"
   done < <(jq -r '.deployments.routeAllowedHostSuffixes[]' "${CONFIG_FILE}")
-  python3 - "${BOOTSTRAP_SUBNET_CIDR}" "${PLATFORM_VPC_CIDR}" <<'PY'
+  python3 - "${BOOTSTRAP_SUBNET_CIDR}" "${PLATFORM_VPC_CIDR}" <<'PY' || return 1
 import ipaddress
 import sys
 
