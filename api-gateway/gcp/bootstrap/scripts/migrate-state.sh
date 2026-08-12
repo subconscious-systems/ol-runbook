@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Migrate the first local bootstrap state into the sandbox foundation bucket.
+# Migrate the first local bootstrap state into the production foundation bucket.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

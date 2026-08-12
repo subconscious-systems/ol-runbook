@@ -1,13 +1,13 @@
 # Staged GKE minor upgrade
 
 Upgrade one Kubernetes minor version at a time with a version-specific,
-sandbox-proven `api-gateway-infra` release. This document does not authorize a
-specific future version. The target must appear in the release notes and be
+vendor-qualified `api-gateway-infra` release. This document does not authorize
+a specific future version. The target must appear in the release notes and be
 available in `us-east1` on the cluster's release channel.
 
 GKE control-plane upgrades are effectively forward-only for this procedure.
 Do not assume that a control-plane downgrade is available. The primary risk
-controls are sandbox rehearsal, compatibility checks, backups, surge capacity,
+controls are compatibility checks, saved-plan review, backups, surge capacity,
 separate application rollout, and fix-forward ownership.
 
 ## Scope
@@ -34,7 +34,6 @@ Set `GATEWAY_AUTO_DEPLOY=false` and
 Record:
 
 ```bash
-export ENVIRONMENT=prod
 export GCP_PROJECT='<PRODUCTION_PROJECT>'
 export GCP_REGION='us-east1'
 export CLUSTER='<INFRA_DEPLOY_NAME>'
@@ -46,7 +45,7 @@ Open the private bootstrap VM:
 
 ```bash
 cd api-gateway/gcp/bootstrap
-bash scripts/connect.sh "$ENVIRONMENT" "$CLUSTER"
+bash scripts/connect.sh "$CLUSTER"
 sudo -i
 export HOME=/root KUBECONFIG=/root/.kube/config
 export USE_GKE_GCLOUD_AUTH_PLUGIN=True
@@ -64,7 +63,8 @@ disabled during and after the upgrade.
 - [ ] Vendor-designated infra release and provider lock selected (not `latest`).
 - [ ] Gateway compatibility release deployed and soaked separately on the
   current GKE version, then frozen.
-- [ ] Full sandbox rehearsal completed with the same versions/configuration.
+- [ ] Vendor qualification evidence and release-specific upgrade notes reviewed.
+- [ ] Saved Terraform plan changes only the approved GKE upgrade resources.
 - [ ] N4A quota has at least one surge node per zone (or the released strategy's
   documented capacity).
 - [ ] PodDisruptionBudgets, topology spread, readiness probes, and two replicas

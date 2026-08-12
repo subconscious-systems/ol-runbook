@@ -9,8 +9,8 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  rotate-app-secret.sh <sandbox|prod> csrf <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
-  rotate-app-secret.sh <sandbox|prod> encryption <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+  rotate-app-secret.sh csrf <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+  rotate-app-secret.sh encryption <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
 
 Optional environment:
   RUNNER_IMAGE       Exact entitled GCP-enabled infra runner image
@@ -24,16 +24,14 @@ EOF
 }
 
 rotate_parse_args() {
-  if [[ $# -ne 4 ]]; then
+  if [[ $# -ne 3 ]]; then
     return 2
   fi
 
-  ROTATE_ENVIRONMENT="$1"
-  ROTATE_KEY="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
-  INFRA_DEPLOY_NAME="$3"
-  GATEWAY_DEPLOY_NAME="$4"
+  ROTATE_KEY="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  INFRA_DEPLOY_NAME="$2"
+  GATEWAY_DEPLOY_NAME="$3"
 
-  bootstrap_validate_environment "${ROTATE_ENVIRONMENT}" || return 2
   case "${ROTATE_KEY}" in
     csrf|encryption) ;;
     *) return 2 ;;
@@ -67,7 +65,7 @@ if [[ -n "${RUNNER_IMAGE:-}" && ! "${RUNNER_IMAGE}" =~ ^[A-Za-z0-9._/:@-]+$ ]]; 
   exit 2
 fi
 
-bootstrap_resolve_targets "${ROTATE_ENVIRONMENT}"
+bootstrap_resolve_targets
 bootstrap_check_gcloud_auth
 bootstrap_wait_vm
 bootstrap_print_target
@@ -76,6 +74,7 @@ bootstrap_print_target
   printf 'PROJECT_ID=%q\n' "${PROJECT_ID}"
   printf 'REGION=%q\n' "${REGION}"
   printf 'INFRA_DEPLOY_NAME=%q\n' "${INFRA_DEPLOY_NAME}"
+  printf 'CLUSTER_NAME=%q\n' "${INFRA_DEPLOY_NAME}-gke"
   printf 'GATEWAY_DEPLOY_NAME=%q\n' "${GATEWAY_DEPLOY_NAME}"
   printf 'KEY=%q\n' "${ROTATE_KEY}"
   printf 'RUNNER_IMAGE=%q\n' "${RUNNER_IMAGE:-}"
@@ -85,7 +84,7 @@ bootstrap_print_target
   cat <<'REMOTE'
 set -euo pipefail
 
-gcloud container clusters get-credentials "${INFRA_DEPLOY_NAME}" \
+gcloud container clusters get-credentials "${CLUSTER_NAME}" \
   --project="${PROJECT_ID}" \
   --location="${REGION}" \
   --dns-endpoint
@@ -118,7 +117,7 @@ docker run --rm --network host \
   -e GOOGLE_CLOUD_PROJECT="${PROJECT_ID}" \
   -e GCP_REGION="${REGION}" \
   -e DEPLOY_NAME="${INFRA_DEPLOY_NAME}" \
-  -e CLUSTER_NAME="${INFRA_DEPLOY_NAME}" \
+  -e CLUSTER_NAME="${CLUSTER_NAME}" \
   -e GATEWAY_NAMESPACE="${GATEWAY_DEPLOY_NAME}" \
   -e KEY="${KEY}" \
   -e CLEAR_PREVIOUS="${CLEAR_PREVIOUS}" \

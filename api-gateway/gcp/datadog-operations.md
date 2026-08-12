@@ -77,9 +77,9 @@ the impersonation role required by the selected Datadog provider/API release
 (`roles/iam.serviceAccountTokenCreator` for the current STS Terraform
 resource). Do not grant Token Creator project-wide.
 
-Keep sandbox and production as separate Datadog integration accounts or
-strictly filtered resource configs. Disable CSPM, Security Command Center, logs,
-and unrelated product collection unless separately approved.
+Keep this production deployment distinct from every other Datadog integration
+account and project. Disable CSPM, Security Command Center, logs, and unrelated
+product collection unless separately approved.
 
 The integration default-denies the pinned Datadog namespace inventory and
 enables only `cloudsql`, `compute`, `container`, `kubernetes`, `loadbalancing`,
@@ -198,7 +198,7 @@ Search Datadog for:
 ```
 
 Use `$env`, `$service`, `$model`, and `$request_id` template variables.
-Production and sandbox must have different `DATADOG_ENV` values.
+`DATADOG_ENV` must uniquely identify this production deployment.
 
 Recommended rollout:
 

@@ -49,6 +49,16 @@ An empty gateway deployment before the Kubernetes target exists is expected to
 do nothing. Hand-edited Hub Helm values will be overwritten by the next runner
 fragment.
 
+### `no saved GCP ... plan` or plan checksum/input mismatch
+
+Every GCP apply consumes the exact plan produced by the immediately preceding
+dry-run. Set `DISTR_DRY_RUN=1`, trigger the same pinned release with the final
+approved inputs, review the plan and logged checksum, then set it to `0` and
+trigger again. Do not bypass the check or copy a plan between Docker targets.
+
+The reviewed plan is stored in a Docker named volume on the bootstrap VM. If
+the target or its volumes were removed, a new dry-run is required.
+
 ## Foundation projects and APIs
 
 ### Project create or billing attachment denied
@@ -71,7 +81,7 @@ Run:
 
 ```bash
 cd api-gateway/gcp/bootstrap
-bash scripts/preflight.sh <sandbox|prod>
+bash scripts/preflight.sh
 ```
 
 The bootstrap Terraform enables required APIs. Fix the human/organization
@@ -87,9 +97,8 @@ gcloud storage buckets describe "gs://$TF_STATE_BUCKET"
 gcloud storage buckets get-iam-policy "gs://$TF_STATE_BUCKET"
 ```
 
-The VM service account receives Storage Admin only on its own bucket. Sandbox
-must not use the production platform state prefix. Do not copy state locally to
-bypass IAM.
+The VM service account receives Storage Admin only on the production state
+bucket. Do not copy state locally to bypass IAM.
 
 ## Bootstrap VM, IAP, and Docker
 
@@ -106,9 +115,9 @@ The VPC firewall must allow TCP/22 from `35.235.240.0/20` to the VM service
 account. Verify:
 
 ```bash
-gcloud compute firewall-rules describe gateway-prod-allow-iap-ssh \
+gcloud compute firewall-rules describe gateway-allow-iap-ssh \
   --project="$GCP_PROJECT"
-gcloud compute instances describe gateway-prod-bootstrap \
+gcloud compute instances describe gateway-bootstrap \
   --project="$GCP_PROJECT" --zone="$GCP_ZONE" \
   --format='yaml(status,networkInterfaces,metadata,serviceAccounts)'
 ```
@@ -122,8 +131,8 @@ No public IP is expected. Check Cloud NAT, router, subnet, Private Google
 Access, DNS, and NAT logs:
 
 ```bash
-gcloud compute routers nats describe gateway-prod-bootstrap \
-  --router=gateway-prod-bootstrap \
+gcloud compute routers nats describe gateway-bootstrap \
+  --router=gateway-bootstrap \
   --region=us-east1 \
   --project="$GCP_PROJECT"
 ```
@@ -131,7 +140,7 @@ gcloud compute routers nats describe gateway-prod-bootstrap \
 Repair host packages after egress is fixed:
 
 ```bash
-bash api-gateway/gcp/bootstrap/scripts/repair-host.sh prod
+bash api-gateway/gcp/bootstrap/scripts/repair-host.sh
 ```
 
 Do not add an `access_config` to the VM.
@@ -141,7 +150,7 @@ Do not add an `access_config` to the VM.
 Open the VM:
 
 ```bash
-bash api-gateway/gcp/bootstrap/scripts/connect.sh prod
+bash api-gateway/gcp/bootstrap/scripts/connect.sh
 sudo -i
 docker ps -a
 docker logs --tail 200 <distr-agent-container>

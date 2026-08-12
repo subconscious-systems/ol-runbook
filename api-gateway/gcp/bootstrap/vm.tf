@@ -4,11 +4,9 @@ data "google_compute_image" "ubuntu" {
 }
 
 resource "google_compute_instance" "bootstrap" {
-  for_each = local.environments
-
-  project                   = google_project.environment[each.key].project_id
-  name                      = "gateway-${each.key}-bootstrap"
-  zone                      = each.value.zone
+  project                   = google_project.environment.project_id
+  name                      = "gateway-bootstrap"
+  zone                      = var.bootstrap_zone
   machine_type              = var.bootstrap_machine_type
   can_ip_forward            = false
   allow_stopping_for_update = true
@@ -25,12 +23,12 @@ resource "google_compute_instance" "bootstrap" {
   }
 
   network_interface {
-    subnetwork = google_compute_subnetwork.bootstrap[each.key].id
+    subnetwork = google_compute_subnetwork.bootstrap.id
     # Intentionally no access_config: this VM has no public IP.
   }
 
   service_account {
-    email  = google_service_account.bootstrap[each.key].email
+    email  = google_service_account.bootstrap.email
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
@@ -50,7 +48,7 @@ resource "google_compute_instance" "bootstrap" {
   }
 
   labels = merge(var.labels, {
-    environment = each.key
+    environment = "production"
     component   = "distr-bootstrap"
   })
 

@@ -32,8 +32,8 @@ orangeline__{DEPLOY_NAME}__app
 uses Memorystore for Redis 7. Labels should include `deploy`, `environment`,
 `bundle`, and `managed-by`, without placing secret values in labels.
 
-Sandbox and production use different projects and independently generated
-versions. Never copy a bundle across projects.
+Generate every production secret independently. Never copy a bundle from a
+developer machine, another cloud deployment, or a previous customer.
 
 ## Payload ownership
 

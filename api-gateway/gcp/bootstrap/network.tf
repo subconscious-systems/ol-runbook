@@ -1,8 +1,6 @@
 resource "google_compute_network" "bootstrap" {
-  for_each = local.environments
-
-  project                 = google_project.environment[each.key].project_id
-  name                    = "gateway-${each.key}-bootstrap"
+  project                 = google_project.environment.project_id
+  name                    = "gateway-bootstrap"
   auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
 
@@ -10,13 +8,11 @@ resource "google_compute_network" "bootstrap" {
 }
 
 resource "google_compute_subnetwork" "bootstrap" {
-  for_each = local.environments
-
-  project                  = google_project.environment[each.key].project_id
-  name                     = "gateway-${each.key}-bootstrap-${var.region}"
+  project                  = google_project.environment.project_id
+  name                     = "gateway-bootstrap-${var.region}"
   region                   = var.region
-  network                  = google_compute_network.bootstrap[each.key].id
-  ip_cidr_range            = each.value.subnet_cidr
+  network                  = google_compute_network.bootstrap.id
+  ip_cidr_range            = var.bootstrap_subnet_cidr
   private_ip_google_access = true
 
   log_config {
@@ -27,27 +23,23 @@ resource "google_compute_subnetwork" "bootstrap" {
 }
 
 resource "google_compute_router" "bootstrap" {
-  for_each = local.environments
-
-  project = google_project.environment[each.key].project_id
-  name    = "gateway-${each.key}-bootstrap"
+  project = google_project.environment.project_id
+  name    = "gateway-bootstrap"
   region  = var.region
-  network = google_compute_network.bootstrap[each.key].id
+  network = google_compute_network.bootstrap.id
 }
 
 resource "google_compute_router_nat" "bootstrap" {
-  for_each = local.environments
-
-  project                            = google_project.environment[each.key].project_id
-  name                               = "gateway-${each.key}-bootstrap"
+  project                            = google_project.environment.project_id
+  name                               = "gateway-bootstrap"
   region                             = var.region
-  router                             = google_compute_router.bootstrap[each.key].name
+  router                             = google_compute_router.bootstrap.name
   nat_ip_allocate_option             = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
   min_ports_per_vm                   = 64
 
   subnetwork {
-    name                    = google_compute_subnetwork.bootstrap[each.key].id
+    name                    = google_compute_subnetwork.bootstrap.id
     source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
   }
 
@@ -58,16 +50,14 @@ resource "google_compute_router_nat" "bootstrap" {
 }
 
 resource "google_compute_firewall" "iap_ssh" {
-  for_each = local.environments
-
-  project   = google_project.environment[each.key].project_id
-  name      = "gateway-${each.key}-allow-iap-ssh"
-  network   = google_compute_network.bootstrap[each.key].name
+  project   = google_project.environment.project_id
+  name      = "gateway-allow-iap-ssh"
+  network   = google_compute_network.bootstrap.name
   direction = "INGRESS"
   priority  = 1000
 
   source_ranges           = ["35.235.240.0/20"]
-  target_service_accounts = [google_service_account.bootstrap[each.key].email]
+  target_service_accounts = [google_service_account.bootstrap.email]
 
   allow {
     protocol = "tcp"

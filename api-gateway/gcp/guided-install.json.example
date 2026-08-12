@@ -1,0 +1,46 @@
+{
+  "project": {
+    "id": "acme-gateway-prod",
+    "name": "Acme Gateway Production",
+    "organizationId": "123456789012",
+    "folderId": "",
+    "billingAccountId": "000000-000000-000000",
+    "quotaProjectId": "acme-platform-admin",
+    "monthlyBudgetUsd": 1200,
+    "operatorPrincipals": [
+      "group:gateway-platform@example.com"
+    ]
+  },
+  "network": {
+    "bootstrapZone": "us-east1-b",
+    "bootstrapSubnetCidr": "10.40.0.0/24",
+    "platformVpcCidr": "10.60.0.0/16"
+  },
+  "dns": {
+    "projectId": "acme-shared-dns",
+    "zoneName": "example-public",
+    "domainName": "api.example.com"
+  },
+  "deployments": {
+    "infraName": "acme-prod-gw-infra",
+    "infraApplicationId": "REPLACE_WITH_GCP_INFRA_APPLICATION_ID",
+    "infraVersion": "REPLACE_WITH_PINNED_INFRA_VERSION",
+    "gatewayName": "acme-prod-gateway",
+    "gatewayApplicationId": "df563de2-25e4-4d8b-b24c-53bb4ad11086",
+    "gatewayVersion": "REPLACE_WITH_PINNED_GATEWAY_VERSION",
+    "routeAllowedHostSuffixes": [
+      "customer.example",
+      "api.baseten.co"
+    ]
+  },
+  "observability": {
+    "datadogEnabled": false,
+    "datadogSite": "datadoghq.com"
+  },
+  "dashboard": {
+    "bootstrapAdmin": true,
+    "username": "admin",
+    "organizationName": "Acme",
+    "fullName": "Gateway Admin"
+  }
+}

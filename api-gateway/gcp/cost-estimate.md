@@ -6,15 +6,14 @@
 > [Google Cloud Pricing Calculator](https://cloud.google.com/products/calculator)
 > with the actual project inputs and obtain a Datadog quote before committing.
 
-Use approximately **$1,000 per month per always-on environment**, or
-**$2,000 per month for separate production-parity sandbox and production**, as
-an initial budget. This is not a quote.
+Use approximately **$1,000 per month** for the always-on production deployment
+as an initial budget. This is not a quote.
 
 Estimate checked August 3, 2026 for `us-east1`. It excludes GPUs, inference
 workers, AWS migration, Distr subscription, support plans, taxes, negotiated
 discounts, and material traffic/log volume.
 
-## Per-environment assumptions
+## Production assumptions
 
 - 730 hours/month, USD, on-demand/list pricing, no free-tier credit or
   commitment discount.
@@ -51,12 +50,10 @@ discounts, and material traffic/log volume.
 | Datadog Infrastructure Pro | $30 | 2 hosts × $15 annual list |
 | Datadog APM | $62 | 2 hosts × $31 annual list |
 | Datadog Database Monitoring | $70 | 1 database host × $70 annual list |
-| **Illustrative total** | **$998** | Round to **$1,000/environment/month** |
+| **Illustrative total** | **$998** | Round to **$1,000/month** |
 
-The two-project production-parity baseline is therefore approximately
-**$1,996/month** before usage-variable charges. Keep sandbox parity during
-qualification/upgrade rehearsals. Any plan to reduce sandbox capacity changes
-the tested topology and must be documented.
+The single-project production baseline is therefore approximately
+**$998/month** before usage-variable charges.
 
 ## Important pricing risks
 

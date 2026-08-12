@@ -7,20 +7,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  printf 'usage: %s <sandbox|prod>\n' "$0"
+  printf 'usage: %s\n' "$0"
   exit 0
 fi
-if [[ $# -ne 1 ]]; then
-  printf 'usage: %s <sandbox|prod>\n' "$0" >&2
+if [[ $# -ne 0 ]]; then
+  printf 'usage: %s\n' "$0" >&2
   exit 2
 fi
 
-bootstrap_resolve_targets "$1"
+bootstrap_resolve_targets
 bootstrap_check_gcloud_auth
 bootstrap_print_target
 
 REQUIRED_APIS=(
   artifactregistry.googleapis.com
+  billingbudgets.googleapis.com
   certificatemanager.googleapis.com
   cloudasset.googleapis.com
   cloudbilling.googleapis.com
@@ -33,6 +34,7 @@ REQUIRED_APIS=(
   iap.googleapis.com
   logging.googleapis.com
   monitoring.googleapis.com
+  orgpolicy.googleapis.com
   oslogin.googleapis.com
   redis.googleapis.com
   secretmanager.googleapis.com
@@ -78,7 +80,7 @@ if ! jq -e '.metadata.items | any(.key == "enable-oslogin" and .value == "TRUE")
   FAILURES=$((FAILURES + 1))
 fi
 
-SERVICE_ACCOUNT="$(bootstrap_tf_map_value bootstrap_service_accounts "${ENVIRONMENT}")"
+SERVICE_ACCOUNT="$(bootstrap_tf_value bootstrap_service_account)"
 if ! jq -e '
     (.metadata.items | any(.key == "block-project-ssh-keys" and .value == "TRUE"))
     and .shieldedInstanceConfig.enableSecureBoot == true
@@ -108,10 +110,10 @@ if [[ -n "${USER_KEYS}" ]]; then
   FAILURES=$((FAILURES + 1))
 fi
 
-gcloud compute routers nats describe "gateway-${ENVIRONMENT}-bootstrap" \
+gcloud compute routers nats describe "gateway-bootstrap" \
   --project="${PROJECT_ID}" \
   --region="${REGION}" \
-  --router="gateway-${ENVIRONMENT}-bootstrap" \
+  --router="gateway-bootstrap" \
   --format='value(name)' >/dev/null
 
 if [[ "${FAILURES}" -ne 0 ]]; then

@@ -9,11 +9,11 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  connect-k8s-agent.sh <sandbox|prod> <INFRA_DEPLOY_NAME> \
-    'kubectl apply -n <GATEWAY_DEPLOY_NAME> -f "https://.../api/v1/connect?..."'
+  connect-k8s-agent.sh <INFRA_DEPLOY_NAME>
 
-The cluster name is derived as <INFRA_DEPLOY_NAME>-gke. The namespace parsed
-from the Hub command must be the gateway Distr deployment and Helm release name.
+The script securely prompts for the `kubectl apply` command copied from Distr
+Hub. The cluster name is derived as <INFRA_DEPLOY_NAME>-gke. The namespace in
+the Hub command must be the gateway Distr deployment and Helm release name.
 EOF
 }
 
@@ -21,14 +21,20 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
-if [[ $# -ne 3 ]]; then
+if [[ $# -ne 1 ]]; then
   usage
   exit 2
 fi
 
-ENVIRONMENT_ARG="$1"
-INFRA_DEPLOY_NAME="$2"
-HUB_LINE="$3"
+INFRA_DEPLOY_NAME="$1"
+
+if [[ -t 0 ]]; then
+  printf 'Paste the Distr Kubernetes target connect command: ' >&2
+  IFS= read -r -s HUB_LINE
+  printf '\n' >&2
+else
+  IFS= read -r HUB_LINE
+fi
 
 bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
 CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"
@@ -45,12 +51,12 @@ if [[ ! "${HUB_LINE}" =~ -f[[:space:]]+[\'\"]?(https://[^\'\"[:space:]]+) ]]; th
 fi
 CONNECT_URL="${BASH_REMATCH[1]}"
 
-if [[ ! "${CONNECT_URL}" =~ ^https://[^[:space:]]+/api/v1/connect\?[^[:space:]]+$ ]]; then
-  printf 'ERROR: expected an HTTPS Distr /api/v1/connect URL\n' >&2
+if [[ ! "${CONNECT_URL}" =~ ^https://app\.distr\.sh/api/v1/connect\?[^[:space:]]+$ ]]; then
+  printf 'ERROR: expected an https://app.distr.sh/api/v1/connect URL\n' >&2
   exit 2
 fi
 
-bootstrap_resolve_targets "${ENVIRONMENT_ARG}"
+bootstrap_resolve_targets
 bootstrap_print_target
 bootstrap_ensure_host "${SCRIPT_DIR}/host-setup.sh"
 
@@ -90,4 +96,4 @@ REMOTE
   --command='sudo env HOME=/root KUBECONFIG=/root/.kube/config USE_GKE_GCLOUD_AUTH_PLUGIN=True bash -s'
 
 printf '[connect-k8s-agent] connected; verify the Kubernetes target in Distr Hub\n'
-printf '[connect-k8s-agent] next: set GATEWAY_AUTO_DEPLOY=true and run the second infra deployment\n'
+printf '[connect-k8s-agent] return to the guided installer or approved recovery workflow\n'

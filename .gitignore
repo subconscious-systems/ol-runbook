@@ -35,3 +35,6 @@
 **/*.env.local
 !**/.env.example
 !**/sample-*.env
+
+# Resumable guided installers (IDs and generated non-secret inputs only)
+**/.guided-install/
