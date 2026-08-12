@@ -81,6 +81,7 @@ if ! jq -e '.metadata.items | any(.key == "enable-oslogin" and .value == "TRUE")
 fi
 
 SERVICE_ACCOUNT="$(bootstrap_tf_value bootstrap_service_account)"
+DNS_PROJECT_ID="$(bootstrap_tf_value dns_project_id)"
 if ! jq -e '
     (.metadata.items | any(.key == "block-project-ssh-keys" and .value == "TRUE"))
     and .shieldedInstanceConfig.enableSecureBoot == true
@@ -110,6 +111,23 @@ if [[ -n "${USER_KEYS}" ]]; then
   FAILURES=$((FAILURES + 1))
 fi
 
+DNS_IAM_READY=0
+for _ in $(seq 1 12); do
+  if gcloud projects get-iam-policy "${DNS_PROJECT_ID}" --format=json \
+    | jq -e --arg member "serviceAccount:${SERVICE_ACCOUNT}" \
+      'any(.bindings[]?; .role == "roles/dns.admin" and any(.members[]?; . == $member))' \
+      >/dev/null; then
+    DNS_IAM_READY=1
+    break
+  fi
+  sleep 5
+done
+if [[ "${DNS_IAM_READY}" -ne 1 ]]; then
+  printf 'ERROR: %s does not have roles/dns.admin in %s\n' \
+    "${SERVICE_ACCOUNT}" "${DNS_PROJECT_ID}" >&2
+  FAILURES=$((FAILURES + 1))
+fi
+
 gcloud compute routers nats describe "gateway-bootstrap" \
   --project="${PROJECT_ID}" \
   --region="${REGION}" \
@@ -124,4 +142,4 @@ fi
 bootstrap_wait_vm
 bootstrap_ssh --command='sudo test -f /opt/api-gateway-infra/bootstrap-ready'
 
-printf '[preflight] OK: billing, APIs, private Shielded VM, OS Login, NAT, keyless SA, and host readiness\n'
+printf '[preflight] OK: billing, APIs, DNS IAM, private Shielded VM, OS Login, NAT, keyless SA, and host readiness\n'

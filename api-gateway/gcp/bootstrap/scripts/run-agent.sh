@@ -8,11 +8,11 @@ source "${SCRIPT_DIR}/lib.sh"
 
 usage() {
   cat >&2 <<'EOF'
-usage: run-agent.sh
+usage:
+  ./scripts/run-agent.sh 'https://app.distr.sh/api/v1/connect?targetId=…&targetSecret=…'
 
-The script securely prompts for the one-time Docker target connect URL copied
-from Distr Hub. The URL is sent over the IAP SSH stdin stream and is not placed
-in shell history or written to this repository or the VM filesystem.
+Pass the Docker target connect URL copied from Distr Hub. It is sent over the
+IAP SSH stream and is not written to this repository or the VM filesystem.
 EOF
 }
 
@@ -20,18 +20,11 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
-if [[ $# -ne 0 ]]; then
+if [[ $# -ne 1 ]]; then
   usage
   exit 2
 fi
-
-if [[ -t 0 ]]; then
-  printf 'Paste the Distr Docker target connect URL: ' >&2
-  IFS= read -r -s CONNECT_URL
-  printf '\n' >&2
-else
-  IFS= read -r CONNECT_URL
-fi
+CONNECT_URL="$1"
 
 if [[ ! "${CONNECT_URL}" =~ ^https://app\.distr\.sh/api/v1/connect\?[^[:space:]]+$ ]]; then
   printf 'ERROR: expected an https://app.distr.sh/api/v1/connect URL\n' >&2

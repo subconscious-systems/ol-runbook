@@ -49,15 +49,12 @@ An empty gateway deployment before the Kubernetes target exists is expected to
 do nothing. Hand-edited Hub Helm values will be overwritten by the next runner
 fragment.
 
-### `no saved GCP ... plan` or plan checksum/input mismatch
+### Terraform plan-only run
 
-Every GCP apply consumes the exact plan produced by the immediately preceding
-dry-run. Set `DISTR_DRY_RUN=1`, trigger the same pinned release with the final
-approved inputs, review the plan and logged checksum, then set it to `0` and
-trigger again. Do not bypass the check or copy a plan between Docker targets.
-
-The reviewed plan is stored in a Docker named volume on the bootstrap VM. If
-the target or its volumes were removed, a new dry-run is required.
+As on AWS, `DISTR_DRY_RUN=1` shows the Terraform plan and stops. Return it to
+`0` and trigger the infra deployment to apply. A normal new installation uses
+`0`; plan-only is an optional operator review tool, not another required
+deployment stage.
 
 ## Foundation projects and APIs
 
@@ -85,7 +82,7 @@ bash scripts/preflight.sh
 ```
 
 The bootstrap Terraform enables required APIs. Fix the human/organization
-policy or rerun the reviewed foundation apply. Do not enable random APIs until
+policy or rerun `scripts/bootstrap.sh`. Do not enable random APIs until
 the missing service name is identified.
 
 ### Terraform backend access denied

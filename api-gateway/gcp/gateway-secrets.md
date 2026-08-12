@@ -128,12 +128,15 @@ Secret Manager; it must not create a new cloud secret version.
 
 ## What belongs in Distr Hub
 
-Masked, environment-specific Hub Secrets:
+Create the same masked Hub Secrets used by the AWS workflow:
 
-- customer `DISTR_TOKEN`;
-- Datadog API/application keys;
-- optional dashboard bootstrap password;
-- optional OIDC client secret.
+| Hub secret | Used by |
+| --- | --- |
+| `DISTR_TOKEN` | Infra runner customer PAT |
+| `DD_API_KEY` | Optional Datadog integration |
+| `DD_APP_KEY` | Optional Datadog integration |
+| `GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Optional initial dashboard admin |
+| `GCP_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Optional GCP deployment OIDC client |
 
 Never place these in Hub:
 

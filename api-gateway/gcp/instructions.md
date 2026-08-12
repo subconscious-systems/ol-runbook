@@ -1,143 +1,182 @@
-# GCP production installation
+# GCP API Gateway setup instructions
 
-Use the guided installer for every new GCP gateway. The operator supplies one
-reviewed JSON file, authenticates once, enters secrets through hidden prompts,
-and makes five typed approvals. The installer creates the Distr targets and
-deployments, connects both agents, waits for each stage, and resumes safely
-after interruption.
+This follows the AWS setup sequence: bootstrap one Docker-agent host, create
+Hub secrets and the infra deployment, connect the Docker agent, create and
+connect the gateway Kubernetes deployment, then trigger a second infra deploy
+with gateway auto-deploy enabled.
 
-Architecture: [README.md](README.md). Foundation internals:
-[bootstrap/](bootstrap/). Troubleshooting:
-[troubleshooting.md](troubleshooting.md).
+Architecture: [README.md](README.md). Bootstrap details:
+[bootstrap/](bootstrap/). Secrets: [gateway-secrets.md](gateway-secrets.md).
+Troubleshooting: [troubleshooting.md](troubleshooting.md).
 
-## Before starting
+The Google-specific differences are project creation, user + ADC login, a
+private IAP/OS Login host, automatic first-state migration to GCS, shared Cloud
+DNS project IAM, and the IAM-protected GKE DNS endpoint.
 
-Do not create cloud resources until all are true:
+## Checklist
 
-- The selected `api-gateway-infra` release supports complete `CLOUD=gcp`
-  operation and the selected gateway release supports ARM64 and GCE Ingress.
-- Exact infra and gateway version names are approved and entitled in Distr.
-- The project ID, organization or folder, billing account, hostname, existing
-  shared Cloud DNS project/zone, operator principals, and non-overlapping CIDRs
-  are approved.
-- N4A quota/capacity is available in `us-east1-b` and `us-east1-c`.
-- The installing human can create the project, attach billing, administer the
-  budget, enable services, set project IAM, and change the selected DNS zone.
-- A customer Distr PAT can manage secrets, targets, and deployments.
-- Current Google Cloud and optional Datadog pricing has been reviewed.
+### 1. FDE: Vendor portal entitlements
 
-This procedure creates one dedicated production project. It does not migrate
-AWS state/data or provision GPU hosts. The design has no secondary test
-environment and no public bootstrap VM or GKE IP endpoint.
+In the Distr Vendor portal, confirm the customer organization can use:
 
-## 1. Fill in one configuration file
+- the `api-gateway-infra` Docker Application and selected GCP runner release;
+- the `api-gateway` Helm Application and selected chart release;
+- every runner, gateway, router, adapter, migration, and tool image pulled by
+  those releases.
 
-Keep each Distr deployment name at most 32 characters. `zoneName` is the Cloud
-DNS managed-zone resource name, not the DNS suffix.
+The customer must be able to sign in and create a PAT. Deployment targets are
+not entitlements.
+
+### 2. Admin: Naming and account prep
+
+Choose names of at most 32 characters:
+
+| What | Name |
+| --- | --- |
+| Infra Docker deployment / Terraform prefix | `{slug}-api-gateway-infra` |
+| Gateway Helm deployment / namespace / release | `{slug}-api-gateway` |
+| New production GCP project | globally unique project ID |
+
+Also choose:
+
+- one existing shared Cloud DNS project and managed zone for `DOMAIN_NAME`;
+- one canonical, non-overlapping RFC1918 `/16` for the platform;
+- one separate canonical RFC1918 `/24` for the bootstrap host;
+- organization or folder, billing account, budget, and operator principals.
+
+Verify N4A quota and capacity in `us-east1-b` and `us-east1-c` before starting.
+
+### 3. Admin: Clone the runbook
 
 ```bash
 git clone git@github.com:subconscious-systems/ol-runbook.git
-cd ol-runbook/api-gateway/gcp
-cp guided-install.json.example guided-install.json
-$EDITOR guided-install.json
+cd ol-runbook
 ```
 
-The file contains no credentials. It records:
-
-- the production project, parent, billing account, budget, and operators;
-- the bootstrap `/24`, platform `/16`, and `us-east1` bootstrap zone;
-- the existing shared Cloud DNS project/zone and production hostname;
-- Distr Application IDs, exact pinned version names, and deployment names;
-- allowed inference route suffixes and optional Datadog/dashboard choices.
-
-Use exactly one of `organizationId` or `folderId`. The two CIDRs must not
-overlap each other or any connected network. The platform derives node, Pod,
-Service, private-service, and control-plane ranges from the `/16`.
-`dns.projectId` must differ from the new gateway project: the zone has to exist
-before Gate 1. That gate grants the keyless platform service account
-`roles/dns.admin` only in this selected DNS project.
-
-## 2. Run or resume the installer
+### 4. Admin: Bootstrap the Docker agent VM
 
 ```bash
-cd bootstrap
-bash scripts/guided-install.sh --config ../guided-install.json
+cd api-gateway/gcp/bootstrap
+./scripts/install-gcloud.sh
+./scripts/setup-gcloud.sh
+cp terraform.tfvars.example terraform.tfvars
+$EDITOR terraform.tfvars
+./scripts/bootstrap.sh
 ```
 
-The installer installs/checks gcloud and the GKE authentication plugin, then
-opens human user and Application Default Credentials login only when needed.
-It never creates or downloads a service-account key.
+Like the AWS bootstrap, this is one command. It plans, asks for the production
+project ID, applies the project and private VM, migrates state to the new
+versioned GCS bucket, runs preflight, and repairs Docker/Compose/kubectl on the
+host. Re-running it is idempotent. The VM has no public IP; access uses IAP and
+OS Login. Authentication uses a human Google identity and Application Default
+Credentials; it never creates or downloads a service-account key.
 
-Enter the customer Distr PAT at the hidden confirmation prompt. If enabled,
-Datadog keys and the first dashboard administrator password are prompted the
-same way. The installer creates project-prefixed masked secret keys so another
-gateway installation cannot overwrite them. Values are sent directly through
-`https://app.distr.sh`; they are not arguments, config values, Terraform
-variables, or installer state. Short-lived mode-0600 API request files are
-deleted immediately and again by the installer exit trap.
+### 5. Admin: Distr Hub Secrets
 
-If the process or terminal stops, run the same command again. Progress and
-non-secret resource IDs live in
-`bootstrap/.guided-install/<PROJECT_ID>/state.json`. The installer reuses
-existing named Hub resources and continues from the last completed stage. It
-rejects any configuration change after cloud work begins; restore the reviewed
-file before resuming.
+Create the same Hub Secrets used by the AWS install:
 
-## The five approvals
+| Hub secret key | Notes |
+| --- | --- |
+| `DISTR_TOKEN` | Customer PAT |
+| `DD_API_KEY` | Required when Datadog is enabled |
+| `DD_APP_KEY` | Required when Datadog is enabled |
+| `GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Optional initial admin; 12+ characters |
+| `GCP_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Optional when OIDC is enabled |
 
-Each gate shows the material being approved and requires typing
-`APPROVE GATE N <PROJECT_ID>` exactly.
+Do not add Google access keys or a service-account JSON file to Hub.
 
-1. **Project and private bootstrap.** Review the complete saved Terraform plan
-   for one project, budget, state bucket, private VPC/NAT, keyless service
-   account/IAM, IAP firewall, and private VM. The apply consumes that exact
-   plan. State is then migrated to versioned GCS, an empty plan is required,
-   and preflight/host repair run automatically.
-2. **Cloud foundation.** The installer creates the infra Docker target and
-   deployment with `DISTR_DRY_RUN=1`, connects its agent over IAP, and displays
-   the cloud-foundation plan and SHA-256 checksum. Approval switches the same
-   deployment to apply. The runner rejects missing, changed, or wrong-stage
-   saved plans and intentionally stops after GKE is reachable.
-3. **Complete platform.** The installer runs a second dry-run now that GKE
-   exists and displays the complete un-targeted plan and checksum. Approval
-   applies exactly that plan, including ESO, namespaces, ExternalSecrets,
-   managed certificate, ingress policies, and optional Datadog resources.
-4. **Gateway release.** The installer displays the entitled gateway version ID
-   and generated Helm values. Approval creates the Kubernetes target, deploys
-   that exact release and values, connects the in-cluster agent, and waits for
-   a healthy Distr status.
-5. **Production acceptance.** The installer obtains the Cloud SQL and Redis
-   output names and runs the read-only smoke suite. Approval records completion
-   only after those checks pass.
+### 6. Admin: api-gateway-infra Docker deployment
 
-Do not approve a replacement, resource outside the intended project, public
-IP endpoint, service-account key, Owner/Editor grant, disabled deletion
-protection, unpinned version, or inline secret.
+- Create the `api-gateway-infra` Docker deployment in Hub.
+- Paste [sample-gateway-infra.env](sample-gateway-infra.env), adapting names,
+  project, DNS, CIDR, routes, and optional Datadog/dashboard settings.
+- Keep `GATEWAY_AUTO_DEPLOY=false` for the first deployment.
+- Keep `DISTR_DRY_RUN=0` for the normal installation.
+- Copy the Docker target connect URL.
 
-## What is automated
+### 7. Admin: Connect the Distr Docker agent
 
-The customer does not manually edit Hub environment variables, create either
-deployment target, paste either agent command, toggle dry-run/apply values,
-copy Terraform outputs, or trigger repeated releases. The installer performs
-those operations idempotently through the Distr API and IAP.
+```bash
+cd api-gateway/gcp/bootstrap
+./scripts/run-agent.sh \
+  'https://app.distr.sh/api/v1/connect?targetId=…&targetSecret=…'
+```
 
-The remaining human work is intentional:
+Trigger the first infra deployment. As on AWS, the runner creates the complete
+cloud platform with gateway auto-deploy disabled. Internally, the GCP runner
+creates the cloud foundation first so it can reach the new GKE DNS endpoint,
+then completes the normal un-targeted reconciliation in the same deployment.
 
-- approve the input file and ensure DNS delegation/quota/entitlements exist;
-- complete Google login and provide the Distr PAT and enabled optional secrets;
-- review and approve the five displayed gates;
-- preserve the plan/checksum/smoke output in the customer's change record.
+Do not continue until the Docker target is healthy and GKE exists.
 
-## Acceptance record
+### 8. Admin: Create the api-gateway Helm deployment
 
-Retain the exact config, five approvals, both infra plan checksums, pinned
-application/version IDs, Terraform state serials, generated Helm values, and
-smoke output. Acceptance requires private DNS-only GKE access, ready ARM nodes,
-Cloud SQL/Redis HA and protection, ready ESO/fixed Secrets, healthy agents and
-gateway workloads, active certificate, HTTPS redirect, `/healthz`, `/readyz`,
-and dashboard reachability.
+- Create the `api-gateway` Helm deployment in Hub.
+- Deployment and target name = `GATEWAY_DISTR_DEPLOYMENT_NAME`.
+- Namespace and Helm release = that same name.
+- Leave Helm values empty; the infra runner generates them.
+- Deploy and copy the Hub `kubectl apply -n … -f "https://…"` command.
 
-Enable optional Datadog DBM only after the gateway is healthy, following
-[datadog-operations.md](datadog-operations.md). Manual scripts documented in
-[bootstrap/README.md](bootstrap/README.md) are recovery tools, not an alternate
-new-install workflow.
+### 9. Admin: Connect the Distr Kubernetes agent
+
+```bash
+cd api-gateway/gcp/bootstrap
+./scripts/connect-k8s-agent.sh \
+  <INFRA_DEPLOY_NAME> \
+  'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
+```
+
+The script runs kubectl on the private bootstrap VM through IAP and uses only
+the GKE DNS endpoint. Agent pods run in GKE, not on the VM.
+
+### 10. Admin: Second infra deploy (gateway auto-deploy)
+
+- Set `GATEWAY_AUTO_DEPLOY=true`.
+- Select `GATEWAY_CHART_VERSION=latest`, `nochange`, or an approved version
+  name using the same rules as AWS.
+- Trigger the second `api-gateway-infra` deployment.
+
+The runner reapplies Terraform idempotently, regenerates Helm values, ensures
+Secret Manager/ESO application secrets, and updates the gateway deployment.
+
+### 11. Admin: Dashboard login and invite
+
+- Open `https://<DOMAIN_NAME>/dashboard`.
+- Sign in with the optional bootstrap administrator or configured OIDC.
+- Invite the required users.
+
+### 12. FDE: Cloud-hosted GPU worker key
+
+Obtain an approved provider or cloud-hosted GPU key and configure it in the
+gateway so inference can be tested before customer GPU workers are connected.
+
+### 13. Admin: Test chat
+
+- Run a test chat in the dashboard.
+- Success verifies the dual-Application gateway path and temporary provider.
+- Run the read-only platform smoke checks if deeper verification is needed:
+
+```bash
+./scripts/smoke-checks.sh \
+  <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME> <DOMAIN_NAME> \
+  <CLOUDSQL_INSTANCE> <REDIS_INSTANCE>
+```
+
+### 14. Admin: Final secrets verification
+
+Confirm Secret Manager contains the generated `rds`, `valkey`, and `app`
+bundles and ESO has synchronized `gateway-secrets`, `router-secrets`, and
+`worker-secrets` into `GATEWAY_DISTR_DEPLOYMENT_NAME`.
+
+## User work compared with AWS
+
+The Hub and agent steps are deliberately the same. GCP adds only:
+
+1. Google user and ADC login;
+2. project/billing/DNS-parent inputs in `terraform.tfvars`;
+3. a private IAP connection instead of AWS SSM;
+4. automatic initial state migration to GCS;
+5. a GKE DNS endpoint instead of the EKS endpoint path.
+
+Gateway deployment, secrets, version selection, and the two Hub deployment
+cycles otherwise follow the AWS procedure.

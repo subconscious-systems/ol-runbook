@@ -9,11 +9,13 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  connect-k8s-agent.sh <INFRA_DEPLOY_NAME>
+  ./scripts/connect-k8s-agent.sh \
+    <INFRA_DEPLOY_NAME> \
+    'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
 
-The script securely prompts for the `kubectl apply` command copied from Distr
-Hub. The cluster name is derived as <INFRA_DEPLOY_NAME>-gke. The namespace in
-the Hub command must be the gateway Distr deployment and Helm release name.
+The cluster name is derived as <INFRA_DEPLOY_NAME>-gke. Paste the full Hub
+Kubernetes-agent command; its namespace must be the gateway deployment and
+Helm release name.
 EOF
 }
 
@@ -21,20 +23,13 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
-if [[ $# -ne 1 ]]; then
+if [[ $# -ne 2 ]]; then
   usage
   exit 2
 fi
 
 INFRA_DEPLOY_NAME="$1"
-
-if [[ -t 0 ]]; then
-  printf 'Paste the Distr Kubernetes target connect command: ' >&2
-  IFS= read -r -s HUB_LINE
-  printf '\n' >&2
-else
-  IFS= read -r HUB_LINE
-fi
+HUB_LINE="$2"
 
 bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
 CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"
@@ -96,4 +91,4 @@ REMOTE
   --command='sudo env HOME=/root KUBECONFIG=/root/.kube/config USE_GKE_GCLOUD_AUTH_PLUGIN=True bash -s'
 
 printf '[connect-k8s-agent] connected; verify the Kubernetes target in Distr Hub\n'
-printf '[connect-k8s-agent] return to the guided installer or approved recovery workflow\n'
+printf '[connect-k8s-agent] next: set GATEWAY_AUTO_DEPLOY=true and trigger the second infra deployment\n'

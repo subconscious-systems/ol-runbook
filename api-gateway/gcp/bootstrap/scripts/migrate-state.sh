@@ -66,7 +66,7 @@ if [[ -f "${TF_DIR}/backend.tf" ]]; then
 fi
 
 if [[ ! -f "${TF_DIR}/terraform.tfstate" ]]; then
-  printf 'ERROR: no local terraform.tfstate found; run bootstrap.sh --apply first\n' >&2
+  printf 'ERROR: no local terraform.tfstate found; run bootstrap.sh first\n' >&2
   exit 1
 fi
 

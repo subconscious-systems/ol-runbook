@@ -47,7 +47,6 @@ for script in \
   "${SCRIPTS_DIR}/bootstrap.sh" \
   "${SCRIPTS_DIR}/connect.sh" \
   "${SCRIPTS_DIR}/connect-k8s-agent.sh" \
-  "${SCRIPTS_DIR}/guided-install.sh" \
   "${SCRIPTS_DIR}/install-gcloud.sh" \
   "${SCRIPTS_DIR}/migrate-state.sh" \
   "${SCRIPTS_DIR}/preflight.sh" \
@@ -76,12 +75,21 @@ required_env_lines=(
   "DATADOG_GCP_CLOUD_METRICS_ENABLED=true"
   "DATADOG_DATABASE_MONITORS_ENABLED=false"
   "GATEWAY_AUTO_DEPLOY=false"
-  "DISTR_DRY_RUN=1"
+  "GATEWAY_CHART_VERSION=latest"
+  "DISTR_DRY_RUN=0"
 )
 
 for line in "${required_env_lines[@]}"; do
   grep -Fxq "${line}" "${SAMPLE_ENV}" || {
     printf 'ERROR: sample environment is missing: %s\n' "${line}" >&2
+    exit 1
+  }
+done
+
+for secret_ref in DISTR_TOKEN DD_API_KEY DD_APP_KEY GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD; do
+  grep -Fq "{{.Secrets.${secret_ref}}}" "${SAMPLE_ENV}" || {
+    printf 'ERROR: GCP sample does not match the AWS Hub secret contract: %s\n' \
+      "${secret_ref}" >&2
     exit 1
   }
 done
@@ -120,6 +128,12 @@ grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
   "${SCRIPTS_DIR}/connect.sh"
 grep -Fq 'CLUSTER_NAME=%q' \
   "${SCRIPTS_DIR}/rotate-app-secret.sh"
+# AWS-aligned day-0 CLI: URL as the Docker-agent argument and full Hub command
+# as the second Kubernetes-agent argument.
+grep -Fq 'CONNECT_URL="$1"' "${SCRIPTS_DIR}/run-agent.sh"
+grep -Fq 'HUB_LINE="$2"' "${SCRIPTS_DIR}/connect-k8s-agent.sh"
+grep -Fq '"${SCRIPT_DIR}/migrate-state.sh" --yes' \
+  "${SCRIPTS_DIR}/bootstrap.sh"
 
 legacy_environment_label='sand''box'
 if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_environment_label}" \
