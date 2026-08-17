@@ -113,7 +113,7 @@ flowchart LR
   GwHelm -->|"helm via K8s agent"| EKSBox
 ```
 
-Request path: both clients open `https://DOMAIN_NAME/...` to the same internet-facing ALB (dashboard and `/v1` share that hostname). Route 53 only answers DNS for the name; ACM only provides the TLS cert ARN the ALB uses. The ALB then targets gateway pods in EKS, which talk to Secrets Manager, Valkey, and Postgres.
+Request path: both clients open `https://DOMAIN_NAME/...` to the same internet-facing ALB (dashboard and `/v1` share that hostname). Route 53 only answers DNS for the name; ACM only provides the TLS cert ARN the ALB uses. When `DASHBOARD_ALLOWED_IPS` is set, ALB listener rules allow those IPv4 `/32` values to `/dashboard*` and return 403 to other dashboard clients; `/v1`, health/readiness, and optional `/admin/v1` traffic remain public and keep their existing authentication. The ALB then targets gateway pods in EKS, which talk to Secrets Manager, Valkey, and Postgres.
 
 Control path: One time bootstrap on the EC2 where the Docker agent runs. Then polls Distr Hub for updates. Same pattern for K8s agent. The infra runner applies platform Terraform / ESO / Helm values, ensures the Secrets Manager app secret, and can `PUT` the gateway Distr deployment. The gateway Helm app then upgrades via the Kubernetes agent.
 
@@ -126,6 +126,7 @@ Control path: One time bootstrap on the EC2 where the Docker agent runs. Then po
 | GPUs (ideal) | Customer GPU hosts procured and ready for later worker configuration. The gateway can complete first; then see [gpu-deployment/README.md](../../gpu-deployment/README.md) |
 | Datadog | Application key + API key ready for this deploy (sample path enables Datadog; both required when `DATADOG_ENABLED=true`) |
 | Network | Non-overlapping `VPC_CIDR` (`/16` recommended) |
+| Dashboard access | Up to three stable public browser IPv4 addresses in `DASHBOARD_ALLOWED_IPS`; changing networks requires updating the value and redeploying infra |
 | Distr | Customer org access; ability to create a customer PAT |
 | Bootstrap shell | Laptop with AWS CLI is easiest; any shell that can run Terraform against the account also works (for example an SSM session / bastion) |
 | Bootstrap IAM | Enough to create EC2, EIP, security group, IAM role + instance profile + policy attach (often AdministratorAccess-equivalent on day-0) |
