@@ -29,6 +29,9 @@ Deployment **targets** are not entitlements. The admin creates those when connec
   - `GATEWAY_DISTR_DEPLOYMENT_NAME`: gateway Helm deploy = Kubernetes namespace = Helm release (example: `acme-api-gateway`)
   - `DOMAIN_NAME`: public hostname (subdomain under your zone)
   - `VPC_CIDR`: non-overlapping `/16`
+- [ ] Optional: record up to three admin browser public IPv4 addresses for a
+  dashboard-only IP lock. Enter them without `/32`, comma-separated, as
+  `DASHBOARD_ALLOWED_IPS`. Leave it empty for public dashboard access.
 - [ ] Public Route 53 zone exists (`DNS_ZONE_NAME`); `DOMAIN_NAME` is free
 - [ ] Datadog API key + application key ready. When database AWS metrics are
   enabled, the application key needs `aws_configuration_read`,
@@ -83,6 +86,8 @@ See [gateway-secrets.md](gateway-secrets.md) for more details.
 
 - [ ] Create the **api-gateway-infra** Docker deployment in Hub
 - [ ] Paste env from [sample-gateway-infra.env](sample-gateway-infra.env), adapting names/region/domain/CIDR to your settings
+- [ ] If `DASHBOARD_ALLOWED_IPS` is set, confirm each entry is a public egress
+  IPv4 of a browser used for administration, not the bootstrap EC2 address
 - [ ] Save the Docker-agent **connect URL** from Hub for the next step
 
 When `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the Distr runner creates the
@@ -140,6 +145,27 @@ Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
 The runner regenerates the Helm fragment, ensures SM/ESO secrets, and `PUT`s the gateway deployment with correct values.
 
 **Likely FDE troubleshooting gate.** When healthy, the dashboard should be reachable at `https://<DOMAIN_NAME>/` (redirects to `/dashboard`) or `https://<DOMAIN_NAME>/dashboard`.
+
+With `DASHBOARD_ALLOWED_IPS` set, `/dashboard` and every descendant route return
+403 to all other source addresses. This does not restrict inference (`/v1`),
+health/readiness, or optional public admin (`/admin/v1`) routes. If the admin's
+public IP changes, update the field and trigger the infra deployment again.
+
+To detect the current computer's public IP, add it through the Kubernetes-owned
+ALB rule, and verify reconciliation:
+
+```bash
+cd api-gateway/aws/bootstrap
+./scripts/add-dashboard-ip.sh \
+  <INFRA_DEPLOY_NAME> \
+  <GATEWAY_DISTR_DEPLOYMENT_NAME>
+```
+
+The script opens `aws login`, converts the current public IPv4 to `/32`, patches
+only the dashboard allow condition through the SSM bootstrap host, and prints
+the resulting `DASHBOARD_ALLOWED_IPS=...` value. Copy that value into the
+private Distr infra deployment environment so a later Helm deployment retains
+the complete list.
 
 ### 11. Admin: Dashboard login and invite
 
