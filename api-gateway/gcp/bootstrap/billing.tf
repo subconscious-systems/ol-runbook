@@ -1,11 +1,9 @@
 resource "google_billing_budget" "environment" {
-  for_each = local.environments
-
   billing_account = var.billing_account_id
-  display_name    = "Subconscious gateway ${each.key} monthly budget"
+  display_name    = "Subconscious gateway production monthly budget"
 
   budget_filter {
-    projects               = ["projects/${google_project.environment[each.key].number}"]
+    projects               = ["projects/${google_project.environment.number}"]
     calendar_period        = "MONTH"
     credit_types_treatment = "INCLUDE_ALL_CREDITS"
   }
@@ -13,7 +11,7 @@ resource "google_billing_budget" "environment" {
   amount {
     specified_amount {
       currency_code = "USD"
-      units         = tostring(var.monthly_budget_amounts_usd[each.key])
+      units         = tostring(var.monthly_budget_amount_usd)
     }
   }
 

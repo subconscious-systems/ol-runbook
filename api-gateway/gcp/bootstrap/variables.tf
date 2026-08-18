@@ -11,7 +11,7 @@ variable "organization_id" {
 
 variable "folder_id" {
   type        = string
-  description = "Numeric folder ID for both projects. Set this or organization_id, not both."
+  description = "Numeric folder ID for the project. Set this or organization_id, not both."
   default     = ""
 
   validation {
@@ -22,7 +22,7 @@ variable "folder_id" {
 
 variable "billing_account_id" {
   type        = string
-  description = "Billing account ID attached to both projects (for example 000000-000000-000000)."
+  description = "Billing account ID attached to the project (for example 000000-000000-000000)."
 
   validation {
     condition     = can(regex("^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", upper(var.billing_account_id)))
@@ -44,85 +44,45 @@ variable "quota_project_id" {
   }
 }
 
-variable "enabled_environments" {
-  type        = set(string)
-  description = "Foundation environments created by this state. Start with sandbox; add prod only after the explicit production gate."
-  default     = ["sandbox"]
-
-  validation {
-    condition = (
-      contains(var.enabled_environments, "sandbox") &&
-      alltrue([
-        for environment in var.enabled_environments :
-        contains(["sandbox", "prod"], environment)
-      ])
-    )
-    error_message = "enabled_environments must contain sandbox and may also contain prod."
-  }
-}
-
-variable "sandbox_project_id" {
-  type        = string
-  description = "Globally unique project ID for the sandbox gateway."
-
-  validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.sandbox_project_id))
-    error_message = "sandbox_project_id must be a valid 6-30 character Google Cloud project ID."
-  }
-}
-
-variable "production_project_id" {
+variable "project_id" {
   type        = string
   description = "Globally unique project ID for the production gateway."
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.production_project_id))
-    error_message = "production_project_id must be a valid 6-30 character Google Cloud project ID."
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
+    error_message = "project_id must be a valid 6-30 character Google Cloud project ID."
   }
 }
 
-variable "sandbox_project_name" {
+variable "project_name" {
   type        = string
-  description = "Display name for the sandbox project."
-  default     = "Gateway Sandbox"
-
-  validation {
-    condition     = length(var.sandbox_project_name) >= 4 && length(var.sandbox_project_name) <= 30
-    error_message = "sandbox_project_name must be 4-30 characters."
-  }
-}
-
-variable "production_project_name" {
-  type        = string
-  description = "Display name for the production project."
+  description = "Display name for the production gateway project."
   default     = "Gateway Production"
 
   validation {
-    condition     = length(var.production_project_name) >= 4 && length(var.production_project_name) <= 30
-    error_message = "production_project_name must be 4-30 characters."
+    condition     = length(var.project_name) >= 4 && length(var.project_name) <= 30
+    error_message = "project_name must be 4-30 characters."
   }
 }
 
-variable "monthly_budget_amounts_usd" {
-  type        = map(number)
-  description = "Monthly budget amount in USD per environment; alerts are not hard spend caps."
-  default = {
-    sandbox = 1200
-    prod    = 1200
-  }
+variable "dns_project_id" {
+  type        = string
+  description = "Existing project that owns the approved public Cloud DNS zone."
 
   validation {
-    condition = (
-      alltrue([
-        for environment in ["sandbox", "prod"] :
-        contains(keys(var.monthly_budget_amounts_usd), environment)
-      ]) &&
-      alltrue([
-        for amount in values(var.monthly_budget_amounts_usd) :
-        amount > 0 && floor(amount) == amount
-      ])
-    )
-    error_message = "monthly_budget_amounts_usd must contain positive whole-dollar sandbox and prod amounts."
+    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.dns_project_id))
+    error_message = "dns_project_id must be a valid 6-30 character Google Cloud project ID."
+  }
+}
+
+variable "monthly_budget_amount_usd" {
+  type        = number
+  description = "Production monthly budget amount in USD; alerts are not hard spend caps."
+  default     = 1200
+
+  validation {
+    condition     = var.monthly_budget_amount_usd > 0 && floor(var.monthly_budget_amount_usd) == var.monthly_budget_amount_usd
+    error_message = "monthly_budget_amount_usd must be a positive whole-dollar amount."
   }
 }
 
@@ -137,52 +97,45 @@ variable "region" {
   }
 }
 
-variable "bootstrap_zones" {
-  type        = map(string)
-  description = "Bootstrap VM zone per environment. Both must be in us-east1."
-  default = {
-    sandbox = "us-east1-b"
-    prod    = "us-east1-c"
-  }
+variable "bootstrap_zone" {
+  type        = string
+  description = "Production bootstrap VM zone in us-east1."
+  default     = "us-east1-b"
 
   validation {
-    condition = (
-      length(var.bootstrap_zones) == 2 &&
-      alltrue([for environment in ["sandbox", "prod"] : contains(keys(var.bootstrap_zones), environment)]) &&
-      alltrue([for zone in values(var.bootstrap_zones) : startswith(zone, "us-east1-")])
-    )
-    error_message = "bootstrap_zones must contain sandbox and prod zones in us-east1."
+    condition     = startswith(var.bootstrap_zone, "us-east1-")
+    error_message = "bootstrap_zone must be in us-east1."
   }
 }
 
-variable "bootstrap_subnet_cidrs" {
-  type        = map(string)
-  description = "Non-overlapping CIDRs for the isolated bootstrap VM subnets."
-  default = {
-    sandbox = "10.10.0.0/24"
-    prod    = "10.20.0.0/24"
-  }
+variable "bootstrap_subnet_cidr" {
+  type        = string
+  description = "CIDR for the isolated production bootstrap VM subnet."
+  default     = "10.40.0.0/24"
 
   validation {
     condition = (
-      length(var.bootstrap_subnet_cidrs) == 2 &&
-      alltrue([for environment in ["sandbox", "prod"] : contains(keys(var.bootstrap_subnet_cidrs), environment)]) &&
-      alltrue([for cidr in values(var.bootstrap_subnet_cidrs) : can(cidrhost(cidr, 1))]) &&
-      lookup(var.bootstrap_subnet_cidrs, "sandbox", "") != lookup(var.bootstrap_subnet_cidrs, "prod", "")
+      can(cidrhost(var.bootstrap_subnet_cidr, 0))
+      && try(split("/", var.bootstrap_subnet_cidr)[1], "") == "24"
+      && var.bootstrap_subnet_cidr == try("${cidrhost(var.bootstrap_subnet_cidr, 0)}/24", "")
+      && can(regex(
+        "^(?:10|192\\.168|172\\.(?:1[6-9]|2[0-9]|3[01]))\\.",
+        var.bootstrap_subnet_cidr,
+      ))
     )
-    error_message = "bootstrap_subnet_cidrs must contain distinct valid sandbox and prod CIDRs."
+    error_message = "bootstrap_subnet_cidr must be a canonical RFC1918 /24 with no host bits set."
   }
 }
 
 variable "bootstrap_machine_type" {
   type        = string
-  description = "Machine type for each keyless Distr Docker-agent VM."
+  description = "Machine type for the keyless Distr Docker-agent VM."
   default     = "e2-standard-2"
 }
 
 variable "bootstrap_disk_size_gb" {
   type        = number
-  description = "Balanced persistent boot disk size for each bootstrap VM."
+  description = "Balanced persistent boot disk size for the bootstrap VM."
   default     = 40
 
   validation {
@@ -193,7 +146,7 @@ variable "bootstrap_disk_size_gb" {
 
 variable "operator_principals" {
   type        = set(string)
-  description = "Users or groups allowed to reach both VMs through IAP and OS Login (user: or group: form)."
+  description = "Users or groups allowed to reach the VM through IAP and OS Login (user: or group: form)."
 
   validation {
     condition = (
@@ -220,7 +173,7 @@ variable "project_deletion_policy" {
 
 variable "protect_bootstrap_vms" {
   type        = bool
-  description = "Enable Compute Engine deletion protection on both bootstrap VMs."
+  description = "Enable Compute Engine deletion protection on the bootstrap VM."
   default     = true
 }
 

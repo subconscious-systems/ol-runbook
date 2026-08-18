@@ -1,8 +1,8 @@
 # Secret rotation (GCP)
 
 Day-2 rotation for the GCP API Gateway. All production rotations require an
-approved change window, a healthy sandbox rehearsal, current backups/PITR, and
-an identified rollback owner.
+approved change window, a reviewed saved plan or procedure, current
+backups/PITR, and an identified rollback owner.
 
 Secret layout: [gateway-secrets.md](gateway-secrets.md). Break-glass access:
 [bootstrap/](bootstrap/). Troubleshooting:
@@ -30,10 +30,10 @@ runner release whose notes explicitly support Secret Manager rotation.
 From `api-gateway/gcp/bootstrap`:
 
 ```bash
-bash scripts/rotate-app-secret.sh prod csrf \
+bash scripts/rotate-app-secret.sh csrf \
   <PROD_INFRA_DEPLOY_NAME> <PROD_GATEWAY_DEPLOY_NAME>
 
-bash scripts/rotate-app-secret.sh prod encryption \
+bash scripts/rotate-app-secret.sh encryption \
   <PROD_INFRA_DEPLOY_NAME> <PROD_GATEWAY_DEPLOY_NAME>
 ```
 

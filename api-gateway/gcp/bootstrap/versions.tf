@@ -1,4 +1,4 @@
-# Day-0 foundation for the sandbox and production GCP projects.
+# Day-0 foundation for one production GCP project.
 # The Distr runner does not apply this stack.
 
 terraform {

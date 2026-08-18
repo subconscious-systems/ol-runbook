@@ -6,6 +6,7 @@ TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(cd "${TEST_DIR}/.." && pwd)"
 BOOTSTRAP_DIR="$(cd "${SCRIPTS_DIR}/.." && pwd)"
 GCP_DIR="$(cd "${BOOTSTRAP_DIR}/.." && pwd)"
+RUNBOOK_DIR="$(git -C "${GCP_DIR}" rev-parse --show-toplevel)"
 SAMPLE_ENV="${GCP_DIR}/sample-gateway-infra.env"
 
 REMOTE_SCRIPT_FILES=(
@@ -74,7 +75,8 @@ required_env_lines=(
   "DATADOG_GCP_CLOUD_METRICS_ENABLED=true"
   "DATADOG_DATABASE_MONITORS_ENABLED=false"
   "GATEWAY_AUTO_DEPLOY=false"
-  "DISTR_DRY_RUN=1"
+  "GATEWAY_CHART_VERSION=latest"
+  "DISTR_DRY_RUN=0"
 )
 
 for line in "${required_env_lines[@]}"; do
@@ -84,8 +86,29 @@ for line in "${required_env_lines[@]}"; do
   }
 done
 
+for secret_ref in DISTR_TOKEN DD_API_KEY DD_APP_KEY GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD; do
+  grep -Fq "{{.Secrets.${secret_ref}}}" "${SAMPLE_ENV}" || {
+    printf 'ERROR: GCP sample does not match the AWS Hub secret contract: %s\n' \
+      "${secret_ref}" >&2
+    exit 1
+  }
+done
+
 grep -Fq 'billing_account = var.billing_account_id' \
   "${BOOTSTRAP_DIR}/billing.tf"
+grep -Fq 'resource "google_project" "environment"' \
+  "${BOOTSTRAP_DIR}/projects.tf"
+grep -Fq 'resource "google_project_iam_member" "platform_dns"' \
+  "${BOOTSTRAP_DIR}/iam.tf"
+grep -Fq 'project = var.dns_project_id' \
+  "${BOOTSTRAP_DIR}/iam.tf"
+grep -Fq 'bootstrap_subnet_cidr must be a canonical RFC1918 /24' \
+  "${BOOTSTRAP_DIR}/variables.tf"
+grep -Eq '^[[:space:]]*project_id[[:space:]]*=[[:space:]]*var\.project_id$' \
+  "${BOOTSTRAP_DIR}/projects.tf"
+# shellcheck disable=SC2016 # Match literal shell code in the implementation.
+grep -Fq 'terraform -chdir="${TF_DIR}" apply -input=false "${PLAN_FILE}"' \
+  "${SCRIPTS_DIR}/bootstrap.sh"
 for api in \
   billingbudgets.googleapis.com \
   cloudbilling.googleapis.com \
@@ -97,8 +120,27 @@ done
 grep -Fq '"orgpolicy.googleapis.com"' "${BOOTSTRAP_DIR}/locals.tf"
 grep -Fq '"roles/orgpolicy.policyViewer"' "${BOOTSTRAP_DIR}/locals.tf"
 grep -Fq 'C0147pk0i' "${GCP_DIR}/datadog-operations.md"
+# shellcheck disable=SC2016 # Match literal shell code in the implementation.
 grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
   "${SCRIPTS_DIR}/connect-k8s-agent.sh"
+# shellcheck disable=SC2016 # Match literal shell code in the implementation.
+grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
+  "${SCRIPTS_DIR}/connect.sh"
+grep -Fq 'CLUSTER_NAME=%q' \
+  "${SCRIPTS_DIR}/rotate-app-secret.sh"
+# AWS-aligned day-0 CLI: URL as the Docker-agent argument and full Hub command
+# as the second Kubernetes-agent argument.
+grep -Fq 'CONNECT_URL="$1"' "${SCRIPTS_DIR}/run-agent.sh"
+grep -Fq 'HUB_LINE="$2"' "${SCRIPTS_DIR}/connect-k8s-agent.sh"
+grep -Fq '"${SCRIPT_DIR}/migrate-state.sh" --yes' \
+  "${SCRIPTS_DIR}/bootstrap.sh"
+
+legacy_environment_label='sand''box'
+if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_environment_label}" \
+  -- api-gateway/gcp; then
+  printf 'ERROR: legacy environment terminology remains in the production-only GCP runbook\n' >&2
+  exit 1
+fi
 
 if grep -Eq '(BEGIN (RSA|OPENSSH|PRIVATE) KEY|\"type\"[[:space:]]*:[[:space:]]*\"service_account\")' \
   "${GCP_DIR}"/*.md "${GCP_DIR}"/*.env "${BOOTSTRAP_DIR}"/*.tf; then

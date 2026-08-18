@@ -26,22 +26,18 @@ assert_rc() {
   fi
 }
 
-assert_rc "sandbox csrf" 0 \
-  rotate_parse_args sandbox csrf acme-gateway-infra acme-gateway
-assert_rc "prod encryption" 0 \
-  rotate_parse_args prod encryption acme-gateway-infra acme-gateway
+assert_rc "encryption" 0 \
+  rotate_parse_args encryption acme-gateway-infra acme-gateway
 assert_rc "uppercase key alias" 0 \
-  rotate_parse_args prod CSRF acme-gateway-infra acme-gateway
-assert_rc "bad environment" 2 \
-  rotate_parse_args staging csrf acme-gateway-infra acme-gateway
+  rotate_parse_args CSRF acme-gateway-infra acme-gateway
 assert_rc "bad key" 2 \
-  rotate_parse_args prod router acme-gateway-infra acme-gateway
+  rotate_parse_args router acme-gateway-infra acme-gateway
 assert_rc "bad infra label" 2 \
-  rotate_parse_args prod csrf Acme_Gateway acme-gateway
+  rotate_parse_args csrf Acme_Gateway acme-gateway
 assert_rc "bad gateway label" 2 \
-  rotate_parse_args prod csrf acme-gateway-infra -gateway
+  rotate_parse_args csrf acme-gateway-infra -gateway
 assert_rc "missing argument" 2 \
-  rotate_parse_args prod csrf acme-gateway-infra
+  rotate_parse_args csrf acme-gateway-infra
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf '[test] %s passed, %s failed\n' "${PASS}" "${FAIL}" >&2

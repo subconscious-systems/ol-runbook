@@ -1,101 +1,107 @@
 #!/usr/bin/env bash
-# Plan or explicitly apply the staged GCP bootstrap foundation.
+# Bootstrap the production GCP project and Distr Docker-agent host.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TF_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-MODE="plan"
+PLAN_FILE="${TF_DIR}/.bootstrap.tfplan"
+VAR_FILE="${TF_DIR}/terraform.tfvars"
 ASSUME_YES=0
-PLAN_FILE=".bootstrap.tfplan"
 
 usage() {
   cat >&2 <<'EOF'
-usage: bootstrap.sh [--plan] [--apply [--yes]]
+usage: bootstrap.sh [--yes]
 
-Default is plan-only. --apply requires an interactive confirmation unless
---yes is also supplied. This stack creates only environments selected by
-enabled_environments; start with sandbox and add prod after explicit approval.
+Plans and applies the production project/bootstrap foundation, migrates the
+first local state into the versioned GCS bucket, verifies the foundation, and
+repairs the host. Without --yes, type the production project ID before apply.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --plan)
-      MODE="plan"
-      shift
-      ;;
-    --apply)
-      MODE="apply"
-      shift
-      ;;
-    --yes)
-      ASSUME_YES=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      printf 'ERROR: unknown argument: %s\n' "$1" >&2
-      usage
-      exit 2
-      ;;
+    --yes) ASSUME_YES=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; exit 2 ;;
   esac
 done
 
-if [[ "${ASSUME_YES}" -eq 1 && "${MODE}" != "apply" ]]; then
-  printf 'ERROR: --yes is valid only with --apply\n' >&2
-  exit 2
-fi
-
-for tool in gcloud terraform; do
+for tool in gcloud terraform jq; do
   command -v "${tool}" >/dev/null 2>&1 || {
     printf 'ERROR: %s is required\n' "${tool}" >&2
     exit 1
   }
 done
+[[ -f "${VAR_FILE}" ]] || {
+  printf 'ERROR: copy terraform.tfvars.example to terraform.tfvars and edit it first\n' >&2
+  exit 1
+}
 
-if [[ ! -f "${TF_DIR}/terraform.tfvars" ]]; then
-  printf 'ERROR: copy terraform.tfvars.example to terraform.tfvars and replace every example value\n' >&2
+legacy_environment_label='sand''box'
+if grep -Eq "^[[:space:]]*(enabled_environments|production_project_id|${legacy_environment_label}_project_id)[[:space:]]*=" "${VAR_FILE}"; then
+  printf 'ERROR: legacy multi-environment values found; recreate terraform.tfvars from the current example\n' >&2
   exit 1
 fi
 
 gcloud auth application-default print-access-token >/dev/null
-
-terraform -chdir="${TF_DIR}" fmt -check -recursive
-terraform -chdir="${TF_DIR}" init -input=false
-terraform -chdir="${TF_DIR}" validate
-terraform -chdir="${TF_DIR}" plan -input=false -out="${PLAN_FILE}"
-
-if [[ "${MODE}" == "plan" ]]; then
-  printf '[bootstrap] plan saved to %s/%s; no cloud changes were made\n' \
-    "${TF_DIR}" "${PLAN_FILE}"
-  exit 0
+if [[ -f "${TF_DIR}/backend.tf" ]]; then
+  [[ -f "${TF_DIR}/.backend.hcl" ]] || {
+    printf 'ERROR: backend.tf exists without .backend.hcl\n' >&2
+    exit 1
+  }
+  terraform -chdir="${TF_DIR}" init -input=false -reconfigure -backend-config=.backend.hcl
+else
+  terraform -chdir="${TF_DIR}" init -input=false
 fi
 
+if terraform -chdir="${TF_DIR}" state list 2>/dev/null | grep -Eq '^google_project\.environment\["'; then
+  printf 'ERROR: legacy multi-environment state detected; do not apply the production-only stack to it\n' >&2
+  exit 1
+fi
+
+terraform -chdir="${TF_DIR}" fmt -check -recursive
+terraform -chdir="${TF_DIR}" validate
+terraform -chdir="${TF_DIR}" plan -input=false -var-file="${VAR_FILE}" -out="${PLAN_FILE}"
+
+PROJECT_ID="$(terraform -chdir="${TF_DIR}" show -json "${PLAN_FILE}" | jq -er '
+  .planned_values.root_module.resources[]
+  | select(.address == "google_project.environment")
+  | .values.project_id
+')"
+terraform -chdir="${TF_DIR}" show "${PLAN_FILE}"
 if [[ "${ASSUME_YES}" -ne 1 ]]; then
-  if [[ ! -t 0 ]]; then
-    printf 'ERROR: --apply needs an interactive terminal or explicit --yes\n' >&2
+  [[ -t 0 ]] || {
+    printf 'ERROR: bootstrap requires an interactive terminal or --yes\n' >&2
     exit 1
-  fi
-  printf 'Type APPLY to create/update only the environments in enabled_environments: '
+  }
+  printf 'Type the production project ID (%s) to apply this plan: ' "${PROJECT_ID}"
   read -r confirmation
-  if [[ "${confirmation}" != "APPLY" ]]; then
+  [[ "${confirmation}" == "${PROJECT_ID}" ]] || {
     printf '[bootstrap] cancelled\n'
     exit 1
-  fi
+  }
 fi
 
 terraform -chdir="${TF_DIR}" apply -input=false "${PLAN_FILE}"
-terraform -chdir="${TF_DIR}" output
+rm -f "${PLAN_FILE}"
+if [[ ! -f "${TF_DIR}/backend.tf" ]]; then
+  "${SCRIPT_DIR}/migrate-state.sh" --yes
+fi
+"${SCRIPT_DIR}/preflight.sh"
+"${SCRIPT_DIR}/repair-host.sh"
 
 cat <<'EOF'
 
-[bootstrap] foundation applied.
+== GCP Docker agent host ready ==
+
 Next:
-  1. Run scripts/migrate-state.sh to move local state to versioned GCS.
-  2. Run scripts/preflight.sh sandbox (and prod only if it was approved/enabled).
-  3. Run scripts/repair-host.sh for each enabled environment.
-  4. Do not enable prod until the sandbox rebuild evidence is approved.
+  1. Create the api-gateway-infra Docker deployment in Distr Hub and paste the
+     GCP environment from ../sample-gateway-infra.env.
+  2. Keep GATEWAY_AUTO_DEPLOY=false for the first infra deployment.
+  3. Copy the Docker target connect URL and run:
+       ./scripts/run-agent.sh 'https://app.distr.sh/api/v1/connect?targetId=…&targetSecret=…'
+  4. After GKE exists, create the gateway Helm deployment and connect its agent:
+       ./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME> \
+         'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
+  5. Set GATEWAY_AUTO_DEPLOY=true and trigger the second infra deployment.
 EOF

@@ -12,16 +12,6 @@ bootstrap_need() {
   }
 }
 
-bootstrap_validate_environment() {
-  case "${1:-}" in
-    sandbox|prod) ;;
-    *)
-      printf 'ERROR: environment must be sandbox or prod (got: %s)\n' "${1:-<empty>}" >&2
-      return 2
-      ;;
-  esac
-}
-
 bootstrap_assert_dns1123() {
   local value="${1:-}"
   local label="${2:-value}"
@@ -32,31 +22,23 @@ bootstrap_assert_dns1123() {
   fi
 }
 
-bootstrap_tf_map_value() {
+bootstrap_tf_value() {
   local output_name="$1"
-  local environment="$2"
-
-  terraform -chdir="${BOOTSTRAP_TF_DIR}" output -json "${output_name}" 2>/dev/null \
-    | jq -er --arg environment "${environment}" '.[$environment]'
+  terraform -chdir="${BOOTSTRAP_TF_DIR}" output -raw "${output_name}" 2>/dev/null
 }
 
 bootstrap_resolve_targets() {
-  local environment="$1"
-
-  bootstrap_validate_environment "${environment}"
   bootstrap_need terraform
-  bootstrap_need jq
 
-  ENVIRONMENT="${environment}"
-  PROJECT_ID="${GCP_PROJECT:-$(bootstrap_tf_map_value project_ids "${environment}")}"
-  REGION="${GCP_REGION:-$(bootstrap_tf_map_value regions "${environment}")}"
-  ZONE="${GCP_ZONE:-$(bootstrap_tf_map_value zones "${environment}")}"
-  VM_NAME="${BOOTSTRAP_VM_NAME:-$(bootstrap_tf_map_value vm_names "${environment}")}"
+  PROJECT_ID="${GCP_PROJECT:-$(bootstrap_tf_value project_id)}"
+  REGION="${GCP_REGION:-$(bootstrap_tf_value region)}"
+  ZONE="${GCP_ZONE:-$(bootstrap_tf_value zone)}"
+  VM_NAME="${BOOTSTRAP_VM_NAME:-$(bootstrap_tf_value vm_name)}"
 
   for name in PROJECT_ID REGION ZONE VM_NAME; do
     if [[ -z "${!name:-}" || "${!name}" == "null" ]]; then
-      printf 'ERROR: could not resolve %s for %s; apply bootstrap Terraform first\n' \
-        "${name}" "${environment}" >&2
+      printf 'ERROR: could not resolve %s; apply bootstrap Terraform first\n' \
+        "${name}" >&2
       return 1
     fi
   done
@@ -124,6 +106,6 @@ bootstrap_ensure_host() {
 }
 
 bootstrap_print_target() {
-  printf '[bootstrap] environment=%s project=%s region=%s zone=%s vm=%s\n' \
-    "${ENVIRONMENT}" "${PROJECT_ID}" "${REGION}" "${ZONE}" "${VM_NAME}"
+  printf '[bootstrap] project=%s region=%s zone=%s vm=%s\n' \
+    "${PROJECT_ID}" "${REGION}" "${ZONE}" "${VM_NAME}"
 }

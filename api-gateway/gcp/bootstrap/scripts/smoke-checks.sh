@@ -9,12 +9,13 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  smoke-checks.sh <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME> \
+  smoke-checks.sh <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME> \
     <DOMAIN_NAME> <CLOUDSQL_INSTANCE> <REDIS_INSTANCE>
 
 Optional local environment (sent over IAP stdin and never written):
   SMOKE_API_KEY  Gateway org API key
   SMOKE_MODEL    Registered model-group name
+  DATADOG_ENABLED  true or false (default true)
 
 Set both optional values to add an authenticated inference smoke. GPU
 provisioning is outside this runbook; the model can point at an existing
@@ -26,17 +27,16 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
-if [[ $# -ne 6 ]]; then
+if [[ $# -ne 5 ]]; then
   usage
   exit 2
 fi
 
-ENVIRONMENT_ARG="$1"
-INFRA_DEPLOY_NAME="$2"
-GATEWAY_DEPLOY_NAME="$3"
-DOMAIN_NAME="$4"
-CLOUDSQL_INSTANCE="$5"
-REDIS_INSTANCE="$6"
+INFRA_DEPLOY_NAME="$1"
+GATEWAY_DEPLOY_NAME="$2"
+DOMAIN_NAME="$3"
+CLOUDSQL_INSTANCE="$4"
+REDIS_INSTANCE="$5"
 
 bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
 bootstrap_assert_dns1123 "${GATEWAY_DEPLOY_NAME}" "GATEWAY_DEPLOY_NAME"
@@ -52,8 +52,15 @@ if [[ -n "${SMOKE_API_KEY:-}" && -z "${SMOKE_MODEL:-}" ]] \
   printf 'ERROR: set both SMOKE_API_KEY and SMOKE_MODEL, or neither\n' >&2
   exit 2
 fi
+case "${DATADOG_ENABLED:-true}" in
+  true|false) ;;
+  *)
+    printf 'ERROR: DATADOG_ENABLED must be true or false\n' >&2
+    exit 2
+    ;;
+esac
 
-bootstrap_resolve_targets "${ENVIRONMENT_ARG}"
+bootstrap_resolve_targets
 bootstrap_check_gcloud_auth
 bootstrap_wait_vm
 bootstrap_print_target
@@ -68,6 +75,7 @@ bootstrap_print_target
   printf 'REDIS_INSTANCE=%q\n' "${REDIS_INSTANCE}"
   printf 'SMOKE_API_KEY=%q\n' "${SMOKE_API_KEY:-}"
   printf 'SMOKE_MODEL=%q\n' "${SMOKE_MODEL:-}"
+  printf 'DATADOG_ENABLED=%q\n' "${DATADOG_ENABLED:-true}"
   cat <<'REMOTE'
 set -euo pipefail
 PUBLIC_ORIGIN="https://${DOMAIN_NAME}"
@@ -156,11 +164,13 @@ gcloud compute addresses describe "${STATIC_IP_NAME}" \
   --project="${PROJECT_ID}" --global --format='value(status)' \
   | grep -Fxq "IN_USE"
 
-echo "[smoke] Datadog Agent"
-kubectl -n datadog get daemonset -o json \
-  | jq -e '(.items | length > 0) and any(.items[];
-      (.status.numberReady // 0) == (.status.desiredNumberScheduled // -1)
-      and (.status.desiredNumberScheduled // 0) > 0)'
+if [[ "${DATADOG_ENABLED}" == "true" ]]; then
+  echo "[smoke] Datadog Agent"
+  kubectl -n datadog get daemonset -o json \
+    | jq -e '(.items | length > 0) and any(.items[];
+        (.status.numberReady // 0) == (.status.desiredNumberScheduled // -1)
+        and (.status.desiredNumberScheduled // 0) > 0)'
+fi
 
 echo "[smoke] public redirect and readiness"
 HTTP_CODE="$(curl --connect-timeout 10 --max-time 30 -sS -o /dev/null \

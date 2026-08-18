@@ -109,20 +109,19 @@ cleanup failures.
 2. Remove managed gateway monitors/dashboards only if not shared.
 3. Remove the environment Datadog GCP STS account and its delegate binding.
 4. Remove the Datadog Agent.
-5. Verify no organization-global asset used by another environment was
-   deleted.
+5. Verify no organization-global asset used by another deployment was deleted.
 
 ### 4. Destroy the platform through the released infra path
 
-Use the exact release's documented destroy mode; do not invent an environment
-flag. Run a plan and require it to target only the selected environment:
+Use the exact release's documented destroy mode; do not invent a mode flag.
+Run a plan and require it to target only the production deployment:
 
 - GKE/node pools/add-ons/WIF/ESO;
 - Cloud SQL, Redis, Secret Manager bundles;
 - GCE Ingress/LB health checks/backends/forwarding rules/static IP/certificate;
 - Cloud DNS record (not an externally shared zone);
 - platform VPC/subnets/ranges/router/NAT;
-- environment-scoped IAM and state objects.
+- deployment-scoped IAM and state objects.
 
 Cloud SQL deletion protection and final-backup controls should block accidental
 destruction. Disable them only in an approved preparatory apply after the final
@@ -166,22 +165,23 @@ first.
 
 ### 7. Destroy the bootstrap foundation/projects
 
-From `api-gateway/gcp/bootstrap`, for the selected final teardown:
+From `api-gateway/gcp/bootstrap`, for the final teardown:
 
 1. Change `protect_bootstrap_vms = false`; review/apply.
-2. Inspect `enabled_environments` and ensure every enabled project is intended
-   for teardown. After production is enabled, the foundation state manages both
-   projects; retain the other project and split state through an approved
-   procedure before any environment-specific project deletion.
-3. Empty/preserve state buckets as decided.
-4. Change `project_deletion_policy` from `PREVENT` to `DELETE`; review/apply.
-5. Run the final reviewed destroy from a backend that will survive it.
-6. Verify project deletion status and billing.
+2. Confirm `project_id` is the exact production project approved for teardown.
+3. Empty/preserve the state bucket as decided, but do not remove the active
+   backend yet.
+4. Change `project_deletion_policy` from `PREVENT` to `DELETE`; create and
+   review a saved plan, then apply that exact plan.
+5. Copy the final state and audit evidence to an approved backend outside the
+   project, reinitialize there, and create a final destroy plan.
+6. Require the operator to verify the project ID and independently approve the
+   final saved plan before applying it.
+7. Verify project deletion status and billing.
 
-The foundation state lives in the sandbox state bucket. Keep that small
-foundation while production is active. Never issue a blanket destroy to remove
-only sandbox after production has been added; first move the foundation state
-to a backend that will survive and perform an explicitly reviewed state split.
+The production state bucket is inside the project it manages, so it cannot be
+the backend for the final project destroy. The external backend move in step 5
+is mandatory; never delete the active state bucket first.
 
 ## Teardown acceptance
 
@@ -193,5 +193,5 @@ The change is complete only when:
   Manager, WIF, or environment Datadog integration remains unintentionally;
 - retained backups/state/secrets have named owners and expiry;
 - project billing/deletion status is recorded;
-- sandbox or production resources not in scope remain intact;
+- organization-global and shared resources not in scope remain intact;
 - no AWS data migration or GPU resource was introduced as part of teardown.

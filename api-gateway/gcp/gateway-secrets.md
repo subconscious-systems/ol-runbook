@@ -32,8 +32,8 @@ orangeline__{DEPLOY_NAME}__app
 uses Memorystore for Redis 7. Labels should include `deploy`, `environment`,
 `bundle`, and `managed-by`, without placing secret values in labels.
 
-Sandbox and production use different projects and independently generated
-versions. Never copy a bundle across projects.
+Generate every production secret independently. Never copy a bundle from a
+developer machine, another cloud deployment, or a previous customer.
 
 ## Payload ownership
 
@@ -128,12 +128,15 @@ Secret Manager; it must not create a new cloud secret version.
 
 ## What belongs in Distr Hub
 
-Masked, environment-specific Hub Secrets:
+Create the same masked Hub Secrets used by the AWS workflow:
 
-- customer `DISTR_TOKEN`;
-- Datadog API/application keys;
-- optional dashboard bootstrap password;
-- optional OIDC client secret.
+| Hub secret | Used by |
+| --- | --- |
+| `DISTR_TOKEN` | Infra runner customer PAT |
+| `DD_API_KEY` | Optional Datadog integration |
+| `DD_APP_KEY` | Optional Datadog integration |
+| `GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Optional initial dashboard admin |
+| `GCP_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Optional GCP deployment OIDC client |
 
 Never place these in Hub:
 
