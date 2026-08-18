@@ -1,7 +1,9 @@
 # Datadog operations (AWS API Gateway)
 
 How to use the managed Datadog assets provisioned by **api-gateway-infra** when
-`DATADOG_ENABLED=true`.
+`DATADOG_ENABLED=true`. The default path is **metrics + Conversations + error
+logs**. Trace Explorer and LLM Observability stay empty unless you set
+`DATADOG_APM_ENABLED=true` (and `DATADOG_LLM_OBS_ENABLED=true` for LLM spans).
 
 Related: [instructions.md](instructions.md) · [troubleshooting.md](troubleshooting.md) ·
 [gateway-secrets.md](gateway-secrets.md) · [FAQ.md](../../FAQ.md) ·
@@ -101,11 +103,12 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 Until phase 1, the dashboard shows a note linking here instead of database
 widgets.
 
-## LLM Observability
+## LLM Observability (opt-in)
 
-The gateway emits **metadata-only** GenAI spans over OTLP (`gen_ai.operation.name=chat`).
-It does not reconstruct full agent/tool trees (those require client-side Datadog
-Agent Observability SDK instrumentation).
+Off unless Hub `DATADOG_APM_ENABLED=true` and `DATADOG_LLM_OBS_ENABLED=true`.
+The gateway then emits **metadata-only** GenAI spans over OTLP
+(`gen_ai.operation.name=chat`). It does not reconstruct full agent/tool trees
+(those require client-side Datadog Agent Observability SDK instrumentation).
 
 Session join keys (also in gateway Conversations UI):
 
@@ -114,11 +117,8 @@ Session join keys (also in gateway Conversations UI):
 | `gen_ai.conversation.id` | Session / conversation id |
 | `_dd.ml_obs.metadata` | JSON: `organization_id`, `coding_agent`, `correlation_source`, `turn_id`, … |
 
-Enable in Helm: `observability.llmObs.enabled=true` and
-`observability.llmObs.datadogOtlpSource=true`.
-
-Use the dashboard **LLM Observability** group for recent LLM spans and
-correlated sessions.
+Dashboard LLM / Recent traces widgets stay empty on the default path. That is
+expected.
 
 ## Expert request and trace debugging
 
@@ -153,8 +153,8 @@ The managed gateway dashboard provides the same filter through
 `@provider_error_message`. Keep the request ID in the query when a
 conversation trace contains many requests.
 
-In APM Trace Explorer, trace and span IDs are reserved attributes and do not
-use an `@` prefix:
+APM Trace Explorer is empty unless `DATADOG_APM_ENABLED=true`. When it is on,
+trace and span IDs are reserved attributes and do not use an `@` prefix:
 
 ```text
 trace_id:<32-character-hex-trace-id>
@@ -210,7 +210,7 @@ of treating it as a transient gateway failure.
 
 Check the following before treating missing APM data as a gateway defect:
 
-- OTLP tracing and Datadog log collection are enabled;
+- `DATADOG_APM_ENABLED=true` (OTLP is not part of the Datadog sample path);
 - the Datadog environment and time range match the request;
 - the span is still available under the account's indexing and retention
   policy;
@@ -250,6 +250,9 @@ signals:
 
 | Field | Notes |
 | --- | --- |
+| `GATEWAY_LOG_LEVEL` | Default `WARN`. `INFO` = one `request.completed` line per call |
+| `DATADOG_APM_ENABLED` | Default `false`. Opt in to OTLP traces |
+| `DATADOG_LLM_OBS_ENABLED` | Default `false`. Requires APM |
 | `DATADOG_ENV` | Env facet for titles, monitors, pipelines |
 | `DATADOG_SITE` | e.g. `datadoghq.com`, `us5.datadoghq.com` |
 | `DATADOG_MONITOR_NOTIFICATION` | Inserts into every monitor message |

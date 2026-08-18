@@ -253,6 +253,8 @@ infra name. Start from [sample-gateway-infra.env](sample-gateway-infra.env):
   Datadog env;
 - keep all locked GCP topology/security values unchanged;
 - set `GATEWAY_AUTO_DEPLOY=false`;
+- leave `GATEWAY_LOG_LEVEL=WARN` (one field for gateway, adapter, and router);
+- leave `DATADOG_APM_ENABLED` and `DATADOG_LLM_OBS_ENABLED` false;
 - set `DISTR_DRY_RUN=1`;
 - use Hub secret references, never plaintext.
 

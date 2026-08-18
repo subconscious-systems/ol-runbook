@@ -37,6 +37,8 @@ Deployment **targets** are not entitlements. The admin creates those when connec
   enabled, the application key needs `aws_configuration_read`,
   `aws_configuration_edit`, and `aws_configurations_manage`. See
   [datadog-operations.md](datadog-operations.md) for dashboard and monitor rollout.
+  Leave `GATEWAY_LOG_LEVEL=WARN`. The sample Datadog path is metrics + error
+  logs; it does not enable OTLP traces.
 - [ ] Create a Distr PAT
 
 Make sure naming conventions follow this pattern:

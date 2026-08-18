@@ -170,6 +170,16 @@ Metric tag *configurations* (allowlisted tag keys on metric names) are org-globa
 Operations guides: [AWS](api-gateway/aws/datadog-operations.md) ·
 [GCP STS/Agent/Cloud SQL DBM](api-gateway/gcp/datadog-operations.md).
 
+## How do I control gateway log volume?
+
+Set Hub `GATEWAY_LOG_LEVEL` (default `WARN`). That one field sets gateway,
+adapter, and router together. `WARN` ships exceptions only. `INFO` ships one
+`gateway.request.completed` JSON line per request. GPU workers use
+`worker.sglang.logLevel: warning` on their own chart.
+
+`DATADOG_ENABLED=true` does **not** turn on APM traces or LLM Observability.
+Those stay off unless `DATADOG_APM_ENABLED` / `DATADOG_LLM_OBS_ENABLED`.
+
 ## How do I rotate gateway secrets?
 
 App csrf and credential encryption: copy-paste from [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md) (`bootstrap/scripts/rotate-app-secret.sh`). RDS/Valkey URLs: new infra deploy. Org API keys and worker endpoint keys: dashboard (same doc).
@@ -188,7 +198,10 @@ AUTH strings.
 | `GATEWAY_DISTR_DEPLOYMENT_NAME` | Gateway Helm deploy + K8s namespace/release |
 | `DOMAIN_NAME` / `DNS_ZONE_NAME` | Public hostname + existing Route 53 zone |
 | `VPC_CIDR` | Non-colliding VPC `/16` (explicit; not auto-detected) |
-| `DATADOG_ENABLED` / `DATADOG_ENV` | Sample path: on; env facet for titles/monitors/filters |
+| `DATADOG_ENABLED` / `DATADOG_ENV` | Sample path: on; env facet for titles/monitors/filters. Does not turn on OTLP/APM |
+| `GATEWAY_LOG_LEVEL` | Default `WARN` (gateway + adapter + router). `INFO` = one `request.completed` line per call |
+| `DATADOG_APM_ENABLED` | Default `false`. Opt in to in-cluster OTLP traces |
+| `DATADOG_LLM_OBS_ENABLED` | Default `false`. Requires `DATADOG_APM_ENABLED` |
 | `DATADOG_DASHBOARD_TAGS` | Optional; default `team:api-gateway` |
 | `DATADOG_MONITORS_DRAFT` | Draft vs published monitors only |
 | `DATADOG_SLOS_ENABLED` | Managed availability + TTFT SLOs (default off) |

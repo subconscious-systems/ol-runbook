@@ -2,7 +2,7 @@
 
 Customer-facing architecture for deploying the Subconscious Inference System **API Gateway** on AWS with Distr.
 
-For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
+For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Datadog: [datadog-operations.md](datadog-operations.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
 
 ## Architecture overview
 
