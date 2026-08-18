@@ -22,12 +22,20 @@ variables:
 | --- | --- |
 | `$env` | Scope to this deploy (`env:<DATADOG_ENV>`) |
 | `$service` | Gateway / router / adapter service name |
+| `$host` | One gateway EKS instance, or `*` for every instance |
 | `$model` | Logical model filter |
 | `$request_id` | Drill into correlated request logs |
 
 The Overview group shows **Gateway RPS** plus **Requests / minute** and
 **Requests / hour** count widgets so you can read request volume at three time
 scales without rebuilding the query.
+
+The **Gateway compute instances (non-GPU)** group is always managed when
+Datadog is enabled. It uses the Agent on every gateway EKS node to show CPU
+utilization and normalized load, memory and swap, filesystem capacity and
+inodes, disk I/O utilization/latency/throughput, and network throughput. Every
+series is split by host (and by device/interface where relevant); use `$host`
+to isolate one instance. GPU worker nodes remain outside this dashboard.
 
 ## What pages (monitors)
 
@@ -39,7 +47,7 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayErrorBudgetBurnPage | Sustained 5xx burn | Dashboard 5xx ratio, recent error logs, dependency health |
 | GatewayHighErrorRatio | Elevated 5xx | Same; check router/adapter panels |
 | GatewayNotReady | `/readyz` failing | Dependency health widget, Postgres/Valkey/Router readiness |
-| GatewayDependencyDown | Postgres, Valkey, or router probe down | Managed databases group (if enabled), dependency widget |
+| GatewayDependencyDown | Postgres, Valkey, or router probe down | Managed PostgreSQL/Valkey groups (if enabled), dependency widget |
 | GatewayStreamingTtftP95High | Slow streaming first token | Inference path panels, TTFT SLO (if enabled) |
 | GatewayRequestLatencyP95High | Slow end-to-end requests | Gateway latency group, router/adapter latency |
 | GatewayLimiterRejectionsSustained | Rate limits firing | Tenant signals group, Valkey CloudWatch (if enabled) |
@@ -92,7 +100,7 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 
 | Phase | Hub field | Result |
 | --- | --- | --- |
-| 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, managed database dashboard group |
+| 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, managed PostgreSQL and Valkey dashboard groups |
 | 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | IAM DB auth, bootstrap Job (RDS reboot in maintenance window) |
 | 3 | `DATADOG_POSTGRES_DBM_ENABLED=true` | PostgreSQL DBM direct check |
 | 4 | — | Valkey stays CloudWatch-only (no direct check) |
@@ -100,6 +108,13 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 
 Until phase 1, the dashboard shows a note linking here instead of database
 widgets.
+
+The PostgreSQL group covers CPU, freeable memory, storage, connections, disk
+IOPS/latency/throughput/queue depth, and network throughput. The Valkey group
+covers engine and host CPU, database/freeable/swap memory, connections, cache
+hit behavior, keys, evictions, replication lag, and network throughput. Valkey
+queries use the deployment's deterministic cache-cluster prefix because AWS
+custom tags are not consistently attached to ElastiCache node metrics.
 
 ## LLM Observability
 
