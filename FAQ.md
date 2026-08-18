@@ -97,6 +97,32 @@ GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES=customer.example,api.baseten.co
 
 That allows `l4-a.customer.example`, `g6-b.customer.example`, etc.
 
+## How do I add another public hostname to the AWS gateway ALB?
+
+Use the AWS-only alias fields on the **infra** Docker deployment:
+
+| Hub field | Notes |
+| --- | --- |
+| `GATEWAY_EXTRA_INGRESS_HOSTS` | Comma or JSON list of additional hostnames routed to the existing gateway Service. |
+| `GATEWAY_EXTRA_ACM_CERTIFICATE_ARNS` | Comma or JSON list of issued ACM certificate ARNs in the ALB's AWS region. |
+
+For a hostname whose DNS is authoritative outside Route 53, request a separate
+ACM certificate in the ALB's region and publish ACM's validation CNAME with the
+authoritative DNS provider. Keep that validation record permanently for ACM
+renewal. Do not add the alias to the primary Terraform-managed certificate or
+to `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES`.
+
+The generated Ingress keeps `DOMAIN_NAME` as the only external-dns hostname,
+adds the aliases as host rules, and attaches the primary and extra certificates
+to the ALB listener. Empty alias fields retain the original single-host
+behavior. Configure these fields instead of editing the live Ingress or ALB:
+the next auto-deploy replaces manual changes.
+
+Before changing public DNS, resolve the alias directly to the ALB and verify
+valid TLS plus a gateway response. Then change the alias's traffic record with
+its authoritative provider. Roll back by restoring that record; the additional
+ALB rule and certificate may remain attached safely.
+
 ## How is the initial dashboard admin created?
 
 Not by Terraform. Prefer the api-gateway chart **identity-bootstrap** Job:
@@ -169,6 +195,8 @@ AUTH strings.
 | `GATEWAY_AUTO_DEPLOY` | Default false; enable only for a separate gateway rollout |
 | `GATEWAY_CHART_VERSION` | `latest` (default), `nochange`, or `0.n.n` |
 | `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES` | Provider DNS suffixes; `svc.cluster.local` always added |
+| `GATEWAY_EXTRA_INGRESS_HOSTS` | AWS-only public aliases routed by the existing ALB |
+| `GATEWAY_EXTRA_ACM_CERTIFICATE_ARNS` | AWS-only issued ACM certificates for those aliases |
 | `DISTR_GATEWAY_APPLICATION_ID` | Defaulted to Subconscious-published api-gateway app |
 | `DISTR_GATEWAY_APPLICATION_VERSION_ID` | Rare UUID override; prefer `GATEWAY_CHART_VERSION` |
 | `DASHBOARD_BOOTSTRAP_PASSWORD` | Optional; enables identity-bootstrap Job |
