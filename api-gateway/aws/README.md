@@ -48,6 +48,14 @@ Implications:
 - The first infra run keeps `GATEWAY_AUTO_DEPLOY=false` until a Kubernetes
   deployment target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. A second,
   intentional infra run (after the K8s agent is connected) installs the gateway.
+- Gateway chart applies are in-place Helm rolling updates (`maxUnavailable: 0`),
+  not a second stack. Typical short agent turns can survive a gateway or adapter
+  roll; hour-long streams can still be cut at the five-minute grace deadline.
+  A singleton router image change, an EKS node drain, or a Terraform replace of
+  RDS / Valkey / ACM is not a zero-downtime event. Infra auto-deploy runs only
+  when the Terraform plan is expand-safe. Use `GATEWAY_AUTO_DEPLOY=false` for
+  contract or teardown applies, and `ALLOW_HELM_DEPENDENCY_REPLACE=true` only
+  when you intentionally replace a Helm-facing dependency.
 
 ### Cluster secrets
 
