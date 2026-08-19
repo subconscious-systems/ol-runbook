@@ -25,19 +25,16 @@ cluster as incident response, or enable public/key-based access.
 Prefer a hot fix. If the previous gateway version is required:
 
 1. Determine whether the new release applied a database migration.
-2. If schema reversion is required and supported, stop/scale new-schema
-   consumers, confirm the exact down migration exists in the currently running
-   image, and run the vendor-approved `ops-cli migrate-revert` command while
-   that image is still present.
+2. The schema is never reverted: migrations are additive and forward-compatible. The previous app version tolerates the current schema, so leave the database as-is.
 3. In Distr Hub, select the previous approved gateway Application version.
 4. Preserve the runner-generated GCP values fragment; do not run direct `helm
    rollback`.
-5. Wait for migrations/rollouts and verify dashboard, `/readyz`, org API auth,
-   provider routing, ESO, Cloud SQL, Redis, ingress, and Datadog.
+5. Wait for rollouts and verify dashboard, `/readyz`, org API auth, provider
+   routing, ESO, Cloud SQL, Redis, ingress, and Datadog.
 
-Direct Helm rollback breaks Distr's desired-state ownership. Database reversion
-is also not automatic: reverting the app before the schema can remove the only
-image containing a required down migration.
+Direct Helm rollback breaks Distr's desired-state ownership. Use the Distr Hub
+to roll the app version back; the new schema remains in place and the previous
+app runs against it.
 
 ## Infrastructure release rollback
 

@@ -105,25 +105,15 @@ Keep Distr deployment names **32 characters or fewer**. Release name, namespace,
 
 ## Database / release rollback
 
-Prefer **roll-forward** for schema when the running app can tolerate the current schema.
+Migrations are additive and forward-compatible, and a failed up migration is
+transactional (it is not applied). The schema is never reverted: there are no
+down migrations and no `ops-cli migrate-revert` command. Recover a bad release
+by rolling the gateway app version back; the previous app version tolerates the
+current schema, so the database stays as-is.
 
-### Schema revert
+### Helm rollback (app version, not the schema)
 
-Use only for a bad reversible migration that is already applied and unsafe to leave in place.
-
-- Scale down or stop new-schema consumers first.
-- Confirm the `.down.sql` is present in the running gateway image.
-
-```bash
-kubectl -n "$NAMESPACE" exec deploy/"$RELEASE"-gateway -- \
-  ops-cli migrate-revert --target 1
-```
-
-Then restart/roll pods as needed and re-check dashboard login, `/readyz`, and authenticated inference.
-
-### Helm rollback (distinct from DB revert)
-
-Do not use Helm rollback. It breaks the Distr kubernets agent. Use the Distr Hub to rollback the gateway Helm app desired version. This is why you must revert the DB first (where down migrations are present with the new version) and then push update the application.
+Do not use Helm rollback. It breaks the Distr kubernets agent. Use the Distr Hub to roll back the gateway Helm app desired version. The database schema is left in place; the previous app runs against it.
 
 Work with your FDE in the event of a rollback with a DB migration. They may elect to push a hot-fix instead.
 

@@ -360,8 +360,9 @@ events. Do not use an amd64-only override on N4A.
 
 More: [datadog-operations.md](datadog-operations.md).
 
-## Release/database rollback
+## Release rollback
 
 Prefer fix-forward. Do not run direct `helm rollback`; Distr must remain the
-desired-state owner. Database schema reversion, gateway version rollback, and
-ordered teardown are in [rollback-teardown.md](rollback-teardown.md).
+desired-state owner. The database schema is never reverted (migrations are
+additive and forward-compatible); gateway version rollback and ordered teardown
+are in [rollback-teardown.md](rollback-teardown.md).
