@@ -2,7 +2,7 @@
 
 Common failure modes for Assisted Self-Managed AWS deploys.
 
-Architecture: [README.md](README.md) · Setup: [instructions.md](instructions.md) · Secrets: [gateway-secrets.md](gateway-secrets.md) · Rotation: [secret-rotation.md](secret-rotation.md) · Bootstrap: [bootstrap/](bootstrap/).
+Architecture: [README.md](README.md) · Setup: [instructions.md](instructions.md) · Secrets: [gateway-secrets.md](gateway-secrets.md) · Rotation: [secret-rotation.md](secret-rotation.md) · Rollback: [rollback.md](rollback.md) · Teardown: [teardown.md](teardown.md) · Bootstrap: [bootstrap/](bootstrap/).
 
 ## Day-0 / Distr
 
@@ -105,19 +105,6 @@ Keep Distr deployment names **32 characters or fewer**. Release name, namespace,
 
 ## Database / release rollback
 
-Migrations are additive and forward-compatible, and a failed up migration is
-transactional (it is not applied). The schema is never reverted: there are no
-down migrations and no `ops-cli migrate-revert` command. Recover a bad release
-by rolling the gateway app version back; the previous app version tolerates the
-current schema, so the database stays as-is.
-
-### Helm rollback (app version, not the schema)
-
-Do not use Helm rollback. It breaks the Distr kubernets agent. Use the Distr Hub to roll back the gateway Helm app desired version. The database schema is left in place; the previous app runs against it.
-
-Work with your FDE in the event of a rollback with a DB migration. They may elect to push a hot-fix instead.
-
-### RDS / bootstrap destroy notes
-
-- Platform teardown is [teardown.md](teardown.md): undeploy Helm in Hub, take an RDS snapshot if you need the data, then `./scripts/teardown-platform.sh --yes …` from [bootstrap/](bootstrap/). The script disables RDS deletion protection and skips AWS's automatic final snapshot.
-- `terraform destroy` in [bootstrap/](bootstrap/) only destroys the Docker-agent EC2 host, **not** the platform VPC/EKS/RDS created by the infra runner. Leave the host until platform teardown has finished.
+Migrations are additive and forward-compatible; the schema is never reverted.
+Gateway version rollback is [rollback.md](rollback.md). Platform teardown is
+[teardown.md](teardown.md).

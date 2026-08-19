@@ -17,7 +17,7 @@
 #   BOOTSTRAP_VM_NAME  Override bootstrap VM (else terraform output)
 #
 # Requires: gcloud CLI, jq, terraform outputs from ./scripts/bootstrap.sh.
-# Docs: ../../rollback-teardown.md
+# Docs: ../../teardown.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

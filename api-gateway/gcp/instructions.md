@@ -7,8 +7,9 @@ and **Admin** (customer cloud/platform administrator).
 Architecture: [README.md](README.md). Bootstrap: [bootstrap/](bootstrap/).
 Secrets: [gateway-secrets.md](gateway-secrets.md). Datadog:
 [datadog-operations.md](datadog-operations.md). Troubleshooting:
-[troubleshooting.md](troubleshooting.md). Teardown:
-[rollback-teardown.md](rollback-teardown.md).
+[troubleshooting.md](troubleshooting.md). Rollback:
+[rollback.md](rollback.md). Teardown:
+[teardown.md](teardown.md).
 
 ## Non-negotiable stop conditions
 
@@ -397,7 +398,7 @@ agreed soak.
 ## 19. Admin: promote independently to production
 
 First complete the approved platform-only sandbox teardown and rebuild in
-[rollback-teardown.md](rollback-teardown.md). Retain the sandbox foundation VM,
+[teardown.md](teardown.md). Retain the sandbox foundation VM,
 state bucket, and project; destroy/recreate the Distr-managed platform, then
 repeat both Distr passes, Datadog checks, rotation, smoke checks, and selected
 failure recovery without undocumented steps.

@@ -15,8 +15,9 @@ End-to-end checklist: [instructions.md](instructions.md). Project/VM bootstrap:
 [bootstrap/](bootstrap/). Secrets: [gateway-secrets.md](gateway-secrets.md).
 Rotation: [secret-rotation.md](secret-rotation.md). Operations:
 [datadog-operations.md](datadog-operations.md),
-[gke-upgrade.md](gke-upgrade.md), and
-[rollback-teardown.md](rollback-teardown.md).
+[gke-upgrade.md](gke-upgrade.md),
+[rollback.md](rollback.md), and
+[teardown.md](teardown.md).
 
 ## Locked architecture
 
@@ -177,5 +178,6 @@ resources.
 6. [datadog-operations.md](datadog-operations.md) — STS, Agent, DBM, dashboards
 7. [gke-upgrade.md](gke-upgrade.md) — one-minor staged operation
 8. [troubleshooting.md](troubleshooting.md) — common GCP failure modes
-9. [rollback-teardown.md](rollback-teardown.md) — release rollback and ordered teardown
-10. [cost-estimate.md](cost-estimate.md) — planning estimate and live-pricing gate
+9. [rollback.md](rollback.md) — release rollback
+10. [teardown.md](teardown.md) — ordered platform teardown
+11. [cost-estimate.md](cost-estimate.md) — planning estimate and live-pricing gate

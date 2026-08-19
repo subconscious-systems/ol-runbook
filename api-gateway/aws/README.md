@@ -2,7 +2,7 @@
 
 Customer-facing architecture for deploying the Subconscious Inference System **API Gateway** on AWS with Distr.
 
-For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Datadog: [datadog-operations.md](datadog-operations.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Teardown: [teardown.md](teardown.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
+For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Datadog: [datadog-operations.md](datadog-operations.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Rollback: [rollback.md](rollback.md). Teardown: [teardown.md](teardown.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
 
 ## Architecture overview
 
@@ -150,5 +150,6 @@ Naming conventions: [FAQ.md](../../FAQ.md). Example infra env: [sample-gateway-i
 2. [eks-upgrade.md](eks-upgrade.md): staged EKS 1.34→1.35 operation
 3. [cost-estimate.md](cost-estimate.md): monthly AWS gateway planning estimate
 4. [bootstrap/](bootstrap/): create the Docker agent EC2
-5. [troubleshooting.md](troubleshooting.md): common hiccups and rollback notes
-6. [gpu-deployment/README.md](../../gpu-deployment/README.md): after the gateway is healthy
+5. [rollback.md](rollback.md): release rollback
+6. [troubleshooting.md](troubleshooting.md): common hiccups
+7. [gpu-deployment/README.md](../../gpu-deployment/README.md): after the gateway is healthy

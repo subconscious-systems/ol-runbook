@@ -235,22 +235,22 @@ disable IP-based control-plane endpoints.
 ## Platform teardown
 
 Do not destroy these foundations while either Distr agent or platform stack is
-still running. After Helm undeploy and `distr-agent` removal, from this
+still running. Undeploy the gateway Helm app in Hub first. Then, from this
 directory:
 
 ```bash
 ./scripts/teardown-platform.sh --yes <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
 ```
 
-Full procedure: [../rollback-teardown.md](../rollback-teardown.md). After the
+Full procedure: [../teardown.md](../teardown.md). After the
 platform is gone, undeploy the infra Docker app, then optionally destroy this
 foundation.
 
 ## Bootstrap-only teardown
 
 Do not destroy these foundations while either Distr agent or platform stack is
-still running. Follow [../rollback-teardown.md](../rollback-teardown.md) in
-reverse dependency order. For an approved final project deletion:
+still running. Complete platform teardown first
+([../teardown.md](../teardown.md)). For an approved final project deletion:
 
 1. Preserve/export required audit evidence and state.
 2. Set `protect_bootstrap_vms = false` and apply.

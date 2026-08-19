@@ -1,27 +1,20 @@
-# Tear down an AWS gateway platform
+# Teardown (AWS)
 
-Permanently remove the Assisted Self-Managed AWS platform stack (VPC, EKS, RDS, Valkey, ACM, Secrets Manager shells, add-ons). This does not destroy the bootstrap EC2.
+Teardown permanently removes an environment in reverse dependency order.
 
-RDS snapshots are operator-owned. Take and retain a snapshot in AWS before you destroy if you need the data. The teardown script skips AWS's automatic final snapshot.
+Teardown production only after traffic has moved, retention/export decisions
+are approved, and an independent operator has verified the target account.
 
-## Order
+- Point traffic off of the deployment.
+- Take a snapshot of the DB if desired
+- Undeploy the gateway Helm Application through Distr.
+- Run the teardown script to destroy the platform.
+- Undeploy the infra application through Distr.
+- Teardown the bootstrap EC2 terraform.
 
-1. Optional: create or retain an RDS snapshot in the AWS console or CLI.
-2. In Distr Hub, undeploy or pause the **gateway Helm** app so the Kubernetes agent does not reinstall it.
-3. From `api-gateway/aws/bootstrap`, run the teardown script (fails if the gateway namespace still has gateway, adapter, or router Deployments; `distr-agent` is ignored).
-4. In Distr Hub, undeploy or pause the **infra Docker** app so a later revision does not recreate the stack.
-5. Optional: destroy the bootstrap EC2 after platform destroy has finished.
-
-Keep the bootstrap host until step 3 succeeds. Platform Terraform uses that instance profile and the idle infra runner's Hub env.
-
-## Teardown script
-
-Prerequisites:
-
-- Bootstrap Terraform applied (`./scripts/bootstrap.sh`) so terraform outputs resolve the EC2 instance
-- Session Manager access from your laptop (aws CLI; interactive plugin not required)
-- Infra Docker app still present/idle on the host (the script copies Hub env from the runner container)
-- Gateway Helm app already undeployed in Hub
+Keep the bootstrap host until the teardown script succeeds. The script
+disables RDS deletion protection and skips AWS's automatic final snapshot;
+take and retain a snapshot in AWS first if you need the data.
 
 Copy-paste (from `api-gateway/aws/bootstrap`):
 
@@ -43,17 +36,8 @@ Example:
 
 Optional: `RUNNER_IMAGE=registry.distr.sh/subconscious/api-gateway-infra/runner:<tag>` if image discovery fails.
 
-What it does on the bootstrap host:
-
-- Refreshes kubeconfig for the EKS cluster
-- Fails if `GATEWAY_DEPLOY_NAME` still has gateway, adapter, or router Deployments (`distr-agent` is ignored; missing namespace is OK)
-- Disables RDS `deletion_protection` on `<INFRA_DEPLOY_NAME>-postgres`
-- Runs `terraform destroy` against `api-gateway-infra/<INFRA_DEPLOY_NAME>/terraform.tfstate` with `rds_skip_final_snapshot=true`
-- Leaves the account-global Datadog AWS integration, the tfstate bucket, and the bootstrap EC2 in place
-
-This is not a Hub infra apply. Helm-facing Terraform replace stays fail-closed on the runner; destroy is this script only.
-
-## Bootstrap EC2
+The script fails if `GATEWAY_DEPLOY_NAME` still has gateway, adapter, or
+router Deployments. `distr-agent` is ignored. Missing namespace is OK.
 
 After the platform is gone, from `api-gateway/aws/bootstrap`:
 

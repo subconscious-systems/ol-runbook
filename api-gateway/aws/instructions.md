@@ -2,7 +2,7 @@
 
 End-to-end Assisted Self-Managed setup on AWS. Roles are labeled so one person can play both **FDE** (Subconscious Forward Deployed Engineer) and **Admin** (customer initial admin) during a demo.
 
-Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Teardown: [teardown.md](teardown.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md). Datadog: [datadog-operations.md](datadog-operations.md).
+Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Rollback: [rollback.md](rollback.md). Teardown: [teardown.md](teardown.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md). Datadog: [datadog-operations.md](datadog-operations.md).
 
 Expect two FDE pairing / debug gates: (1) first Docker agent + infra runner
 bring-up with gateway auto-deploy disabled, (2) second infra deploy / intentional
