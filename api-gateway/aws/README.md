@@ -134,7 +134,7 @@ Control path: One time bootstrap on the EC2 where the Docker agent runs. Then po
 | GPUs (ideal) | Customer GPU hosts procured and ready for later worker configuration. The gateway can complete first; then see [gpu-deployment/README.md](../../gpu-deployment/README.md) |
 | Datadog | Application key + API key ready for this deploy (sample path enables Datadog; both required when `DATADOG_ENABLED=true`) |
 | Network | Non-overlapping `VPC_CIDR` (`/16` recommended) |
-| Dashboard access | Up to three stable public browser IPv4 addresses in `DASHBOARD_ALLOWED_IPS`; changing networks requires updating the value and redeploying infra |
+| Dashboard access | Up to three stable public browser IPv4 addresses in `DASHBOARD_ALLOWED_IPS`; changing networks requires updating the Hub field and re-running infra so Helm applies the Ingress |
 | Distr | Customer org access; ability to create a customer PAT |
 | Bootstrap shell | Laptop with AWS CLI is easiest; any shell that can run Terraform against the account also works (for example an SSM session / bastion) |
 | Bootstrap IAM | Enough to create EC2, EIP, security group, IAM role + instance profile + policy attach (often AdministratorAccess-equivalent on day-0) |

@@ -153,21 +153,17 @@ With `DASHBOARD_ALLOWED_IPS` set, `/dashboard` and every descendant route return
 health/readiness, or optional public admin (`/admin/v1`) routes. If the admin's
 public IP changes, update the field and trigger the infra deployment again.
 
-To detect the current computer's public IP, add it through the Kubernetes-owned
-ALB rule, and verify reconciliation:
+To detect the current computer's public IP and print the Hub field:
 
 ```bash
 cd api-gateway/aws/bootstrap
-./scripts/add-dashboard-ip.sh \
-  <INFRA_DEPLOY_NAME> \
-  <GATEWAY_DISTR_DEPLOYMENT_NAME>
+./scripts/add-dashboard-ip.sh
 ```
 
-The script opens `aws login`, converts the current public IPv4 to `/32`, patches
-only the dashboard allow condition through the SSM bootstrap host, and prints
-the resulting `DASHBOARD_ALLOWED_IPS=...` value. Copy that value into the
-private Distr infra deployment environment so a later Helm deployment retains
-the complete list.
+Copy `DASHBOARD_ALLOWED_IPS=...` into the private Distr infra deployment
+environment (merge with any IPs already there, maximum three) and trigger the
+infra Application again. Helm applies the list. Do not kubectl-annotate the
+live Ingress; that steals the field from Helm and breaks the next upgrade.
 
 ### 11. Admin: Dashboard login and invite
 
