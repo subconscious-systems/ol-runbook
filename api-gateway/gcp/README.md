@@ -15,8 +15,9 @@ End-to-end checklist: [instructions.md](instructions.md). Project/VM bootstrap:
 [bootstrap/](bootstrap/). Secrets: [gateway-secrets.md](gateway-secrets.md).
 Rotation: [secret-rotation.md](secret-rotation.md). Operations:
 [datadog-operations.md](datadog-operations.md),
-[gke-upgrade.md](gke-upgrade.md), and
-[rollback-teardown.md](rollback-teardown.md).
+[gke-upgrade.md](gke-upgrade.md),
+[rollback.md](rollback.md), and
+[teardown.md](teardown.md).
 
 ## Locked architecture
 
@@ -33,7 +34,7 @@ shared.
 | Network | Custom VPC, private Google access, separate Pod/Service ranges, Cloud NAT |
 | PostgreSQL | Cloud SQL PostgreSQL 16, Enterprise, regional HA, private IP only, automated backups and PITR |
 | Cache | Memorystore for Redis 7, `STANDARD_HA`, private service access, AUTH enabled, server-authenticated TLS |
-| Ingress | GCE Ingress, reserved global static IP, `ManagedCertificate`, `FrontendConfig` HTTP→HTTPS redirect, `BackendConfig.timeoutSec=900` |
+| Ingress | GCE Ingress, reserved global static IP, `ManagedCertificate`, `FrontendConfig` HTTP→HTTPS redirect, public `BackendConfig` (`timeoutSec: 900`, HTTP `/readyz` on 31080, 270s connection draining) |
 | Secrets | Secret Manager → External Secrets Operator (ESO) using Workload Identity Federation for GKE |
 | Bootstrap | Private `e2-standard-2` GCE VM, attached service account, Cloud NAT, IAP + OS Login; no service-account key or public IP |
 | Observability | Datadog GCP STS integration, GKE Agent, managed gateway assets, and direct Cloud SQL PostgreSQL DBM |
@@ -177,5 +178,6 @@ resources.
 6. [datadog-operations.md](datadog-operations.md) — STS, Agent, DBM, dashboards
 7. [gke-upgrade.md](gke-upgrade.md) — one-minor staged operation
 8. [troubleshooting.md](troubleshooting.md) — common GCP failure modes
-9. [rollback-teardown.md](rollback-teardown.md) — release rollback and ordered teardown
-10. [cost-estimate.md](cost-estimate.md) — planning estimate and live-pricing gate
+9. [rollback.md](rollback.md) — release rollback
+10. [teardown.md](teardown.md) — ordered platform teardown
+11. [cost-estimate.md](cost-estimate.md) — planning estimate and live-pricing gate

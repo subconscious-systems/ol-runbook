@@ -5,7 +5,8 @@ Common failure modes for the greenfield GCP deployment.
 Architecture: [README.md](README.md) · Setup:
 [instructions.md](instructions.md) · Secrets:
 [gateway-secrets.md](gateway-secrets.md) · Rollback:
-[rollback-teardown.md](rollback-teardown.md).
+[rollback.md](rollback.md) · Teardown:
+[teardown.md](teardown.md).
 
 Do not troubleshoot by adding a public VM IP, enabling a GKE IP endpoint,
 creating a service-account key, disabling Redis AUTH/TLS, enabling Cloud SQL
@@ -360,8 +361,9 @@ events. Do not use an amd64-only override on N4A.
 
 More: [datadog-operations.md](datadog-operations.md).
 
-## Release/database rollback
+## Release rollback
 
 Prefer fix-forward. Do not run direct `helm rollback`; Distr must remain the
-desired-state owner. Database schema reversion, gateway version rollback, and
-ordered teardown are in [rollback-teardown.md](rollback-teardown.md).
+desired-state owner. The database schema is never reverted (migrations are
+additive and forward-compatible); gateway version rollback is in
+[rollback.md](rollback.md). Ordered teardown is in [teardown.md](teardown.md).

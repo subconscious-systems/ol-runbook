@@ -34,7 +34,9 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | `scripts/connect.sh` | Break-glass SSM shell on this host (optional kubeconfig refresh) |
 | `scripts/add-dashboard-ip.sh` | AWS login + add this computer's public IPv4 to the dashboard-only ALB allow rule |
 | `scripts/rotate-app-secret.sh` | Rotate csrf / encryption via SSM + runner image |
+| `scripts/teardown-platform.sh` | Destroy platform Terraform via SSM + runner image |
 | `scripts/tests/test-rotate-app-secret.sh` | CLI contract unit tests (no AWS) |
+| `scripts/tests/test-teardown-platform.sh` | Teardown CLI contract unit tests (no AWS) |
 | `*.tf` | EC2, EIP, SG (egress), IAM instance profile |
 | `policies/platform-apply.json` | Broad platform-apply rights (scope later) |
 | `cloud-init.yaml.tftpl` | First-boot only (embeds `host-setup.sh`) |
@@ -50,6 +52,7 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | Re-run `./scripts/connect.sh` | Opens a new SSM session (optional kubeconfig refresh). |
 | Re-run `./scripts/add-dashboard-ip.sh <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>` | Re-detects this computer's public IPv4 and adds it idempotently to the dashboard source condition. |
 | Re-run `./scripts/rotate-app-secret.sh` | Non-interactive SSM rotate of csrf or encryption (see [secret-rotation.md](../secret-rotation.md)). |
+| `./scripts/teardown-platform.sh --yes …` | Destroys the **platform** Terraform stack (not this EC2). See [../teardown.md](../teardown.md). |
 
 Cloud-init is first-boot only. Setup script changes do **not** replace the EC2; push them with `ensure-host` / `bootstrap` / `run-agent` / `connect-k8s-agent`.
 
@@ -74,6 +77,18 @@ Same SSM connection path as `connect.sh`, non-interactive:
 ```
 
 Full procedure: [../secret-rotation.md](../secret-rotation.md).
+
+## Platform teardown
+
+Undeploy the gateway Helm app in Hub first. Take an RDS snapshot in AWS if you
+need the data. Then:
+
+```bash
+./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+```
+
+Full procedure: [../teardown.md](../teardown.md). After the platform is gone,
+undeploy the infra Docker app in Hub, then optionally destroy this host.
 
 ## Add the current computer to dashboard access
 
@@ -104,10 +119,13 @@ Bootstrap does not write Hub config. When you paste the infra env (see [instruct
 
 Hub Secrets and cluster secret paths: [../gateway-secrets.md](../gateway-secrets.md).
 
-## Destroy
+## Destroy this host
+
+After the platform stack is gone (see [../teardown.md](../teardown.md)):
 
 ```bash
 terraform destroy -auto-approve
 ```
 
-Only destroys this host, not the platform VPC/EKS created by the infra runner. It is recommended to first destroy kubernetes resources via undeployment of the gateway Helm app and then undeploy the infra app. Then terraform destroy the bootstrapped EC2 host and all related resources.
+Only destroys this EC2 host, not VPC/EKS/RDS created by the infra runner. Leave
+this host until platform teardown has finished.

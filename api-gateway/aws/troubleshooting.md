@@ -2,7 +2,7 @@
 
 Common failure modes for Assisted Self-Managed AWS deploys.
 
-Architecture: [README.md](README.md) · Setup: [instructions.md](instructions.md) · Secrets: [gateway-secrets.md](gateway-secrets.md) · Rotation: [secret-rotation.md](secret-rotation.md) · Bootstrap: [bootstrap/](bootstrap/).
+Architecture: [README.md](README.md) · Setup: [instructions.md](instructions.md) · Secrets: [gateway-secrets.md](gateway-secrets.md) · Rotation: [secret-rotation.md](secret-rotation.md) · Rollback: [rollback.md](rollback.md) · Teardown: [teardown.md](teardown.md) · Bootstrap: [bootstrap/](bootstrap/).
 
 ## Day-0 / Distr
 
@@ -105,29 +105,6 @@ Keep Distr deployment names **32 characters or fewer**. Release name, namespace,
 
 ## Database / release rollback
 
-Prefer **roll-forward** for schema when the running app can tolerate the current schema.
-
-### Schema revert
-
-Use only for a bad reversible migration that is already applied and unsafe to leave in place.
-
-- Scale down or stop new-schema consumers first.
-- Confirm the `.down.sql` is present in the running gateway image.
-
-```bash
-kubectl -n "$NAMESPACE" exec deploy/"$RELEASE"-gateway -- \
-  ops-cli migrate-revert --target 1
-```
-
-Then restart/roll pods as needed and re-check dashboard login, `/readyz`, and authenticated inference.
-
-### Helm rollback (distinct from DB revert)
-
-Do not use Helm rollback. It breaks the Distr kubernets agent. Use the Distr Hub to rollback the gateway Helm app desired version. This is why you must revert the DB first (where down migrations are present with the new version) and then push update the application.
-
-Work with your FDE in the event of a rollback with a DB migration. They may elect to push a hot-fix instead.
-
-### RDS / bootstrap destroy notes
-
-- Platform RDS day-0 defaults typically include backup retention, deletion protection, and a final snapshot on destroy.
-- `terraform destroy` in [bootstrap/](bootstrap/) only destroys the Docker-agent EC2 host, **not** the platform VPC/EKS/RDS created by the infra runner.
+Migrations are additive and forward-compatible; the schema is never reverted.
+Gateway version rollback is [rollback.md](rollback.md). Platform teardown is
+[teardown.md](teardown.md).

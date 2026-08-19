@@ -203,11 +203,13 @@ They do not receive bucket IAM/policy administration from this stack.
 | `connect-k8s-agent.sh` | Install the K8s agent using the IAM-protected GKE DNS endpoint |
 | `connect.sh` | Interactive IAP/OS Login break-glass shell |
 | `rotate-app-secret.sh` | GCP Secret Manager CSRF/encryption rotation via the released runner image |
+| `teardown-platform.sh` | Destroy platform Terraform via IAP + runner image |
 | `smoke-checks.sh` | GKE/data/ESO/ingress/Datadog/public endpoint checks |
 
 All scripts take `sandbox` or `prod`; they resolve project, region, zone, and VM
-from Terraform outputs. Connect URLs and optional smoke API keys travel over
-stdin and are never written by the scripts.
+from Terraform outputs. Platform teardown requires `--yes` before the
+environment name. Connect URLs and optional smoke API keys travel over stdin
+and are never written by the scripts.
 
 ## Host repair and break-glass
 
@@ -230,11 +232,25 @@ The kubeconfig is built with `gcloud container clusters get-credentials
 external traffic through that endpoint, grant `container.clusters.connect`, and
 disable IP-based control-plane endpoints.
 
+## Platform teardown
+
+Do not destroy these foundations while either Distr agent or platform stack is
+still running. Undeploy the gateway Helm app in Hub first. Then, from this
+directory:
+
+```bash
+./scripts/teardown-platform.sh --yes <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+```
+
+Full procedure: [../teardown.md](../teardown.md). After the
+platform is gone, undeploy the infra Docker app, then optionally destroy this
+foundation.
+
 ## Bootstrap-only teardown
 
 Do not destroy these foundations while either Distr agent or platform stack is
-still running. Follow [../rollback-teardown.md](../rollback-teardown.md) in
-reverse dependency order. For an approved final project deletion:
+still running. Complete platform teardown first
+([../teardown.md](../teardown.md)). For an approved final project deletion:
 
 1. Preserve/export required audit evidence and state.
 2. Set `protect_bootstrap_vms = false` and apply.

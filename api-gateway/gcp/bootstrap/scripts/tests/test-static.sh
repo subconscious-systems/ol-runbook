@@ -14,6 +14,7 @@ REMOTE_SCRIPT_FILES=(
   "${SCRIPTS_DIR}/rotate-app-secret.sh"
   "${SCRIPTS_DIR}/run-agent.sh"
   "${SCRIPTS_DIR}/smoke-checks.sh"
+  "${SCRIPTS_DIR}/teardown-platform.sh"
 )
 
 for script in "${SCRIPTS_DIR}"/*.sh "${TEST_DIR}"/*.sh; do
@@ -53,7 +54,8 @@ for script in \
   "${SCRIPTS_DIR}/rotate-app-secret.sh" \
   "${SCRIPTS_DIR}/run-agent.sh" \
   "${SCRIPTS_DIR}/setup-gcloud.sh" \
-  "${SCRIPTS_DIR}/smoke-checks.sh"; do
+  "${SCRIPTS_DIR}/smoke-checks.sh" \
+  "${SCRIPTS_DIR}/teardown-platform.sh"; do
   bash "${script}" --help >/dev/null 2>&1
 done
 
@@ -99,6 +101,8 @@ grep -Fq '"roles/orgpolicy.policyViewer"' "${BOOTSTRAP_DIR}/locals.tf"
 grep -Fq 'C0147pk0i' "${GCP_DIR}/datadog-operations.md"
 grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
   "${SCRIPTS_DIR}/connect-k8s-agent.sh"
+grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
+  "${SCRIPTS_DIR}/teardown-platform.sh"
 
 if grep -Eq '(BEGIN (RSA|OPENSSH|PRIVATE) KEY|\"type\"[[:space:]]*:[[:space:]]*\"service_account\")' \
   "${GCP_DIR}"/*.md "${GCP_DIR}"/*.env "${BOOTSTRAP_DIR}"/*.tf; then
