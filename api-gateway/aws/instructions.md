@@ -26,7 +26,8 @@ Deployment **targets** are not entitlements. The admin creates those when connec
 
 - [ ] Choose names per [FAQ.md](../../FAQ.md) (≤ 32 characters each):
   - `DEPLOY_NAME`: infra Docker deploy + TF name prefix (example: `acme-api-gateway-infra`)
-  - `GATEWAY_DISTR_DEPLOYMENT_NAME`: gateway Helm deploy = Kubernetes namespace = Helm release (example: `acme-api-gateway`)
+  - `GATEWAY_DISTR_DEPLOYMENT_NAME`: Kubernetes namespace = Helm release (example: `acme-api-gateway`)
+  - `GATEWAY_DISTR_PORTAL_NAME`: optional Hub Kubernetes target name if it differs (leave empty to match `GATEWAY_DISTR_DEPLOYMENT_NAME`)
   - `DOMAIN_NAME`: public hostname (subdomain under your zone)
   - `VPC_CIDR`: non-overlapping `/16`
 - [ ] Optional: record up to three admin browser public IPv4 addresses for a
@@ -46,9 +47,9 @@ Make sure naming conventions follow this pattern:
 | What | Name |
 | --- | --- |
 | Infra Distr Docker deployment (`api-gateway-infra`) | `{readable-slug}-api-gateway-infra` |
-| Gateway Distr Helm deployment (`api-gateway`) | `{readable-slug}-api-gateway` |
-| Kubernetes namespace | `{readable-slug}-api-gateway` |
-| Helm release name | `{readable-slug}-api-gateway` |
+| Gateway cluster identity (`GATEWAY_DISTR_DEPLOYMENT_NAME`) | `{readable-slug}-api-gateway` |
+| Kubernetes namespace | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
+| Helm release name | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
 
 ### 3. Admin: Clone the runbook
 
@@ -120,7 +121,8 @@ target exists.
 ### 8. Admin: Create the api-gateway Helm deployment
 
 - [ ] Create the **api-gateway** Helm deployment object
-- [ ] Deployment / target name = `GATEWAY_DISTR_DEPLOYMENT_NAME`
+- [ ] Deployment / target name = `GATEWAY_DISTR_PORTAL_NAME` if set, otherwise `GATEWAY_DISTR_DEPLOYMENT_NAME`
+- [ ] Namespace and Helm release = `GATEWAY_DISTR_DEPLOYMENT_NAME`
 - [ ] Leave Helm values empty
 - [ ] Deploy and copy the Hub `kubectl apply -n … -f "https://…"` connect command - needed for the next step
 
@@ -135,7 +137,8 @@ cd api-gateway/aws/bootstrap
 
 The first argument is the infra `DEPLOY_NAME`, which is also the EKS cluster
 name. The gateway namespace is parsed separately from the Hub command and must
-equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The script runs `kubectl` over SSM on the
+equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The Hub target name may differ when
+`GATEWAY_DISTR_PORTAL_NAME` is set. The script runs `kubectl` over SSM on the
 bootstrap host and installs `distr-agent` pods **in EKS** (not on the EC2).
 Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
 
@@ -153,21 +156,17 @@ With `DASHBOARD_ALLOWED_IPS` set, `/dashboard` and every descendant route return
 health/readiness, or optional public admin (`/admin/v1`) routes. If the admin's
 public IP changes, update the field and trigger the infra deployment again.
 
-To detect the current computer's public IP, add it through the Kubernetes-owned
-ALB rule, and verify reconciliation:
+To detect the current computer's public IP and print the Hub field:
 
 ```bash
 cd api-gateway/aws/bootstrap
-./scripts/add-dashboard-ip.sh \
-  <INFRA_DEPLOY_NAME> \
-  <GATEWAY_DISTR_DEPLOYMENT_NAME>
+./scripts/add-dashboard-ip.sh
 ```
 
-The script opens `aws login`, converts the current public IPv4 to `/32`, patches
-only the dashboard allow condition through the SSM bootstrap host, and prints
-the resulting `DASHBOARD_ALLOWED_IPS=...` value. Copy that value into the
-private Distr infra deployment environment so a later Helm deployment retains
-the complete list.
+Copy `DASHBOARD_ALLOWED_IPS=...` into the private Distr infra deployment
+environment (merge with any IPs already there, maximum three) and trigger the
+infra Application again. Helm applies the list. Do not kubectl-annotate the
+live Ingress; that steals the field from Helm and breaks the next upgrade.
 
 ### 11. Admin: Dashboard login and invite
 

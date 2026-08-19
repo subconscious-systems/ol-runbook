@@ -32,7 +32,7 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | `scripts/run-agent.sh` | Ensure host + Distr Docker connect via SSM |
 | `scripts/connect-k8s-agent.sh` | Ensure host + install Distr K8s agent into an explicit EKS cluster via SSM |
 | `scripts/connect.sh` | Break-glass SSM shell on this host (optional kubeconfig refresh) |
-| `scripts/add-dashboard-ip.sh` | AWS login + add this computer's public IPv4 to the dashboard-only ALB allow rule |
+| `scripts/add-dashboard-ip.sh` | Detect this computer's public IPv4 and print Hub `DASHBOARD_ALLOWED_IPS` |
 | `scripts/rotate-app-secret.sh` | Rotate csrf / encryption via SSM + runner image |
 | `scripts/teardown-platform.sh` | Destroy platform Terraform via SSM + runner image |
 | `scripts/tests/test-rotate-app-secret.sh` | CLI contract unit tests (no AWS) |
@@ -50,7 +50,7 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | Re-run `./scripts/run-agent.sh` | Ensures host setup, then re-runs Docker-agent connect. |
 | Re-run `./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME> '<Hub command>'` | Ensures host setup, then re-applies K8s agent manifests to the explicit EKS cluster and Hub-command gateway namespace. |
 | Re-run `./scripts/connect.sh` | Opens a new SSM session (optional kubeconfig refresh). |
-| Re-run `./scripts/add-dashboard-ip.sh <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>` | Re-detects this computer's public IPv4 and adds it idempotently to the dashboard source condition. |
+| Re-run `./scripts/add-dashboard-ip.sh` | Re-detects this computer's public IPv4 and prints `DASHBOARD_ALLOWED_IPS` to persist in Hub. |
 | Re-run `./scripts/rotate-app-secret.sh` | Non-interactive SSM rotate of csrf or encryption (see [secret-rotation.md](../secret-rotation.md)). |
 | `./scripts/teardown-platform.sh --yes …` | Destroys the **platform** Terraform stack (not this EC2). See [../teardown.md](../teardown.md). |
 
@@ -95,15 +95,15 @@ undeploy the infra Docker app in Hub, then optionally destroy this host.
 Run this on each computer or network that should administer the dashboard:
 
 ```bash
-./scripts/add-dashboard-ip.sh \
-  <INFRA_DEPLOY_NAME> \
-  <GATEWAY_DISTR_DEPLOYMENT_NAME>
+./scripts/add-dashboard-ip.sh
+# optional: merge with IPs already in Hub
+./scripts/add-dashboard-ip.sh --existing 198.51.100.10,203.0.113.20
 ```
 
-The script opens `aws login`, detects the current public IPv4, patches the
-Kubernetes-managed ALB condition through SSM, and verifies the listener rule.
-It is idempotent and supports up to three source addresses. Copy its final
-`DASHBOARD_ALLOWED_IPS=...` line into the private Distr infra environment.
+The script detects the current public IPv4 and prints `DASHBOARD_ALLOWED_IPS=...`.
+Copy that value into the private Distr infra environment (maximum three
+addresses) and re-run the infra Application so Helm owns the Ingress rules.
+Do not kubectl-annotate the live Ingress.
 
 ## Hub env notes (after bootstrap)
 

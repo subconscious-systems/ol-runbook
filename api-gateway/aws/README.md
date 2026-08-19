@@ -46,7 +46,8 @@ Implications:
 - Hub hand-edits to gateway Helm overrides are **overwritten** on the next successful auto-deploy. Put lasting customizations on the infra env / fragment path, or set `GATEWAY_AUTO_DEPLOY=false` and manage values yourself.
 - `GATEWAY_CHART_VERSION` selects the Distr application **version** only (`latest` / `nochange` / a version name like `0.15.0`). It does not change how values YAML is built.
 - The first infra run keeps `GATEWAY_AUTO_DEPLOY=false` until a Kubernetes
-  deployment target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. A second,
+  deployment target named `GATEWAY_DISTR_PORTAL_NAME` (defaults to
+  `GATEWAY_DISTR_DEPLOYMENT_NAME`) exists. A second,
   intentional infra run (after the K8s agent is connected) installs the gateway.
 - Gateway chart applies are in-place Helm rolling updates (`maxUnavailable: 0`),
   not a second stack. Typical short agent turns can survive a gateway or adapter
@@ -134,7 +135,7 @@ Control path: One time bootstrap on the EC2 where the Docker agent runs. Then po
 | GPUs (ideal) | Customer GPU hosts procured and ready for later worker configuration. The gateway can complete first; then see [gpu-deployment/README.md](../../gpu-deployment/README.md) |
 | Datadog | Application key + API key ready for this deploy (sample path enables Datadog; both required when `DATADOG_ENABLED=true`) |
 | Network | Non-overlapping `VPC_CIDR` (`/16` recommended) |
-| Dashboard access | Up to three stable public browser IPv4 addresses in `DASHBOARD_ALLOWED_IPS`; changing networks requires updating the value and redeploying infra |
+| Dashboard access | Up to three stable public browser IPv4 addresses in `DASHBOARD_ALLOWED_IPS`; changing networks requires updating the Hub field and re-running infra so Helm applies the Ingress |
 | Distr | Customer org access; ability to create a customer PAT |
 | Bootstrap shell | Laptop with AWS CLI is easiest; any shell that can run Terraform against the account also works (for example an SSM session / bastion) |
 | Bootstrap IAM | Enough to create EC2, EIP, security group, IAM role + instance profile + policy attach (often AdministratorAccess-equivalent on day-0) |
