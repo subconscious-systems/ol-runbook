@@ -31,6 +31,7 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 | [api-gateway/aws/bootstrap/](api-gateway/aws/bootstrap/)                             | Day-0 Docker agent EC2 bootstrap (canonical)                           |
 | [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md)             | AWS Secrets Manager + ESO cluster secrets                              |
 | [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md)             | Rotate csrf / encryption, RDS/Valkey, org and worker keys              |
+| [api-gateway/aws/teardown.md](api-gateway/aws/teardown.md)                           | Destroy the AWS platform stack (Helm undeploy, then SSM terraform destroy) |
 | [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md)             | Common hiccups, rollback notes                                         |
 | [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env                            |
 | [api-gateway/gcp/README.md](api-gateway/gcp/README.md)                               | GCP greenfield production-parity architecture and release gate         |

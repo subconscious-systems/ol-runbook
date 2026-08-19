@@ -2,7 +2,7 @@
 
 Customer-facing architecture for deploying the Subconscious Inference System **API Gateway** on AWS with Distr.
 
-For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Datadog: [datadog-operations.md](datadog-operations.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
+For trust and security framing (Assisted vs Fully Self-Managed), see [TRUST_MODEL.md](../../TRUST_MODEL.md). Step-by-step setup: [instructions.md](instructions.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Cost estimate: [cost-estimate.md](cost-estimate.md). Datadog: [datadog-operations.md](datadog-operations.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Teardown: [teardown.md](teardown.md). Day-0 host bootstrap: [bootstrap/](bootstrap/).
 
 ## Architecture overview
 
@@ -53,9 +53,9 @@ Implications:
   roll; hour-long streams can still be cut at the five-minute grace deadline.
   A singleton router image change, an EKS node drain, or a Terraform replace of
   RDS / Valkey / ACM is not a zero-downtime event. Infra auto-deploy runs only
-  when the Terraform plan is expand-safe. Use `GATEWAY_AUTO_DEPLOY=false` for
-  contract or teardown applies, and `ALLOW_HELM_DEPENDENCY_REPLACE=true` only
-  when you intentionally replace a Helm-facing dependency.
+  when the Terraform plan is expand-safe. Helm-facing replace plans fail closed.
+  Add another public name with `GATEWAY_EXTRA_INGRESS_HOSTS`; tear the stack
+  down with [teardown.md](teardown.md).
 
 ### Cluster secrets
 

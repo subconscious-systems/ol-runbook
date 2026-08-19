@@ -2,7 +2,7 @@
 
 Common questions for deploying the Subconscious Inference System.
 
-AWS: [architecture](api-gateway/aws/README.md) · [setup](api-gateway/aws/instructions.md) · [bootstrap](api-gateway/aws/bootstrap/) · [secrets](api-gateway/aws/gateway-secrets.md) · [rotation](api-gateway/aws/secret-rotation.md) · [troubleshooting](api-gateway/aws/troubleshooting.md).
+AWS: [architecture](api-gateway/aws/README.md) · [setup](api-gateway/aws/instructions.md) · [bootstrap](api-gateway/aws/bootstrap/) · [secrets](api-gateway/aws/gateway-secrets.md) · [rotation](api-gateway/aws/secret-rotation.md) · [teardown](api-gateway/aws/teardown.md) · [troubleshooting](api-gateway/aws/troubleshooting.md).
 
 GCP: [architecture and release gate](api-gateway/gcp/README.md) · [setup](api-gateway/gcp/instructions.md) · [bootstrap](api-gateway/gcp/bootstrap/) · [secrets](api-gateway/gcp/gateway-secrets.md) · [rotation](api-gateway/gcp/secret-rotation.md) · [troubleshooting](api-gateway/gcp/troubleshooting.md).
 

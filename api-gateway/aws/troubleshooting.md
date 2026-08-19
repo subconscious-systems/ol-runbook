@@ -129,5 +129,5 @@ Work with your FDE in the event of a rollback with a DB migration. They may elec
 
 ### RDS / bootstrap destroy notes
 
-- Platform RDS day-0 defaults typically include backup retention, deletion protection, and a final snapshot on destroy.
-- `terraform destroy` in [bootstrap/](bootstrap/) only destroys the Docker-agent EC2 host, **not** the platform VPC/EKS/RDS created by the infra runner.
+- Platform teardown is [teardown.md](teardown.md): undeploy Helm in Hub, take an RDS snapshot if you need the data, then `./scripts/teardown-platform.sh --yes …` from [bootstrap/](bootstrap/). The script disables RDS deletion protection and skips AWS's automatic final snapshot.
+- `terraform destroy` in [bootstrap/](bootstrap/) only destroys the Docker-agent EC2 host, **not** the platform VPC/EKS/RDS created by the infra runner. Leave the host until platform teardown has finished.
