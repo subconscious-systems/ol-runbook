@@ -28,7 +28,10 @@ Two different signals:
 
 Missing K8s agent target does **not** hard-fail the runner. Keep
 `GATEWAY_AUTO_DEPLOY=false` until the target exists; if enabled early,
-auto-deploy soft-skips.
+auto-deploy soft-skips. Auto-deploy looks up the target named
+`GATEWAY_DISTR_PORTAL_NAME` (defaults to `GATEWAY_DISTR_DEPLOYMENT_NAME`).
+After a Hub-only rename, set `GATEWAY_DISTR_PORTAL_NAME` rather than changing
+the cluster identity. Logs: `no Distr deployment target named …`.
 
 #### Debug on the bootstrap EC2
 
@@ -94,7 +97,9 @@ Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Use `./scripts/connect.s
 
 ### Naming limits
 
-Keep Distr deployment names **32 characters or fewer**. Release name, namespace, and K8s target must equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. See [FAQ.md](../../FAQ.md).
+Keep Distr deployment names **32 characters or fewer**. Namespace and Helm
+release must equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The Hub Kubernetes target
+may use `GATEWAY_DISTR_PORTAL_NAME` when it differs. See [FAQ.md](../../FAQ.md).
 
 ## Secrets / bootstrap
 

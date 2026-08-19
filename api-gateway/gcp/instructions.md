@@ -49,13 +49,17 @@ disposable sandbox trial and must be resolved/recorded before promotion.
 
 ## 2. Admin: choose the two environment identities
 
-Keep deployment names at most 32 characters.
+Keep deployment names at most 32 characters. Greenfield uses the same string
+for the Hub Kubernetes target, namespace, and Helm release
+(`GATEWAY_DISTR_DEPLOYMENT_NAME`). If the Hub target is later renamed, set
+`GATEWAY_DISTR_PORTAL_NAME` to that Hub name and leave the cluster identity
+unchanged. See [FAQ.md](../../FAQ.md).
 
 | Item | Sandbox example | Production example |
 | --- | --- | --- |
 | GCP project | `acme-gateway-sbox` | `acme-gateway-prod` |
 | Infra Distr / GKE cluster | `acme-sbox-gw-infra` | `acme-prod-gw-infra` |
-| Gateway Distr / namespace / release | `acme-sbox-gateway` | `acme-prod-gateway` |
+| Gateway namespace / Helm release | `acme-sbox-gateway` | `acme-prod-gateway` |
 | Cloud DNS managed zone | `acme-gw-sbox` | `acme-gw-prod` |
 | Hostname | `api.sbox.example.com` | `api.example.com` |
 | Datadog env | `acme-gateway-sbox` | `acme-gateway-prod` |
@@ -313,9 +317,9 @@ platform verification and Secret Manager/ESO setup before continuing.
 
 Create the `api-gateway` Helm deployment:
 
-- deployment/target name = gateway deployment name;
-- namespace = same gateway deployment name;
-- Helm release = same gateway deployment name;
+- Hub target name = `GATEWAY_DISTR_PORTAL_NAME` if set, otherwise the gateway cluster identity;
+- namespace = `GATEWAY_DISTR_DEPLOYMENT_NAME`;
+- Helm release = `GATEWAY_DISTR_DEPLOYMENT_NAME`;
 - leave values empty; the infra runner owns the generated fragment.
 
 Copy the Hub Kubernetes-agent connect command and run:

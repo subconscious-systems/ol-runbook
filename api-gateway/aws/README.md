@@ -46,7 +46,8 @@ Implications:
 - Hub hand-edits to gateway Helm overrides are **overwritten** on the next successful auto-deploy. Put lasting customizations on the infra env / fragment path, or set `GATEWAY_AUTO_DEPLOY=false` and manage values yourself.
 - `GATEWAY_CHART_VERSION` selects the Distr application **version** only (`latest` / `nochange` / a version name like `0.15.0`). It does not change how values YAML is built.
 - The first infra run keeps `GATEWAY_AUTO_DEPLOY=false` until a Kubernetes
-  deployment target named `GATEWAY_DISTR_DEPLOYMENT_NAME` exists. A second,
+  deployment target named `GATEWAY_DISTR_PORTAL_NAME` (defaults to
+  `GATEWAY_DISTR_DEPLOYMENT_NAME`) exists. A second,
   intentional infra run (after the K8s agent is connected) installs the gateway.
 - Gateway chart applies are in-place Helm rolling updates (`maxUnavailable: 0`),
   not a second stack. Typical short agent turns can survive a gateway or adapter

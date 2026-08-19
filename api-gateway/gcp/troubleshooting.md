@@ -47,8 +47,11 @@ Required order:
 4. second infra apply with auto-deploy enabled.
 
 An empty gateway deployment before the Kubernetes target exists is expected to
-do nothing. Hand-edited Hub Helm values will be overwritten by the next runner
-fragment.
+do nothing. Auto-deploy looks up the Hub target named
+`GATEWAY_DISTR_PORTAL_NAME` (defaults to `GATEWAY_DISTR_DEPLOYMENT_NAME`).
+After a Hub-only rename, set `GATEWAY_DISTR_PORTAL_NAME` rather than changing
+the cluster identity. Logs: `no Distr deployment target named …`.
+Hand-edited Hub Helm values will be overwritten by the next runner fragment.
 
 ## Foundation projects and APIs
 
