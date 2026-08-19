@@ -114,19 +114,61 @@ cleanup failures.
 
 ### 4. Destroy the platform through the released infra path
 
-Use the exact release's documented destroy mode; do not invent an environment
-flag. Run a plan and require it to target only the selected environment:
+Keep Hub `GCP_DELETION_PROTECTION=true` for day-to-day applies. Do not flip it
+false in Hub as a teardown step. After Helm undeploy and `distr-agent`
+removal, run the bootstrap wrapper; it disables live GKE / Cloud SQL /
+Memorystore / Secret Manager deletion protection via `gcloud`, then
+`terraform destroy`. Cloud SQL on-delete final backup stays enabled.
+
+Use the exact release's runner image. The destroy targets only the selected
+environment:
 
 - GKE/node pools/add-ons/WIF/ESO;
 - Cloud SQL, Redis, Secret Manager bundles;
 - GCE Ingress/LB health checks/backends/forwarding rules/static IP/certificate;
 - Cloud DNS record (not an externally shared zone);
 - platform VPC/subnets/ranges/router/NAT;
-- environment-scoped IAM and state objects.
+- environment-scoped IAM.
 
-Cloud SQL deletion protection and final-backup controls should block accidental
-destruction. Disable them only in an approved preparatory apply after the final
-backup is verified.
+It does not destroy the tfstate bucket, Datadog org integration, or bootstrap
+VM/projects.
+
+Prerequisites:
+
+- Bootstrap Terraform applied so project/region/zone/VM outputs resolve
+- IAP + OS Login access from your laptop (`gcloud`)
+- Infra Docker app still present/idle on the host (the script copies Hub env
+  from the runner container)
+- Gateway Helm app already undeployed in Hub, then `distr-agent` removed
+
+Copy-paste (from `api-gateway/gcp/bootstrap`):
+
+```bash
+./scripts/teardown-platform.sh --yes <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+```
+
+Example:
+
+```bash
+./scripts/teardown-platform.sh --yes sandbox acme-api-gateway-infra acme-api-gateway
+```
+
+| Arg | Meaning |
+| --- | --- |
+| `--yes` | Required. Refuses to destroy without it. |
+| `sandbox` or `prod` | Selects the bootstrap project/VM |
+| `INFRA_DEPLOY_NAME` | Infra Distr Docker / Terraform name prefix. GKE is `<name>-gke`. Must match Hub `DEPLOY_NAME`. |
+| `GATEWAY_DEPLOY_NAME` | Gateway Distr Helm deploy name / Kubernetes namespace |
+
+Optional: `RUNNER_IMAGE=registry.distr.sh/subconscious/api-gateway-infra/runner:<tag>` if image discovery fails.
+
+The script fails if `GATEWAY_DEPLOY_NAME` still has gateway, adapter, or
+router Deployments. `distr-agent` is ignored. Missing namespace is OK.
+Confirm Cloud SQL backup/PITR requirements before you run it; the script does
+not create an extra snapshot.
+
+This is not a Hub infra apply. Helm-facing Terraform replace stays fail-closed
+on the runner; destroy is this script only.
 
 After destroy, inspect for orphans:
 

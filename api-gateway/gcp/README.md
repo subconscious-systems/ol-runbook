@@ -33,7 +33,7 @@ shared.
 | Network | Custom VPC, private Google access, separate Pod/Service ranges, Cloud NAT |
 | PostgreSQL | Cloud SQL PostgreSQL 16, Enterprise, regional HA, private IP only, automated backups and PITR |
 | Cache | Memorystore for Redis 7, `STANDARD_HA`, private service access, AUTH enabled, server-authenticated TLS |
-| Ingress | GCE Ingress, reserved global static IP, `ManagedCertificate`, `FrontendConfig` HTTP→HTTPS redirect, `BackendConfig.timeoutSec=900` |
+| Ingress | GCE Ingress, reserved global static IP, `ManagedCertificate`, `FrontendConfig` HTTP→HTTPS redirect, public `BackendConfig` (`timeoutSec: 900`, HTTP `/readyz` on 31080, 270s connection draining) |
 | Secrets | Secret Manager → External Secrets Operator (ESO) using Workload Identity Federation for GKE |
 | Bootstrap | Private `e2-standard-2` GCE VM, attached service account, Cloud NAT, IAP + OS Login; no service-account key or public IP |
 | Observability | Datadog GCP STS integration, GKE Agent, managed gateway assets, and direct Cloud SQL PostgreSQL DBM |

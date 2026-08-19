@@ -7,7 +7,8 @@ and **Admin** (customer cloud/platform administrator).
 Architecture: [README.md](README.md). Bootstrap: [bootstrap/](bootstrap/).
 Secrets: [gateway-secrets.md](gateway-secrets.md). Datadog:
 [datadog-operations.md](datadog-operations.md). Troubleshooting:
-[troubleshooting.md](troubleshooting.md).
+[troubleshooting.md](troubleshooting.md). Teardown:
+[rollback-teardown.md](rollback-teardown.md).
 
 ## Non-negotiable stop conditions
 

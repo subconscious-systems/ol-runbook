@@ -8,7 +8,7 @@ RDS snapshots are operator-owned. Take and retain a snapshot in AWS before you d
 
 1. Optional: create or retain an RDS snapshot in the AWS console or CLI.
 2. In Distr Hub, undeploy or pause the **gateway Helm** app so the Kubernetes agent does not reinstall it.
-3. From `api-gateway/aws/bootstrap`, run the teardown script (fails if the gateway namespace still has Deployments).
+3. From `api-gateway/aws/bootstrap`, run the teardown script (fails if the gateway namespace still has gateway, adapter, or router Deployments; `distr-agent` is ignored).
 4. In Distr Hub, undeploy or pause the **infra Docker** app so a later revision does not recreate the stack.
 5. Optional: destroy the bootstrap EC2 after platform destroy has finished.
 
@@ -46,7 +46,7 @@ Optional: `RUNNER_IMAGE=registry.distr.sh/subconscious/api-gateway-infra/runner:
 What it does on the bootstrap host:
 
 - Refreshes kubeconfig for the EKS cluster
-- Fails if `GATEWAY_DEPLOY_NAME` still has Deployments (missing namespace is OK)
+- Fails if `GATEWAY_DEPLOY_NAME` still has gateway, adapter, or router Deployments (`distr-agent` is ignored; missing namespace is OK)
 - Disables RDS `deletion_protection` on `<INFRA_DEPLOY_NAME>-postgres`
 - Runs `terraform destroy` against `api-gateway-infra/<INFRA_DEPLOY_NAME>/terraform.tfstate` with `rds_skip_final_snapshot=true`
 - Leaves the account-global Datadog AWS integration, the tfstate bucket, and the bootstrap EC2 in place
