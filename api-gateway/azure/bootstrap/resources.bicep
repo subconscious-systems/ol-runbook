@@ -19,11 +19,11 @@ var contributorRoleId = subscriptionResourceId(
 )
 var userAccessAdministratorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  'f1a07417-d97a-45cb-824c-7a7467783830'
+  '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 )
 var storageBlobDataContributorRoleId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  'ba92f5b4-2d11-453d-a403-e96b0029c9d'
+  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 )
 
 resource identity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -165,7 +165,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-11-01' = {
   }
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_B2s'
+      vmSize: 'Standard_D2s_v7'
     }
     networkProfile: {
       networkInterfaces: [
@@ -216,7 +216,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-11-01' = {
 }
 
 resource runnerContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, identity.properties.principalId, contributorRoleId)
+  name: guid(resourceGroup().id, identityName, contributorRoleId)
   scope: resourceGroup()
   properties: {
     principalId: identity.properties.principalId
@@ -226,7 +226,7 @@ resource runnerContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' 
 }
 
 resource runnerUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, identity.properties.principalId, userAccessAdministratorRoleId)
+  name: guid(resourceGroup().id, identityName, userAccessAdministratorRoleId)
   scope: resourceGroup()
   properties: {
     principalId: identity.properties.principalId
@@ -236,7 +236,7 @@ resource runnerUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' =
 }
 
 resource runnerStateBlob 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storage.id, identity.properties.principalId, storageBlobDataContributorRoleId)
+  name: guid(storage.id, identityName, storageBlobDataContributorRoleId)
   scope: storage
   properties: {
     principalId: identity.properties.principalId

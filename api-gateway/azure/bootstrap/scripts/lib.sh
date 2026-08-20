@@ -262,7 +262,25 @@ distr_upsert_secret() {
     return 0
   fi
   secrets="$(distr_api_request GET "/secrets")"
-  secret_id="$(jq -r --arg key "${key}" '.[] | select(.key == $key) | .id' <<<"${secrets}" | head -n 1)"
+  if [[ -n "${DISTR_CUSTOMER_ORG_ID:-}" ]]; then
+    secret_id="$(
+      jq -r --arg key "${key}" --arg customerOrganizationId "${DISTR_CUSTOMER_ORG_ID}" '
+        .[]
+        | select(.key == $key)
+        | select((.customerOrganization.id // .customerOrganizationId // "") == $customerOrganizationId)
+        | .id
+      ' <<<"${secrets}" | head -n 1
+    )"
+  else
+    secret_id="$(
+      jq -r --arg key "${key}" '
+        .[]
+        | select(.key == $key)
+        | select((.customerOrganization.id // .customerOrganizationId // null) == null)
+        | .id
+      ' <<<"${secrets}" | head -n 1
+    )"
+  fi
   body="$(mktemp)"
   chmod 600 "${body}"
   if [[ -n "${secret_id}" ]]; then
@@ -299,11 +317,24 @@ distr_application_latest_version() {
 
 distr_find_target_by_name() {
   local name="$1"
+  local targets
   if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
     return 0
   fi
-  distr_api_request GET "/deployment-targets" \
-    | jq -c --arg name "${name}" '.[] | select(.name == $name)'
+  targets="$(distr_api_request GET "/deployment-targets")"
+  if [[ -n "${DISTR_CUSTOMER_ORG_ID:-}" ]]; then
+    jq -c --arg name "${name}" --arg customerOrganizationId "${DISTR_CUSTOMER_ORG_ID}" '
+      .[]
+      | select(.name == $name)
+      | select((.customerOrganization.id // .customerOrganizationId // "") == $customerOrganizationId)
+    ' <<<"${targets}"
+  else
+    jq -c --arg name "${name}" '
+      .[]
+      | select(.name == $name)
+      | select((.customerOrganization.id // .customerOrganizationId // null) == null)
+    ' <<<"${targets}"
+  fi
 }
 
 distr_create_docker_target() {
@@ -339,7 +370,7 @@ distr_ensure_docker_target() {
   if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
     DISTR_TARGET_CREATED=1
     export DISTR_TARGET_CREATED
-    jq -n --arg name "${name}" '{id:"dry-run-target",name:$name,type:"docker",deployments":[]}'
+    jq -n --arg name "${name}" '{id:"dry-run-target",name:$name,type:"docker",deployments:[]}'
     return 0
   fi
   DISTR_TARGET_CREATED=1
@@ -350,6 +381,10 @@ distr_ensure_docker_target() {
 distr_request_target_access() {
   local target_id="$1"
   local body
+  if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
+    printf '{"connectUrl":"https://example.invalid/distr-dry-run-agent"}\n'
+    return 0
+  fi
   body="$(mktemp)"
   chmod 600 "${body}"
   printf '{}\n' >"${body}"

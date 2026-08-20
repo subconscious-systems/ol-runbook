@@ -21,6 +21,27 @@ grep -Fq 'az deployment sub create' "${SCRIPT}"
 grep -Fq 'az network dns zone list' "${LIB}"
 grep -Fq 'Microsoft.ContainerService' "${LIB}"
 
+# Internal and customer-scoped targets may share a display name. Reusing a
+# target from the wrong scope also resolves Hub Secrets from the wrong scope.
+# shellcheck source=../lib.sh
+source "${LIB}"
+distr_api_request() {
+  printf '%s\n' '[
+    {"id":"internal-target","name":"same-name","type":"docker","customerOrganization":null},
+    {"id":"customer-target","name":"same-name","type":"docker","customerOrganization":{"id":"customer-one"}}
+  ]'
+}
+DISTR_DRY_RUN=0
+unset DISTR_CUSTOMER_ORG_ID
+test "$(distr_find_target_by_name same-name | jq -r '.id')" = "internal-target"
+DISTR_CUSTOMER_ORG_ID=customer-one
+test "$(distr_find_target_by_name same-name | jq -r '.id')" = "customer-target"
+unset DISTR_CUSTOMER_ORG_ID
+DISTR_DRY_RUN=1
+test "$(distr_request_target_access dry-run-target | jq -r '.connectUrl')" = \
+  "https://example.invalid/distr-dry-run-agent"
+DISTR_DRY_RUN=0
+
 for file in \
   "${AZURE_DIR}/bootstrap/main.bicep" \
   "${AZURE_DIR}/bootstrap/resources.bicep"; do
