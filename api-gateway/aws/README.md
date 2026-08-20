@@ -149,7 +149,7 @@ Naming conventions: [FAQ.md](../../FAQ.md). Example infra env: [sample-gateway-i
 
 1. [instructions.md](instructions.md): end-to-end FDE + admin checklist
 2. [eks-upgrade.md](eks-upgrade.md): staged EKS 1.34→1.35 operation
-3. [cost-estimate.md](cost-estimate.md): monthly AWS gateway planning estimate
+3. [cost-estimate.md](cost-estimate.md): monthly AWS EKS 1.35 gateway planning estimate
 4. [bootstrap/](bootstrap/): create the Docker agent EC2
 5. [rollback.md](rollback.md): release rollback
 6. [troubleshooting.md](troubleshooting.md): common hiccups
