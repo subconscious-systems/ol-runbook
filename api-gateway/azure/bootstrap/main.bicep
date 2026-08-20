@@ -83,32 +83,13 @@ resource dnsZone 'Microsoft.Network/dnsZones@2023-07-01-preview' existing = {
   scope: dnsRg
 }
 
-var dnsZoneContributorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'befefa01-2a29-4197-83a8-272ff33ce314'
-)
-var userAccessAdministratorRoleId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  'f1a07417-d97a-45cb-824c-7a7467783830'
-)
-
-resource runnerDnsContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(dnsZone.id, foundation.outputs.identityPrincipalId, dnsZoneContributorRoleId)
-  scope: dnsZone
-  properties: {
-    principalId: foundation.outputs.identityPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: dnsZoneContributorRoleId
-  }
-}
-
-resource runnerDnsUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(dnsZone.id, foundation.outputs.identityPrincipalId, userAccessAdministratorRoleId)
-  scope: dnsZone
-  properties: {
-    principalId: foundation.outputs.identityPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: userAccessAdministratorRoleId
+module dnsRoles 'dns-role-assignments.bicep' = {
+  name: '${namePrefix}-dns-roles'
+  scope: dnsRg
+  params: {
+    dnsZoneName: dnsZone.name
+    runnerIdentityName: identityName
+    runnerPrincipalId: foundation.outputs.identityPrincipalId
   }
 }
 
