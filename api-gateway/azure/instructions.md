@@ -61,13 +61,18 @@ Optional flags:
 
 ```bash
 ./scripts/setup-azure.sh \
-  --location eastus2 \
+  --location centralus \
+  --managed-redis-location northcentralus \
   --dns-zone /subscriptions/.../resourceGroups/dns-rg/providers/Microsoft.Network/dnsZones/example.com \
   --vnet-cidr 10.72.0.0/16 \
   --yes
 ```
 
 Use `--dry-run` to render the local plan and verify Distr request shapes without changing Azure or Distr.
+
+The normal `centralus` path automatically puts only the private Managed Redis
+instance in nearby `northcentralus` to avoid Central US capacity failures. AKS,
+PostgreSQL, the VNet, and the runner remain in `centralus`.
 
 ### 5. What setup creates automatically
 

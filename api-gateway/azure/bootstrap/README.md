@@ -39,13 +39,19 @@ Generated support files are written under `api-gateway/azure/.generated/<deploym
 
 ```bash
 ./scripts/setup-azure.sh \
-  --location eastus2 \
+  --location centralus \
   --dns-zone /subscriptions/.../resourceGroups/dns-rg/providers/Microsoft.Network/dnsZones/example.com \
   --infra-application-id <uuid> \
   --infra-version-id <uuid> \
   --gateway-application-id <uuid> \
+  --managed-redis-location northcentralus \
   --vnet-cidr 10.72.0.0/16 \
   --yes
 ```
 
 Use `--no-wait` when another operator will monitor Distr. Use `--dry-run` for local shape checks without changing Azure or Distr.
+
+The `centralus` easy path automatically places the private Managed Redis
+instance in nearby `northcentralus`, avoiding the small-tier capacity failures
+seen in Central US while keeping AKS and PostgreSQL together. Override that
+single service region with `--managed-redis-location` if needed.

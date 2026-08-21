@@ -6,12 +6,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 
-LOCATION="${AZURE_LOCATION:-eastus2}"
+LOCATION="${AZURE_LOCATION:-centralus}"
 DNS_ZONE_ID="${AZURE_DNS_ZONE_ID:-}"
 INFRA_APPLICATION_ID="${API_GATEWAY_INFRA_AZURE_APPLICATION_ID:-${DISTR_INFRA_APPLICATION_ID:-}}"
 GATEWAY_APPLICATION_ID="${DISTR_GATEWAY_APPLICATION_ID:-df563de2-25e4-4d8b-b24c-53bb4ad11086}"
 INFRA_VERSION_ID="${DISTR_INFRA_APPLICATION_VERSION_ID:-}"
 GATEWAY_VERSION_TOKEN="${GATEWAY_CHART_VERSION:-latest}"
+MANAGED_REDIS_SKU="${AZURE_MANAGED_REDIS_SKU:-Balanced_B1}"
+MANAGED_REDIS_LOCATION="${AZURE_MANAGED_REDIS_LOCATION:-}"
 NO_WAIT=0
 ASSUME_YES=0
 
@@ -28,6 +30,7 @@ Options:
   --infra-application-id UUID
   --infra-version-id UUID
   --gateway-application-id UUID
+  --managed-redis-location REGION
   --vnet-cidr CIDR
   --yes
   --no-wait
@@ -42,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --infra-application-id) INFRA_APPLICATION_ID="$2"; shift 2 ;;
     --infra-version-id) INFRA_VERSION_ID="$2"; shift 2 ;;
     --gateway-application-id) GATEWAY_APPLICATION_ID="$2"; shift 2 ;;
+    --managed-redis-location) MANAGED_REDIS_LOCATION="$2"; shift 2 ;;
     --vnet-cidr) VNET_CIDR="$2"; shift 2 ;;
     --yes) ASSUME_YES=1; shift ;;
     --no-wait) NO_WAIT=1; shift ;;
@@ -50,6 +54,17 @@ while [[ $# -gt 0 ]]; do
     *) usage; exit 2 ;;
   esac
 done
+
+# Central US has repeatedly returned InsufficientCapacity for small Managed
+# Redis tiers. Keep AKS/PostgreSQL close to the customer and place only the
+# private Redis service in the nearest practical fallback region by default.
+if [[ -z "${MANAGED_REDIS_LOCATION}" ]]; then
+  if [[ "${LOCATION}" == "centralus" ]]; then
+    MANAGED_REDIS_LOCATION="northcentralus"
+  else
+    MANAGED_REDIS_LOCATION="${LOCATION}"
+  fi
+fi
 
 for tool in az jq curl openssl python3 sed tr od cut ssh-keygen; do
   azgw_need "${tool}"
@@ -147,7 +162,8 @@ CLUSTER_ENDPOINT_PUBLIC_ACCESS=false
 CLUSTER_ENDPOINT_PUBLIC_ACCESS_CIDRS=
 AZURE_POSTGRES_SKU=GP_Standard_D2ds_v5
 AZURE_POSTGRES_STORAGE_MB=65536
-AZURE_MANAGED_REDIS_SKU=Balanced_B3
+AZURE_MANAGED_REDIS_SKU=${MANAGED_REDIS_SKU}
+AZURE_MANAGED_REDIS_LOCATION=${MANAGED_REDIS_LOCATION}
 DATADOG_ENABLED=false
 DATADOG_SITE=datadoghq.com
 DATADOG_ENV=${DEPLOY_SLUG}
@@ -186,6 +202,7 @@ Azure gateway setup will create or update:
   Resource group: ${RESOURCE_GROUP_NAME}
   Bootstrap VM:   ${VM_NAME}
   VNet:           ${VNET_NAME} (${VNET_CIDR})
+  Managed Redis:  ${MANAGED_REDIS_LOCATION} (${MANAGED_REDIS_SKU})
   DNS zone:       ${DNS_ZONE_NAME} (${DNS_ZONE_RESOURCE_GROUP})
   Hostname:       https://${GATEWAY_HOSTNAME}/dashboard
 
@@ -196,13 +213,14 @@ EOF
 fi
 
 azgw_register_providers
+azgw_validate_postgres_location "${LOCATION}"
 
 azgw_log "deploying Azure bootstrap foundation"
 if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
   azgw_log "DRY_RUN would run az deployment sub create"
 else
   az deployment sub create \
-    --name "${DEPLOY_SLUG}-gateway-bootstrap" \
+    --name "${DEPLOY_SLUG}-gateway-bootstrap-${LOCATION}" \
     --location "${LOCATION}" \
     --template-file "${AZGW_BOOTSTRAP_DIR}/main.bicep" \
     --parameters \
@@ -223,7 +241,7 @@ else
     --only-show-errors
 fi
 
-azgw_log "creating scoped Hub Secrets"
+azgw_log "creating Hub Secrets for the selected Distr scope"
 distr_upsert_secret "DISTR_TOKEN" "${DISTR_TOKEN}"
 distr_upsert_secret "${BOOTSTRAP_PASSWORD_SECRET}" "${BOOTSTRAP_PASSWORD}"
 
@@ -235,11 +253,12 @@ if [[ -z "${INFRA_VERSION_ID}" ]]; then
 fi
 
 azgw_log "creating or reusing Distr Docker target and deployment"
-TARGET_JSON="$(distr_ensure_docker_target "${DEPLOY_NAME}")"
+distr_ensure_docker_target "${DEPLOY_NAME}" TARGET_JSON
 distr_put_docker_deployment "${TARGET_JSON}" "${INFRA_VERSION_ID}" "${ENV_FILE}"
 TARGET_ID="$(jq -r '.id' <<<"${TARGET_JSON}")"
 
-if jq -e '.reportedAgentVersionId != null' <<<"${TARGET_JSON}" >/dev/null; then
+if jq -e '.reportedAgentVersionId != null' <<<"${TARGET_JSON}" >/dev/null \
+  && [[ "${AZURE_DISTR_DOCKER_RECONNECT:-false}" != "true" ]]; then
   azgw_log "Distr Docker target already connected"
 else
   if [[ "$(jq -r '.id' <<<"${TARGET_JSON}")" != "dry-run-target" \

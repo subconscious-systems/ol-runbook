@@ -123,11 +123,36 @@ azgw_register_providers() {
     Microsoft.KeyVault \
     Microsoft.ManagedIdentity \
     Microsoft.Network \
+    Microsoft.PolicyInsights \
     Microsoft.Storage \
     Microsoft.Cache; do
     azgw_log "registering ${provider} if needed"
-    az provider register --namespace "${provider}" --only-show-errors >/dev/null
+    if [[ "${provider}" == "Microsoft.PolicyInsights" ]]; then
+      az provider register --namespace "${provider}" --wait --only-show-errors >/dev/null
+    else
+      az provider register --namespace "${provider}" --only-show-errors >/dev/null
+    fi
   done
+}
+
+azgw_validate_postgres_location() {
+  local location="$1"
+  local capabilities version_count reason
+  if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
+    azgw_log "DRY_RUN would validate PostgreSQL Flexible Server availability in ${location}"
+    return 0
+  fi
+  capabilities="$(
+    az postgres flexible-server list-skus \
+      --location "${location}" \
+      --output json \
+      --only-show-errors
+  )" || azgw_die "cannot inspect PostgreSQL Flexible Server availability in ${location}"
+  version_count="$(jq '.[0].supportedServerVersions // [] | length' <<<"${capabilities}")"
+  if [[ "${version_count}" == "0" ]]; then
+    reason="$(jq -r '.[0].reason // "not available for this subscription"' <<<"${capabilities}")"
+    azgw_die "PostgreSQL Flexible Server is unavailable in ${location}: ${reason} Rerun with --location centralus or another supported region."
+  fi
 }
 
 azgw_resolve_dns_zone() {
@@ -355,6 +380,7 @@ distr_create_docker_target() {
 
 distr_ensure_docker_target() {
   local name="$1"
+  local output_var="${2:-}"
   local target count
   DISTR_TARGET_CREATED=0
   export DISTR_TARGET_CREATED
@@ -364,18 +390,32 @@ distr_ensure_docker_target() {
     [[ "${count}" == "1" ]] || azgw_die "multiple Distr deployment targets named ${name}"
     jq -e '.type == "docker"' <<<"${target}" >/dev/null \
       || azgw_die "Distr target ${name} exists but is not type docker"
-    printf '%s\n' "${target}"
+    if [[ -n "${output_var}" ]]; then
+      printf -v "${output_var}" '%s' "${target}"
+    else
+      printf '%s\n' "${target}"
+    fi
     return 0
   fi
   if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
     DISTR_TARGET_CREATED=1
     export DISTR_TARGET_CREATED
-    jq -n --arg name "${name}" '{id:"dry-run-target",name:$name,type:"docker",deployments:[]}'
+    target="$(jq -n --arg name "${name}" '{id:"dry-run-target",name:$name,type:"docker",deployments:[]}')"
+    if [[ -n "${output_var}" ]]; then
+      printf -v "${output_var}" '%s' "${target}"
+    else
+      printf '%s\n' "${target}"
+    fi
     return 0
   fi
   DISTR_TARGET_CREATED=1
   export DISTR_TARGET_CREATED
-  distr_create_docker_target "${name}"
+  target="$(distr_create_docker_target "${name}")"
+  if [[ -n "${output_var}" ]]; then
+    printf -v "${output_var}" '%s' "${target}"
+  else
+    printf '%s\n' "${target}"
+  fi
 }
 
 distr_request_target_access() {
@@ -427,7 +467,7 @@ azgw_install_docker_agent() {
   local command protected settings
   command="curl -fsSL $(printf '%q' "${connect_url}") | docker compose -f - up -d"
   protected="$(jq -n --arg command "${command}" '{commandToExecute: $command}')"
-  settings="$(jq -n --arg ts "$(date +%s)" '{timestamp: $ts}')"
+  settings="$(jq -n --argjson ts "$(date +%s)" '{timestamp: $ts}')"
   if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
     azgw_log "DRY_RUN would install Docker agent on ${VM_NAME} through protected CustomScript settings"
     return 0
