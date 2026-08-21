@@ -1,7 +1,7 @@
 targetScope = 'subscription'
 
 @description('Azure region for the bootstrap foundation.')
-param location string = 'eastus2'
+param location string = 'centralus'
 
 @description('Resource group that will contain the bootstrap VM, VNet, state account, and platform resources.')
 param resourceGroupName string
