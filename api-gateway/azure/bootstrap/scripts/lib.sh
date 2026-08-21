@@ -123,11 +123,102 @@ azgw_register_providers() {
     Microsoft.KeyVault \
     Microsoft.ManagedIdentity \
     Microsoft.Network \
+    Microsoft.Quota \
     Microsoft.Storage \
     Microsoft.Cache; do
     azgw_log "registering ${provider} if needed"
-    az provider register --namespace "${provider}" --only-show-errors >/dev/null
+    if [[ "${provider}" == "Microsoft.Quota" ]]; then
+      az provider register --namespace "${provider}" --wait --only-show-errors >/dev/null
+    else
+      az provider register --namespace "${provider}" --only-show-errors >/dev/null
+    fi
   done
+}
+
+azgw_ensure_regional_vcpu_quota() {
+  local location="$1"
+  local required="${2:-24}"
+  local scope usage current limit request_state deadline
+
+  if [[ ! "${required}" =~ ^[0-9]+$ ]] || (( required <= 0 )); then
+    azgw_die "regional vCPU quota target must be a positive integer"
+  fi
+  if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
+    azgw_log "DRY_RUN would ensure ${required} regional vCPUs in ${location}"
+    return 0
+  fi
+
+  usage="$(
+    az vm list-usage --location "${location}" --output json --only-show-errors
+  )" || azgw_die "cannot inspect regional vCPU quota in ${location}"
+  read -r current limit < <(
+    jq -r '
+      map(select((.name.value // "" | ascii_downcase) == "cores"))[0]
+      | "\(.currentValue) \(.limit)"
+    ' <<<"${usage}"
+  )
+  [[ "${current}" =~ ^[0-9]+$ && "${limit}" =~ ^[0-9]+$ ]] \
+    || azgw_die "Azure did not return the Total Regional vCPUs quota for ${location}"
+  if (( limit >= required )); then
+    azgw_log "regional vCPU quota ${limit} is ready (${current} currently used)"
+    return 0
+  fi
+
+  azgw_log "requesting regional vCPU quota ${limit} -> ${required} in ${location}"
+  az extension add --name quota --upgrade --yes --only-show-errors >/dev/null \
+    || azgw_die "cannot install the Azure quota CLI extension"
+  scope="/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.Compute/locations/${location}"
+  az quota update \
+    --resource-name cores \
+    --scope "${scope}" \
+    --limit-object "value=${required}" \
+    --resource-type dedicated \
+    --no-wait \
+    --output none \
+    --only-show-errors \
+    || azgw_die "could not request ${required} regional vCPUs in ${location}; confirm the subscription is Pay-As-You-Go"
+
+  deadline=$((SECONDS + ${AZURE_QUOTA_WAIT_SECONDS:-1200}))
+  while (( SECONDS < deadline )); do
+    usage="$(
+      az vm list-usage --location "${location}" --output json --only-show-errors
+    )" || true
+    limit="$(
+      jq -r '
+        map(select((.name.value // "" | ascii_downcase) == "cores"))[0].limit // 0
+      ' <<<"${usage:-[]}"
+    )"
+    if [[ "${limit}" =~ ^[0-9]+$ ]] && (( limit >= required )); then
+      azgw_log "regional vCPU quota ${limit} is ready"
+      return 0
+    fi
+    request_state="$(
+      az quota request list --scope "${scope}" --output json --only-show-errors \
+        | jq -r '
+            [ .[]
+              | select(any(.value[]?;
+                  ((.name.value // "" | ascii_upcase) == "CORES")))
+            ]
+            | sort_by(.requestSubmitTime)
+            | last
+            | .provisioningState // "InProgress"
+          ' \
+        || printf 'InProgress'
+    )"
+    if [[ "${request_state}" == "Failed" ]]; then
+      azgw_die "Azure rejected the ${required}-vCPU quota request in ${location}; upgrade the subscription to Pay-As-You-Go or choose another region, then rerun"
+    fi
+    sleep 15
+  done
+  azgw_die "regional vCPU quota is still below ${required} after 20 minutes; the request remains visible under Azure Quotas and this command is safe to rerun"
+}
+
+azgw_assert_gateway_hostname_below_zone() {
+  local hostname zone
+  hostname="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[.]$//')"
+  zone="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]' | sed -E 's/[.]$//')"
+  [[ "${hostname}" != "${zone}" && "${hostname}" == *."${zone}" ]] \
+    || azgw_die "gateway hostname must be below the Azure DNS zone (for example, gateway.${zone}); the zone apex is not supported by AKS managed DNS"
 }
 
 azgw_resolve_dns_zone() {

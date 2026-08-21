@@ -83,6 +83,7 @@ if [[ "${DISTR_DRY_RUN}" != "1" ]]; then
 fi
 
 azgw_resolve_dns_zone "${GATEWAY_HOSTNAME}" "${DNS_ZONE_ID}"
+azgw_assert_gateway_hostname_below_zone "${GATEWAY_HOSTNAME}" "${DNS_ZONE_NAME}"
 azgw_select_vnet_cidr
 
 BOOTSTRAP_SUBNET_CIDR="$(
@@ -196,6 +197,7 @@ EOF
 fi
 
 azgw_register_providers
+azgw_ensure_regional_vcpu_quota "${LOCATION}" "${AZURE_MIN_REGIONAL_VCPUS:-24}"
 
 azgw_log "deploying Azure bootstrap foundation"
 if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
