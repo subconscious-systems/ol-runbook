@@ -510,7 +510,7 @@ azgw_install_docker_agent() {
   local command protected settings
   command="curl -fsSL $(printf '%q' "${connect_url}") | docker compose -f - up -d"
   protected="$(jq -n --arg command "${command}" '{commandToExecute: $command}')"
-  settings="$(jq -n --arg ts "$(date +%s)" '{timestamp: $ts}')"
+  settings="$(jq -n --argjson ts "$(date +%s)" '{timestamp: $ts}')"
   if [[ "${DISTR_DRY_RUN}" == "1" ]]; then
     azgw_log "DRY_RUN would install Docker agent on ${VM_NAME} through protected CustomScript settings"
     return 0
