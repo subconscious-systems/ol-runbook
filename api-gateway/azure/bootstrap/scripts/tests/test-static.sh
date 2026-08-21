@@ -47,12 +47,6 @@ test "$(distr_request_target_access dry-run-target | jq -r '.connectUrl')" = \
   "https://example.invalid/distr-dry-run-agent"
 DISTR_DRY_RUN=0
 
-azgw_assert_gateway_hostname_below_zone gateway.azure.example.com azure.example.com
-if (azgw_assert_gateway_hostname_below_zone azure.example.com azure.example.com) >/dev/null 2>&1; then
-  echo "Azure DNS validation accepted a zone-apex gateway hostname" >&2
-  exit 1
-fi
-
 for file in \
   "${AZURE_DIR}/bootstrap/main.bicep" \
   "${AZURE_DIR}/bootstrap/resources.bicep"; do

@@ -213,14 +213,6 @@ azgw_ensure_regional_vcpu_quota() {
   azgw_die "regional vCPU quota is still below ${required} after 20 minutes; the request remains visible under Azure Quotas and this command is safe to rerun"
 }
 
-azgw_assert_gateway_hostname_below_zone() {
-  local hostname zone
-  hostname="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[.]$//')"
-  zone="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]' | sed -E 's/[.]$//')"
-  [[ "${hostname}" != "${zone}" && "${hostname}" == *."${zone}" ]] \
-    || azgw_die "gateway hostname must be below the Azure DNS zone (for example, gateway.${zone}); the zone apex is not supported by AKS managed DNS"
-}
-
 azgw_resolve_dns_zone() {
   local hostname="$1"
   local explicit="${2:-}"
