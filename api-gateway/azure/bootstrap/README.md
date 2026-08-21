@@ -12,6 +12,10 @@ API_GATEWAY_INFRA_AZURE_APPLICATION_ID=<vendor-provided-id> ./scripts/setup-azur
 ```
 
 The command asks for deployment slug, gateway hostname, provider DNS suffixes, and Distr PAT.
+The hostname must be below the selected Azure DNS zone, such as
+`gateway.azure.example.com` in the `azure.example.com` zone.
+If the selected region has less than 24 vCPUs available to the subscription,
+it requests that quota automatically and waits for Azure to approve it.
 
 ## Files
 

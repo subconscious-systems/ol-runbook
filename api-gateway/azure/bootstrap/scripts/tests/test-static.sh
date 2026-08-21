@@ -20,6 +20,11 @@ grep -Fq 'CLUSTER_ENDPOINT_PUBLIC_ACCESS=false' "${SCRIPT}"
 grep -Fq 'az deployment sub create' "${SCRIPT}"
 grep -Fq 'az network dns zone list' "${LIB}"
 grep -Fq 'Microsoft.ContainerService' "${LIB}"
+grep -Fq 'Microsoft.Quota' "${LIB}"
+grep -Fq 'azgw_ensure_regional_vcpu_quota' "${SCRIPT}"
+grep -Fq 'AZURE_MIN_REGIONAL_VCPUS:-24' "${SCRIPT}"
+grep -Fq 'az quota update' "${LIB}"
+grep -Fq -- '--resource-name cores' "${LIB}"
 
 # Internal and customer-scoped targets may share a display name. Reusing a
 # target from the wrong scope also resolves Hub Secrets from the wrong scope.
@@ -41,6 +46,12 @@ DISTR_DRY_RUN=1
 test "$(distr_request_target_access dry-run-target | jq -r '.connectUrl')" = \
   "https://example.invalid/distr-dry-run-agent"
 DISTR_DRY_RUN=0
+
+azgw_assert_gateway_hostname_below_zone gateway.azure.example.com azure.example.com
+if (azgw_assert_gateway_hostname_below_zone azure.example.com azure.example.com) >/dev/null 2>&1; then
+  echo "Azure DNS validation accepted a zone-apex gateway hostname" >&2
+  exit 1
+fi
 
 for file in \
   "${AZURE_DIR}/bootstrap/main.bicep" \
