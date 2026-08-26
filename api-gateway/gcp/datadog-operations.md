@@ -227,6 +227,9 @@ Key GCP-specific signals:
 The managed GCP database group uses current Datadog metrics under
 `gcp.cloudsql.database.*` and `gcp.redis.*`; it does not reuse AWS CloudWatch
 queries. Terraform selects the GCP group and GCP-tagged monitors while keeping
+the provider-neutral PostgreSQL DBM widgets. Gateway Valkey/Redis command
+rate and p95 (`subconscious.gateway.valkey_commands`) live in **Gateway
+operations** and use `$env`; they do not require a direct Redis check.
 AWS database assets out of the GCP plan.
 
 ## LLM Observability and tenant debugging

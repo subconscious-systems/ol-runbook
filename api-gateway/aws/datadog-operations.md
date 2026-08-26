@@ -43,7 +43,7 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayStreamingTtftP95High | Slow streaming first token | Inference path panels, TTFT SLO (if enabled) |
 | GatewayRequestLatencyP95High | Slow end-to-end requests | Gateway latency group, router/adapter latency |
 | GatewayLimiterRejectionsSustained | Rate limits firing | Tenant signals group, Valkey CloudWatch (if enabled) |
-| GatewayLimiterCheckLatencyHigh | Limiter checks slow (early Valkey warning) | Limiter check latency widget, Valkey CPU/memory (if enabled) |
+| GatewayLimiterCheckLatencyHigh | Limiter checks slow (early Valkey warning) | Limiter check latency widget, Gateway Valkey commands, Valkey CPU/memory (if enabled) |
 | GatewayWorkerPoolEmpty | No workers registered | Router worker pool, model-group sync, worker route health |
 | GatewayRouterWorkerCbOpen | Worker circuit breaker open | Inference path CB state, worker connectivity |
 | GatewayRouterInflightAgeHigh | Stuck router requests | Router inflight age, active requests |
@@ -104,6 +104,43 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 
 Until phase 1, the dashboard shows a note linking here instead of database
 widgets.
+
+### Valkey widgets and monitors
+
+CloudWatch ElastiCache series often carry `env:N/A`, so managed Valkey queries
+do **not** use `$env`. They match the replication group Terraform created
+(`cacheclusterid:<id>`, `cacheclusterid:<id>*`, `replicationgroupid:<id>`).
+`DATADOG_ENV` can differ from `DEPLOY_NAME`, and AWS truncates replication
+group IDs at 40 characters, so synthesizing `<DATADOG_ENV>-valkey-*` empties
+the charts.
+
+After phase 1, the **Managed databases** group should show:
+
+| Widget | Series | Empty means |
+| --- | --- | --- |
+| Valkey CPU by node | `aws.elasticache.engine_cpuutilization` and `aws.elasticache.cpuutilization` | Integration/filter miss. Host CPU is the saturation signal on `cache.t4g.small` (2 vCPU). |
+| Valkey memory usage by node | `aws.elasticache.database_memory_usage_percentage` | Integration/filter miss. |
+| Valkey evictions by node | `aws.elasticache.evictions` | **Healthy** when nothing was evicted. CloudWatch omits zeros. |
+| Valkey connections / command latency | `curr_connections`, `get/set_type_cmds_latency` | Integration/filter miss if connections are also empty. |
+| Gateway Valkey commands | `subconscious.gateway.valkey_commands` / `valkey_command_duration_seconds` | Gateway OpenMetrics path. Uses `$env`. Independent of CloudWatch. |
+
+The same gateway command widgets live in **Gateway operations**, so they remain
+available when database CloudWatch is off. Direct Datadog `redisdb` checks stay
+disabled (they run `SLOWLOG GET`).
+
+Monitors (draft until `DATADOG_DATABASE_MONITORS_DRAFT=false`):
+
+| Monitor | Pages when | Missing data |
+| --- | --- | --- |
+| DatabaseValkeyCpuHigh | Host CPU > 80% for 15m | Notify. Always-expected CloudWatch series. |
+| DatabaseValkeyMemoryHigh | Memory > 80% for 15m | Notify. |
+| DatabaseValkeyEvictions | Evictions > 0 in 5m | **Resolve**. Zeros are omitted, so no-data is not an outage. |
+
+If CPU and memory stay empty after CloudWatch's usual delay, confirm the
+account integration allowlist includes `aws.elasticache.cpuutilization` and
+`engine_cpuutilization`, then confirm Metrics Explorer has points for
+`cacheclusterid:<DEPLOY_NAME>-valkey*` (or the truncated replication group ID)
+without an `env:` filter.
 
 Do **not** flip Hub DBM defaults to true without a planned RDS reboot window.
 Prerequisites (`shared_preload_libraries=pg_stat_statements`) need a reboot;
