@@ -155,12 +155,11 @@ Stage DBM:
 
 | Phase | Setting | Gate |
 | --- | --- | --- |
-| 1 | `DATADOG_GCP_CLOUD_METRICS_ENABLED=true` | Cloud SQL service metrics visible with correct project/env tags |
-| 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | `pg_stat_statements`, least-privilege DBM user, TLS trust, and secret sync ready |
-| 3 | `DATADOG_POSTGRES_DBM_ENABLED=true` | Agent direct check healthy from GKE private network |
-| 4 | `DATADOG_DATABASE_MONITORS_ENABLED=true` | Metrics populated; monitors remain draft during baseline |
+| 1 | `DATADOG_GCP_CLOUD_METRICS_ENABLED=true` | Cloud SQL service metrics and draft GCP database monitors |
+| 2 | `DATADOG_POSTGRES_DBM_ENABLED=true` | `datadog` user, `CREATE EXTENSION`, Agent check, query toplists |
+| 3 | `DATADOG_DATABASE_MONITORS_DRAFT=false` | Publish monitors after a traffic baseline |
 
-The released prerequisite automation must:
+The released automation must:
 
 - run `CREATE EXTENSION pg_stat_statements` (Cloud SQL already sets the related
   flags on this stack; that is online);

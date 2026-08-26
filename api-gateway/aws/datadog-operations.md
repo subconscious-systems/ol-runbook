@@ -96,28 +96,28 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 
 | Phase | Hub field | Result |
 | --- | --- | --- |
-| 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, managed database dashboard group |
-| 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | `datadog` role, password Secret, `CREATE EXTENSION` (no RDS reboot) |
-| 3 | `DATADOG_POSTGRES_DBM_ENABLED=true` | PostgreSQL DBM direct check |
-| 4 | — | Valkey stays CloudWatch-only (no direct check) |
-| 5 | `DATADOG_DATABASE_MONITORS_ENABLED=true` | Paging monitors (keep `DATADOG_DATABASE_MONITORS_DRAFT=true` until baselined) |
+| 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, dashboard group, IOPS/queue/latency monitors (draft) |
+| 2 | `DATADOG_POSTGRES_DBM_ENABLED=true` | `datadog` role, `CREATE EXTENSION`, Agent check, query toplists |
+| 3 | `DATADOG_DATABASE_MONITORS_DRAFT=false` | Publish database monitors after a traffic baseline |
 
 Until phase 1, the dashboard shows a note linking here instead of database
 widgets.
 
 RDS PostgreSQL 11+ already loads `pg_stat_statements`. Phase 2 does not reboot
-RDS, change parameter groups, or enable IAM database authentication.
-`DATADOG_POSTGRES_DBM_ENABLED` can follow as soon as the bootstrap Job
-succeeds. The contract forbids raw SQL samples in Datadog DBM. After AWS
+RDS, change parameter groups, or set `RDS_APPLY_IMMEDIATELY`. The contract
+forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
 apply, read slow-statement **text** in CloudWatch Logs (filter
 `gateway_export_events` / `NOT EXISTS`). Use Datadog DBM for normalized
-query structure, duration, and wait events once phase 3 is on.
+query structure, duration, and wait events once phase 2 is on.
+
+If the bootstrap Job is stuck, increment
+`DATADOG_POSTGRES_DBM_BOOTSTRAP_REVISION` and re-apply.
 
 ### IOPS and slow queries
 
-Phase 1 dashboard widgets already chart RDS read/write IOPS, disk queue depth,
-and connection count. After `DATADOG_DATABASE_MONITORS_ENABLED=true`:
+Phase 1 dashboard widgets chart RDS read/write IOPS, disk queue depth, and
+connection count. Phase 1 also creates these monitors in draft:
 
 | Monitor | Signal | Default threshold |
 | --- | --- | --- |
@@ -126,7 +126,7 @@ and connection count. After `DATADOG_DATABASE_MONITORS_ENABLED=true`:
 
 To list queries by structure (literals stripped) and latency:
 
-1. Enable phase 3 (`DATADOG_POSTGRES_DBM_ENABLED=true`).
+1. Set `DATADOG_POSTGRES_DBM_ENABLED=true` and apply.
 2. Open the managed dashboard **PostgreSQL engine** group: **Slowest PostgreSQL
    queries (normalized)** and **Most frequent PostgreSQL queries (normalized)**.
 3. For the full list, sort, and wait-event breakdown, open Datadog
