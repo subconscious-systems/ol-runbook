@@ -162,8 +162,8 @@ Stage DBM:
 
 The released prerequisite automation must:
 
-- enable/create `pg_stat_statements` using Cloud SQL-supported flags/extensions
-  and schedule any restart in a maintenance window;
+- run `CREATE EXTENSION pg_stat_statements` (Cloud SQL already sets the related
+  flags on this stack; that is online);
 - create a non-superuser DBM role with only Datadog's documented monitoring
   grants (for example the appropriate `pg_monitor` access);
 - generate/store its credential without printing it;
@@ -229,17 +229,9 @@ The managed GCP database group uses current Datadog metrics under
 queries. Terraform selects the GCP group and GCP-tagged monitors while keeping
 AWS database assets out of the GCP plan.
 
-### Connections and slow queries
+### Slow queries
 
 The managed GCP group charts Cloud SQL connections and disk read/write ops.
-After `DATADOG_DATABASE_MONITORS_ENABLED=true`:
-
-| Monitor | Signal | Default threshold |
-| --- | --- | --- |
-| DatabasePostgresConnectionsHigh | DBM `percent_usage_connections` (phase 3) | 80% of engine `max_connections` |
-
-`DatabasePostgresConnectionsHigh` is the only connection alert. Cloud SQL
-connection count stays on the dashboard; do not treat it as a paging signal.
 Cloud SQL IOPS scale with disk size (autoresize), so there is no fixed IOPS
 page; use the disk ops widgets plus CPU/disk utilization.
 

@@ -97,7 +97,7 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 | Phase | Hub field | Result |
 | --- | --- | --- |
 | 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, managed database dashboard group |
-| 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | IAM DB auth, bootstrap Job (RDS reboot in maintenance window) |
+| 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | `datadog` role, password Secret, `CREATE EXTENSION` (no RDS reboot) |
 | 3 | `DATADOG_POSTGRES_DBM_ENABLED=true` | PostgreSQL DBM direct check |
 | 4 | — | Valkey stays CloudWatch-only (no direct check) |
 | 5 | `DATADOG_DATABASE_MONITORS_ENABLED=true` | Paging monitors (keep `DATADOG_DATABASE_MONITORS_DRAFT=true` until baselined) |
@@ -105,29 +105,24 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 Until phase 1, the dashboard shows a note linking here instead of database
 widgets.
 
-Do **not** flip Hub DBM defaults to true without a planned RDS reboot window.
-Prerequisites (`shared_preload_libraries=pg_stat_statements`) need a reboot;
-`DATADOG_POSTGRES_DBM_ENABLED` should stay false until that window completes.
-The contract forbids raw SQL samples in Datadog DBM. After AWS
+RDS PostgreSQL 11+ already loads `pg_stat_statements`. Phase 2 does not reboot
+RDS, change parameter groups, or enable IAM database authentication.
+`DATADOG_POSTGRES_DBM_ENABLED` can follow as soon as the bootstrap Job
+succeeds. The contract forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
 apply, read slow-statement **text** in CloudWatch Logs (filter
 `gateway_export_events` / `NOT EXISTS`). Use Datadog DBM for normalized
 query structure, duration, and wait events once phase 3 is on.
 
-### IOPS, connections, and slow queries
+### IOPS and slow queries
 
 Phase 1 dashboard widgets already chart RDS read/write IOPS, disk queue depth,
-and connection count. After `DATADOG_DATABASE_MONITORS_ENABLED=true`, these
-monitors page or warn:
+and connection count. After `DATADOG_DATABASE_MONITORS_ENABLED=true`:
 
 | Monitor | Signal | Default threshold |
 | --- | --- | --- |
 | DatabaseRdsIopsHigh | Combined read+write IOPS | 2400 (80% of gp3 3000 IOPS baseline) |
 | DatabaseRdsDiskQueueHigh | Disk queue depth | 10 |
-| DatabasePostgresConnectionsHigh | DBM `percent_usage_connections` (phase 3) | 80% of engine `max_connections` |
-
-`DatabasePostgresConnectionsHigh` is the only connection alert. CloudWatch
-connection count stays on the dashboard; do not treat it as a paging signal.
 
 To list queries by structure (literals stripped) and latency:
 
@@ -140,8 +135,6 @@ To list queries by structure (literals stripped) and latency:
    Do not enable raw statement collection.
 
 Tune IOPS thresholds if you raise gp3 provisioned IOPS above the 3000 baseline.
-Tune connection thresholds if you change `RDS_INSTANCE_CLASS` or
-`SUBCONSCIOUS_GATEWAY_DATABASE_MAX_CONNECTIONS` times gateway replica count.
 
 ## LLM Observability (opt-in)
 
