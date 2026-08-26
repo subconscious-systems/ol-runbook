@@ -131,3 +131,22 @@ cd api-gateway/aws/bootstrap
 Migrations are additive and forward-compatible; the schema is never reverted.
 Gateway version rollback is [rollback.md](rollback.md). Platform teardown is
 [teardown.md](teardown.md).
+
+## Database saturation and slow queries
+
+Managed monitors (when database observability is enabled):
+
+- Combined RDS IOPS above 2400 (80% of the default gp3 3000 IOPS baseline).
+- RDS connection count above 720 (80% of default db.m7g.large
+  `max_connections`).
+- Disk queue depth, read latency, or write latency high.
+
+Correlate IOPS with disk queue and latency on the managed dashboard before
+raising provisioned IOPS. Correlate connections with gateway replica count
+times `SUBCONSCIOUS_GATEWAY_DATABASE_MAX_CONNECTIONS` (Helm default 30).
+
+Normalized slow-query lists (no SQL literals) live on the dashboard
+**PostgreSQL engine** group after `DATADOG_POSTGRES_DBM_ENABLED=true`. Full
+text of statements slower than 2s is in CloudWatch Logs
+(`log_min_duration_statement=2000`). See
+[datadog-operations.md](datadog-operations.md#iops-connections-and-slow-queries).

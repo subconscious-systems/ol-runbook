@@ -55,7 +55,7 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayWebhookPending / DeadLetters | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
 | GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Publisher lock, webhook worker, Vercel `gateway_webhook.received` |
 | GatewayTracePersistenceFailures | Trace write failures | Observability drops widget |
-| Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
+| Database monitors (optional) | RDS IOPS/connections, Valkey, Postgres DBM | [Database observability](#database-observability) below |
 
 Router and adapter monitors can be disabled with `DATADOG_INCLUDE_ROUTER_MONITORS`
 or `DATADOG_INCLUDE_ADAPTER_MONITORS` when those components are not deployed.
@@ -112,7 +112,38 @@ The contract forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
 apply, read slow-statement **text** in CloudWatch Logs (filter
 `gateway_export_events` / `NOT EXISTS`). Use Datadog DBM for normalized
-`query_signature`, duration, and wait events once phase 3 is on.
+query structure, duration, and wait events once phase 3 is on.
+
+### IOPS, connections, and slow queries
+
+Phase 1 dashboard widgets already chart RDS read/write IOPS, disk queue depth,
+and connection count. After `DATADOG_DATABASE_MONITORS_ENABLED=true`, these
+monitors page or warn:
+
+| Monitor | Signal | Default threshold |
+| --- | --- | --- |
+| DatabaseRdsIopsHigh | Combined read+write IOPS | 2400 (80% of gp3 3000 IOPS baseline) |
+| DatabaseRdsConnectionsHigh | CloudWatch `database_connections` | 720 (80% of default db.m7g.large max_connections) |
+| DatabaseRdsDiskQueueHigh | Disk queue depth | 10 |
+| DatabasePostgresConnectionsHigh | DBM `percent_usage_connections` (phase 3) | 80% of engine `max_connections` |
+
+`DatabasePostgresConnectionsHigh` is the engine-limit signal. The CloudWatch
+connection count can lag replica or pool changes; treat the DBM fraction as
+source of truth once phase 3 is on.
+
+To list queries by structure (literals stripped) and latency:
+
+1. Enable phase 3 (`DATADOG_POSTGRES_DBM_ENABLED=true`).
+2. Open the managed dashboard **PostgreSQL engine** group: **Slowest PostgreSQL
+   queries (normalized)** and **Most frequent PostgreSQL queries (normalized)**.
+3. For the full list, sort, and wait-event breakdown, open Datadog
+   **APM > Database Monitoring > Query Metrics** and filter `env:<DATADOG_ENV>`.
+   The `query` facet is obfuscated SQL (`query_signature` is the stable hash).
+   Do not enable raw statement collection.
+
+Tune IOPS thresholds if you raise gp3 provisioned IOPS above the 3000 baseline.
+Tune connection thresholds if you change `RDS_INSTANCE_CLASS` or
+`SUBCONSCIOUS_GATEWAY_DATABASE_MAX_CONNECTIONS` times gateway replica count.
 
 ## LLM Observability (opt-in)
 

@@ -266,6 +266,21 @@ Check the Datadog namespace Secret/ESO, private route, TLS trust,
 `pg_stat_statements`, DBM user grants, and Agent cluster-check assignment. See
 [datadog-operations.md](datadog-operations.md).
 
+### Connections, disk ops, and slow queries
+
+`DatabaseCloudSqlConnectionsHigh` warns when Cloud SQL connections stay above
+720. Treat Datadog DBM `percent_usage_connections` as the engine-limit signal
+once `DATADOG_POSTGRES_DBM_ENABLED=true`. Correlate with gateway replica count
+times `SUBCONSCIOUS_GATEWAY_DATABASE_MAX_CONNECTIONS`.
+
+Disk read/write ops widgets are on the managed GCP database group. Cloud SQL
+IOPS grow with disk size, so there is no fixed IOPS page. Use CPU and disk
+utilization together with those ops charts.
+
+Normalized slow-query lists (no SQL literals) live on the **PostgreSQL engine**
+dashboard group after DBM is on. See
+[datadog-operations.md](datadog-operations.md#connections-and-slow-queries).
+
 ## Memorystore Redis
 
 ### TLS handshake or AUTH failure

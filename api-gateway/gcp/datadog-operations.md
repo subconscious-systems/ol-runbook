@@ -216,8 +216,8 @@ Key GCP-specific signals:
 
 - GKE node/pod readiness, scheduling, ARM image pull failures, and control-plane
   operation health;
-- Cloud SQL CPU, memory, disk, connections, failover, backup, PITR, and DBM
-  query/wait behavior;
+- Cloud SQL CPU, memory, disk, disk read/write ops, connections, failover,
+  backup, PITR, and DBM query/wait behavior;
 - Memorystore memory, CPU, connections, evictions, failover, and command
   latency;
 - GCE Ingress backend health, 4xx/5xx, certificate and load-balancer latency;
@@ -228,6 +228,26 @@ The managed GCP database group uses current Datadog metrics under
 `gcp.cloudsql.database.*` and `gcp.redis.*`; it does not reuse AWS CloudWatch
 queries. Terraform selects the GCP group and GCP-tagged monitors while keeping
 AWS database assets out of the GCP plan.
+
+### Connections and slow queries
+
+The managed GCP group charts Cloud SQL connections and disk read/write ops.
+After `DATADOG_DATABASE_MONITORS_ENABLED=true`:
+
+| Monitor | Signal | Default threshold |
+| --- | --- | --- |
+| DatabaseCloudSqlConnectionsHigh | Cloud SQL network connections | 720 |
+| DatabasePostgresConnectionsHigh | DBM `percent_usage_connections` (phase 3) | 80% of engine `max_connections` |
+
+`DatabasePostgresConnectionsHigh` is the engine-limit signal once phase 3 is
+on. Cloud SQL IOPS scale with disk size (autoresize), so there is no fixed
+IOPS page; use the disk ops widgets plus CPU/disk utilization.
+
+Normalized query lists (literals stripped) are on the managed dashboard
+**PostgreSQL engine** group after phase 3: **Slowest PostgreSQL queries
+(normalized)** and **Most frequent PostgreSQL queries (normalized)**. For the
+full list, open Datadog **APM > Database Monitoring > Query Metrics** and
+filter `env:<DATADOG_ENV>`. Do not enable raw statement collection.
 
 ## LLM Observability and tenant debugging
 
