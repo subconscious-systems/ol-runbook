@@ -137,8 +137,8 @@ Gateway version rollback is [rollback.md](rollback.md). Platform teardown is
 Managed monitors (when database observability is enabled):
 
 - Combined RDS IOPS above 2400 (80% of the default gp3 3000 IOPS baseline).
-- RDS connection count above 720 (80% of default db.m7g.large
-  `max_connections`).
+- PostgreSQL connection usage above 80% of engine `max_connections` (DBM,
+  after `DATADOG_POSTGRES_DBM_ENABLED=true`).
 - Disk queue depth, read latency, or write latency high.
 
 Correlate IOPS with disk queue and latency on the managed dashboard before

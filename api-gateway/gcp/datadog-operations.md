@@ -236,12 +236,12 @@ After `DATADOG_DATABASE_MONITORS_ENABLED=true`:
 
 | Monitor | Signal | Default threshold |
 | --- | --- | --- |
-| DatabaseCloudSqlConnectionsHigh | Cloud SQL network connections | 720 |
 | DatabasePostgresConnectionsHigh | DBM `percent_usage_connections` (phase 3) | 80% of engine `max_connections` |
 
-`DatabasePostgresConnectionsHigh` is the engine-limit signal once phase 3 is
-on. Cloud SQL IOPS scale with disk size (autoresize), so there is no fixed
-IOPS page; use the disk ops widgets plus CPU/disk utilization.
+`DatabasePostgresConnectionsHigh` is the only connection alert. Cloud SQL
+connection count stays on the dashboard; do not treat it as a paging signal.
+Cloud SQL IOPS scale with disk size (autoresize), so there is no fixed IOPS
+page; use the disk ops widgets plus CPU/disk utilization.
 
 Normalized query lists (literals stripped) are on the managed dashboard
 **PostgreSQL engine** group after phase 3: **Slowest PostgreSQL queries

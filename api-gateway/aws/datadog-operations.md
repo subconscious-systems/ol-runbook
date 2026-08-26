@@ -123,13 +123,11 @@ monitors page or warn:
 | Monitor | Signal | Default threshold |
 | --- | --- | --- |
 | DatabaseRdsIopsHigh | Combined read+write IOPS | 2400 (80% of gp3 3000 IOPS baseline) |
-| DatabaseRdsConnectionsHigh | CloudWatch `database_connections` | 720 (80% of default db.m7g.large max_connections) |
 | DatabaseRdsDiskQueueHigh | Disk queue depth | 10 |
 | DatabasePostgresConnectionsHigh | DBM `percent_usage_connections` (phase 3) | 80% of engine `max_connections` |
 
-`DatabasePostgresConnectionsHigh` is the engine-limit signal. The CloudWatch
-connection count can lag replica or pool changes; treat the DBM fraction as
-source of truth once phase 3 is on.
+`DatabasePostgresConnectionsHigh` is the only connection alert. CloudWatch
+connection count stays on the dashboard; do not treat it as a paging signal.
 
 To list queries by structure (literals stripped) and latency:
 

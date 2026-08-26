@@ -268,9 +268,9 @@ Check the Datadog namespace Secret/ESO, private route, TLS trust,
 
 ### Connections, disk ops, and slow queries
 
-`DatabaseCloudSqlConnectionsHigh` warns when Cloud SQL connections stay above
-720. Treat Datadog DBM `percent_usage_connections` as the engine-limit signal
-once `DATADOG_POSTGRES_DBM_ENABLED=true`. Correlate with gateway replica count
+`DatabasePostgresConnectionsHigh` pages when Datadog DBM
+`percent_usage_connections` stays above 80% of engine `max_connections`
+(`DATADOG_POSTGRES_DBM_ENABLED=true`). Correlate with gateway replica count
 times `SUBCONSCIOUS_GATEWAY_DATABASE_MAX_CONNECTIONS`.
 
 Disk read/write ops widgets are on the managed GCP database group. Cloud SQL
