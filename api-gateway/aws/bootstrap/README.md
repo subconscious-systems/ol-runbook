@@ -70,7 +70,7 @@ EKS API access is CIDR-locked to this host. Run `kubectl` / docker logs **on the
 ./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_DISTR_DEPLOYMENT_NAME> --file query.sql
 ```
 
-`./scripts/connect.sh <INFRA_DEPLOY_NAME>` is the same as `shell NAME`. Requires the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `shell` only. Distinct from `connect-k8s-agent.sh` (agent install — see [instructions.md](../instructions.md) step 9). `--ns` is required for `sql`. Procedure: [../troubleshooting.md](../troubleshooting.md#export--webhook-lag-platform-usage-behind-gateway).
+`./scripts/connect.sh <INFRA_DEPLOY_NAME>` is the same as `shell NAME`. Requires the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `shell` only. Distinct from `connect-k8s-agent.sh` (agent install — see [instructions.md](../instructions.md) step 9). `--ns` is required for `sql`. Procedure: [../troubleshooting.md](../troubleshooting.md#export--webhook-lag-platform-usage-behind-gateway). Cursor skill: [gateway-connect-aws](../../../.cursor/skills/gateway-connect-aws/SKILL.md).
 
 ## Rotate app secrets (csrf / encryption)
 
