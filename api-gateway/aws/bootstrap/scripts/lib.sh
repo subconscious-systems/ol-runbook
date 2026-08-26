@@ -9,6 +9,43 @@ bootstrap_need() {
   }
 }
 
+bootstrap_dns1123_ok() {
+  [[ "${1}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]
+}
+
+bootstrap_docker_agent_name() {
+  printf '%s-docker-agent\n' "$1"
+}
+
+bootstrap_ec2_name_filter() {
+  printf 'Name=tag:Name,Values=%s\n' "$(bootstrap_docker_agent_name "$1")"
+}
+
+bootstrap_ec2_state_filter() {
+  printf 'Name=instance-state-name,Values=running\n'
+}
+
+# Set INSTANCE_ID from a single running EC2 named <infra>-docker-agent.
+# Requires REGION. Refuse 0 or >1 matches.
+bootstrap_resolve_instance_by_name() {
+  local infra="$1"
+  local ids
+  ids="$(aws ec2 describe-instances \
+    --region "${REGION}" \
+    --filters "$(bootstrap_ec2_name_filter "${infra}")" "$(bootstrap_ec2_state_filter)" \
+    --query 'Reservations[].Instances[].InstanceId' \
+    --output text 2>/dev/null | tr '\t' ' ' | xargs || true)"
+  if [[ -z "${ids}" ]]; then
+    echo "ERROR: no running instance named $(bootstrap_docker_agent_name "${infra}") in ${REGION}" >&2
+    return 1
+  fi
+  if [[ "${ids}" == *" "* ]]; then
+    echo "ERROR: multiple running instances matched $(bootstrap_docker_agent_name "${infra}"): ${ids}" >&2
+    return 1
+  fi
+  INSTANCE_ID="${ids}"
+}
+
 bootstrap_resolve_targets() {
   INSTANCE_ID="${INSTANCE_ID:-}"
   REGION="${AWS_REGION:-}"

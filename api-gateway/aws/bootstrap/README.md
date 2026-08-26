@@ -10,7 +10,7 @@ This directory is the source of truth for bootstrap **Terraform and scripts**, n
 
 - Runs the Distr Docker agent and the infra Compose / runner image
 - Supplies AWS credentials via the EC2 instance profile (platform Terraform, Secrets Manager, EKS API)
-- Day-0 EKS API access is CIDR-locked to this host’s EIP; `kubectl` for agent install and break-glass runs **on the box** over SSM (not from your laptop)
+- Day-0 EKS API access is CIDR-locked to this host’s EIP; `kubectl` for agent install and cluster debug runs **on the box** over SSM (not from your laptop)
 - The Distr **Kubernetes** agent is **not** installed on this EC2. Hub’s `kubectl apply` command installs `distr-agent` pods into EKS (namespace = `GATEWAY_DISTR_DEPLOYMENT_NAME`). This host only runs that `kubectl` over SSM.
 
 ## Bootstrap-specific prerequisites
@@ -31,11 +31,12 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | `scripts/host-setup.sh` | Canonical host setup (cloud-init + SSM) |
 | `scripts/run-agent.sh` | Ensure host + Distr Docker connect via SSM |
 | `scripts/connect-k8s-agent.sh` | Ensure host + install Distr K8s agent into an explicit EKS cluster via SSM |
-| `scripts/connect.sh` | Break-glass SSM shell on this host (optional kubeconfig refresh) |
+| `scripts/connect.sh` | SSM CLI: `help` / `shell` / `env` / `sql --file` (optional kubeconfig refresh) |
 | `scripts/add-dashboard-ip.sh` | Detect this computer's public IPv4 and print Hub `DASHBOARD_ALLOWED_IPS` |
 | `scripts/rotate-app-secret.sh` | Rotate csrf / encryption via SSM + runner image |
 | `scripts/teardown-platform.sh` | Destroy platform Terraform via SSM + runner image |
 | `scripts/tests/test-rotate-app-secret.sh` | CLI contract unit tests (no AWS) |
+| `scripts/tests/test-connect.sh` | connect.sh CLI contract unit tests (no AWS) |
 | `scripts/tests/test-teardown-platform.sh` | Teardown CLI contract unit tests (no AWS) |
 | `*.tf` | EC2, EIP, SG (egress), IAM instance profile |
 | `policies/platform-apply.json` | Broad platform-apply rights (scope later) |
@@ -56,16 +57,20 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 
 Cloud-init is first-boot only. Setup script changes do **not** replace the EC2; push them with `ensure-host` / `bootstrap` / `run-agent` / `connect-k8s-agent`.
 
-## Break-glass debug (human kubectl)
+## Cluster access (`connect.sh`)
 
-EKS API access is CIDR-locked to this host. For power-user debug, open an interactive SSM shell and run `kubectl` / docker logs **on the box**:
+EKS API access is CIDR-locked to this host. Run `kubectl` / docker logs **on the box** over SSM. `./scripts/connect.sh help` lists what must be true (AWS_REGION, SSM plugin for `shell`, `--ns` + `gateway-secrets` for `sql`).
 
 ```bash
-./scripts/connect.sh <DEPLOY_NAME>   # refreshes kubeconfig, then SSM session
-./scripts/connect.sh                 # SSM session only
+./scripts/connect.sh help
+./scripts/connect.sh shell <INFRA_DEPLOY_NAME>    # kubeconfig refresh, then SSM
+./scripts/connect.sh                              # SSM only (INSTANCE_ID or terraform)
+./scripts/connect.sh env <INFRA_DEPLOY_NAME>      # resolve docker-agent without terraform state
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_DISTR_DEPLOYMENT_NAME> --file scripts/sql/usage-lag.sql
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_DISTR_DEPLOYMENT_NAME> --file query.sql
 ```
 
-Requires the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) on your laptop. Distinct from `connect-k8s-agent.sh` (agent install — see [instructions.md](../instructions.md) step 9).
+`./scripts/connect.sh <INFRA_DEPLOY_NAME>` is the same as `shell NAME`. Requires the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `shell` only. Distinct from `connect-k8s-agent.sh` (agent install — see [instructions.md](../instructions.md) step 9). `--ns` is required for `sql`. Procedure: [../troubleshooting.md](../troubleshooting.md#export--webhook-lag-platform-usage-behind-gateway). Cursor skill: [gateway-connect-aws](../../../.cursor/skills/gateway-connect-aws/SKILL.md).
 
 ## Rotate app secrets (csrf / encryption)
 
