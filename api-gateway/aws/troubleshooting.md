@@ -37,8 +37,9 @@ the cluster identity. Logs: `no Distr deployment target named …`.
 
 ```bash
 cd api-gateway/aws/bootstrap
-./scripts/connect.sh <DEPLOY_NAME>   # SSM shell + kubeconfig refresh
-# or: ./scripts/connect.sh           # SSM shell only
+./scripts/connect.sh help
+./scripts/connect.sh shell <DEPLOY_NAME>   # SSM shell + kubeconfig refresh
+# or: ./scripts/connect.sh                  # SSM shell only
 ```
 
 On the box:
@@ -107,6 +108,23 @@ may use `GATEWAY_DISTR_PORTAL_NAME` when it differs. See [FAQ.md](../../FAQ.md).
 - Day-2 rotation (csrf, encryption, RDS/Valkey redeploy, org and worker keys): [secret-rotation.md](secret-rotation.md).
 - Identity-bootstrap Job password is **not** rotated on re-run. Break-glass: `ops-cli identity bootstrap` from a gateway pod when needed.
 - Forbidden: AWS keys in Hub; Datadog keys in gateway Helm secrets; vendor publish token as customer `DISTR_TOKEN`.
+
+## Export / webhook lag (platform usage behind gateway)
+
+Laptop `kubectl` / `psql` fail because the EKS API and RDS are private (CIDR-locked to the bootstrap EC2). Do not `get-secret-value` into the terminal. Do not run `bootstrap.sh` against prod. Gateway pods are distroless — do not `kubectl exec` expecting a shell.
+
+```bash
+cd api-gateway/aws/bootstrap
+./scripts/connect.sh help
+./scripts/connect.sh env <INFRA_DEPLOY_NAME>
+./scripts/connect.sh shell <INFRA_DEPLOY_NAME>
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> --file scripts/sql/usage-lag.sql
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> --file query.sql
+```
+
+`--ns` is required for `sql` (do not guess the gateway namespace from the infra name). On the box after `shell`: `sudo -i` then `export HOME=/root KUBECONFIG=/root/.kube/config`. `sql` uses a one-shot client Job because SSM is not a TTY and the host has no `psql`.
+
+`scripts/sql/usage-lag.sql` compares `max(gateway_usage_events.received_at)` to the latest `usage.recorded` tip and delivery status counts (see the file header). All `delivered` / HTTP 200 plus an old `usage.recorded` tip is **publisher lag**, not missing POSTs. Rotate the RDS password if a connection URL or `SecretString` was printed.
 
 ## Database / release rollback
 

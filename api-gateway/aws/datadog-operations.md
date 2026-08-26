@@ -27,9 +27,7 @@ variables:
 | `$model` | Logical model filter |
 | `$request_id` | Drill into correlated request logs |
 
-The Overview group shows **Gateway RPS** plus **Requests / minute** and
-**Requests / hour** count widgets so you can read request volume at three time
-scales without rebuilding the query.
+The Overview group keeps **Gateway readiness** as a last-value card. **Active requests** (`gateway.inflight`), **Gateway RPS**, **Requests / minute**, **Requests / hour**, and **5xx error ratio** are time series. Token usage input/output/total rates are time series in the Token usage group.
 
 ## What pages (monitors)
 
@@ -49,9 +47,13 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayWorkerPoolEmpty | No workers registered | Router worker pool, model-group sync, worker route health |
 | GatewayRouterWorkerCbOpen | Worker circuit breaker open | Inference path CB state, worker connectivity |
 | GatewayRouterInflightAgeHigh | Stuck router requests | Router inflight age, active requests |
-| GatewayRouterActiveRequestsHigh | Router saturation | Worker pool size, adapter upstream TTFT |
+| GatewayRouterActiveRequestsHigh | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
 | GatewayAdapterUpstreamTtftP95High | Slow adapter → worker path | Adapter upstream TTFT, router latency |
 | GatewayMeteringOutboxFailures | Billing pipeline errors | Gateway operations / metering widgets |
+| GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, publisher phase duration, CloudWatch postgres slow logs |
+| GatewayExportPublisherSlow | Publisher tick > 2s (Skip drops 1s ticks) | `phase:usage` duration, RDS CPU / lock waits |
+| GatewayWebhookPending / DeadLetters | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
+| GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Publisher lock, webhook worker, Vercel `gateway_webhook.received` |
 | GatewayTracePersistenceFailures | Trace write failures | Observability drops widget |
 | Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
 
@@ -81,7 +83,7 @@ Agent ([gpu-deployment](../../gpu-deployment/README.md)).
 
 Use **gateway-side proxies** on the dashboard:
 
-- **Inference path (router + adapter)** — pool size, circuit breaker, inflight age, adapter upstream TTFT
+- **Inference path (router + adapter)** - pool size, worker in-flight, circuit breaker, inflight age, adapter upstream TTFT. Router load is `worker_requests_active`. Gateway admitted work is Overview **Active requests** (`gateway.inflight`). `http_connections_active` is not scraped (upstream sglang-router leak on cancelled requests).
 - **Gateway latency and streaming** — request duration, TTFT/TPOT
 
 For GPU utilization and node health, use Datadog **Infrastructure → GPU
@@ -102,6 +104,15 @@ RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
 
 Until phase 1, the dashboard shows a note linking here instead of database
 widgets.
+
+Do **not** flip Hub DBM defaults to true without a planned RDS reboot window.
+Prerequisites (`shared_preload_libraries=pg_stat_statements`) need a reboot;
+`DATADOG_POSTGRES_DBM_ENABLED` should stay false until that window completes.
+The contract forbids raw SQL samples in Datadog DBM. After AWS
+`log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
+apply, read slow-statement **text** in CloudWatch Logs (filter
+`gateway_export_events` / `NOT EXISTS`). Use Datadog DBM for normalized
+`query_signature`, duration, and wait events once phase 3 is on.
 
 ## LLM Observability (opt-in)
 
