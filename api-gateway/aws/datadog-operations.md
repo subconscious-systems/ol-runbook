@@ -113,11 +113,9 @@ RDS PostgreSQL 11+ already loads `pg_stat_statements`. Phase 2 does not reboot
 RDS, change parameter groups, or set `RDS_APPLY_IMMEDIATELY`. The contract
 forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
-apply, read slow-statement **text** in CloudWatch Logs. Do not treat
-`gateway_export_events` / `NOT EXISTS` as the current hot query; usage webhooks
-enqueue at insert time (one journal row plus a delivery, not a skip-scan). A
-previous gateway binary still bills against that schema. Historical usage is
-copied once by a startup catch-up, then that task exits. The journal table may
+apply, read slow-statement **text** in CloudWatch Logs. Usage webhooks
+enqueue at insert time (one journal row plus a delivery). A previous
+gateway binary still bills against that schema. The journal table may
 still exist until a later release drops it. Use Datadog DBM for normalized
 query structure, duration, and wait events once phase 2 is on.
 

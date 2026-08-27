@@ -3,12 +3,7 @@
 -- Compare live ingest (gateway_usage_events) to the latest delivered
 -- usage.recorded webhook and delivery health. New usage is dual-written to
 -- gateway_export_events and gateway_webhook_deliveries at insert time. A previous
--- gateway binary can still claim by joining the journal. Historical gaps are
--- filled by a one-shot catch-up after deploy, not by a 1s journal copier.
--- Lag gauges can stay high until that drain POSTs.
---
--- gateway_export_events remains until a later release drops it. Do not
--- grep NOT EXISTS / gateway_export_events as the hot query.
+-- gateway binary can still claim by joining the journal.
 --
 -- Run:
 --   ./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> \
@@ -18,7 +13,6 @@
 --   usage_received_at far ahead of latest delivered usage, deliveries all
 --   delivered/200  → delivery worker lag, not missing POSTs
 --   pending / failed / dead_letter → webhook worker or /api/gateway-events
---   gateway_webhook_usage_catchup.done_at is null → catch-up still draining
 
 SELECT max(received_at) AS usage_received_at
 FROM gateway_usage_events;
@@ -43,7 +37,3 @@ SELECT d.export_sequence, d.status, d.usage_idempotency_key, d.updated_at
 FROM gateway_webhook_deliveries d
 ORDER BY d.export_sequence DESC
 LIMIT 8;
-
-SELECT received_at AS catchup_watermark, done_at
-FROM gateway_webhook_usage_catchup
-WHERE id;
