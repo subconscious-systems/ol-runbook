@@ -91,29 +91,58 @@ profile.
 
 ## Database observability
 
-RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
+RDS, Valkey, and ALB CloudWatch widgets/monitors ship with `DATADOG_ENABLED=true`.
+Connect AWS in Datadog before expecting those series:
+
+1. Open Datadog **Integrations → Amazon Web Services**.
+2. Add or select the gateway AWS account.
+3. **Set Permissions** using Datadog's default read-only AWS policy. Do not
+   create `DatadogApiGatewayIntegrationRole`.
+4. Enable metric collection for `AWS/RDS`, `AWS/ElastiCache`, and
+   `AWS/ApplicationELB` (or leave Datadog's default namespace crawl).
+
+A leftover Hub field `DATADOG_AWS_DATABASE_METRICS_ENABLED` is ignored.
 
 | Phase | Hub field | Result |
 | --- | --- | --- |
-| 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, managed database dashboard group |
-| 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | IAM DB auth, bootstrap Job (RDS reboot in maintenance window) |
-| 3 | `DATADOG_POSTGRES_DBM_ENABLED=true` | PostgreSQL DBM direct check |
-| 4 | — | Valkey stays CloudWatch-only (no direct check) |
-| 5 | `DATADOG_DATABASE_MONITORS_ENABLED=true` | Paging monitors (keep `DATADOG_DATABASE_MONITORS_DRAFT=true` until baselined) |
+| 1 | `DATADOG_ENABLED=true` plus AWS connected in Datadog | CloudWatch RDS + Valkey + ALB metrics, dashboard group, IOPS/queue/latency monitors (draft) |
+| 2 | `DATADOG_POSTGRES_DBM_ENABLED=true` | `datadog` role, `CREATE EXTENSION`, Agent check, query toplists |
+| 3 | `DATADOG_DATABASE_MONITORS_DRAFT=false` | Publish database monitors after a traffic baseline |
 
-Until phase 1, the dashboard shows a note linking here instead of database
-widgets.
-
-Do **not** flip Hub DBM defaults to true without a planned RDS reboot window.
-Prerequisites (`shared_preload_libraries=pg_stat_statements`) need a reboot;
-`DATADOG_POSTGRES_DBM_ENABLED` should stay false until that window completes.
-The contract forbids raw SQL samples in Datadog DBM. After AWS
+RDS PostgreSQL 11+ already loads `pg_stat_statements`. Phase 2 does not reboot
+RDS, change parameter groups, or set `RDS_APPLY_IMMEDIATELY`. The contract
+forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
 apply, read slow-statement **text** in CloudWatch Logs. Do not treat
 `gateway_export_events` / `NOT EXISTS` as the current hot query; usage webhooks
 enqueue at insert time. The journal table may still exist until a later
 release drops it. Use Datadog DBM for normalized
-`query_signature`, duration, and wait events once phase 3 is on.
+query structure, duration, and wait events once phase 2 is on.
+
+If the bootstrap Job is stuck, increment
+`DATADOG_POSTGRES_DBM_BOOTSTRAP_REVISION` and re-apply.
+
+### IOPS and slow queries
+
+Phase 1 dashboard widgets chart RDS read/write IOPS, disk queue depth, and
+connection count. Phase 1 also creates these monitors in draft:
+
+| Monitor | Signal | Default threshold |
+| --- | --- | --- |
+| DatabaseRdsIopsHigh | Combined read+write IOPS | 2400 (80% of gp3 3000 IOPS baseline) |
+| DatabaseRdsDiskQueueHigh | Disk queue depth | 10 |
+
+To list queries by structure (literals stripped) and latency:
+
+1. Set `DATADOG_POSTGRES_DBM_ENABLED=true` and apply.
+2. Open the managed dashboard **PostgreSQL engine** group: **Slowest PostgreSQL
+   queries (normalized)** and **Most frequent PostgreSQL queries (normalized)**.
+3. For the full list, sort, and wait-event breakdown, open Datadog
+   **APM > Database Monitoring > Query Metrics** and filter `env:<DATADOG_ENV>`.
+   The `query` facet is obfuscated SQL (`query_signature` is the stable hash).
+   Do not enable raw statement collection.
+
+Tune IOPS thresholds if you raise gp3 provisioned IOPS above the 3000 baseline.
 
 ## LLM Observability (opt-in)
 
