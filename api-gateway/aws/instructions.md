@@ -34,12 +34,10 @@ Deployment **targets** are not entitlements. The admin creates those when connec
   dashboard-only IP lock. Enter them without `/32`, comma-separated, as
   `DASHBOARD_ALLOWED_IPS`. Leave it empty for public dashboard access.
 - [ ] Public Route 53 zone exists (`DNS_ZONE_NAME`); `DOMAIN_NAME` is free
-- [ ] Datadog API key + application key ready. When database AWS metrics are
-  enabled, the application key needs `aws_configuration_read`,
-  `aws_configuration_edit`, and `aws_configurations_manage`. See
-  [datadog-operations.md](datadog-operations.md) for dashboard and monitor rollout.
-  Leave `GATEWAY_LOG_LEVEL=WARN`. The sample Datadog path is metrics + error
-  logs; it does not enable OTLP traces.
+- [ ] Datadog API key + application key ready. See
+  [datadog-operations.md](datadog-operations.md) for connecting AWS in Datadog
+  and dashboard/monitor rollout. Leave `GATEWAY_LOG_LEVEL=WARN`. The sample
+  Datadog path is metrics + error logs; it does not enable OTLP traces.
 - [ ] Create a Distr PAT
 
 Make sure naming conventions follow this pattern:
@@ -93,13 +91,12 @@ See [gateway-secrets.md](gateway-secrets.md) for more details.
   IPv4 of a browser used for administration, not the bootstrap EC2 address
 - [ ] Save the Docker-agent **connect URL** from Hub for the next step
 
-When `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the Distr runner creates the
-minimal Datadog AWS account integration and IAM trust role automatically if
-they are absent. Do not run Datadog's AWS wizard or deploy its log-forwarder
-CloudFormation stack. Compatible integrations that already exist are validated
-and preserved. Account-global Datadog state always uses the canonical
-`<aws-account-id>-subconscious-tfstate` bucket; `TF_STATE_BUCKET` overrides only
-the deployment-scoped infrastructure state.
+When `DATADOG_ENABLED=true`, CloudWatch RDS, ElastiCache, and ALB widgets
+appear on the managed dashboard. Connect the AWS account in Datadog first
+(Integrations → Amazon Web Services → Set Permissions, Datadog's default
+read-only policy). Enable metric collection for RDS, ElastiCache, and
+Application Load Balancer. Do not create a custom `DatadogApiGatewayIntegrationRole`.
+A leftover Hub field `DATADOG_AWS_DATABASE_METRICS_ENABLED` is ignored.
 
 ### 7. Admin: Connect the Distr Docker agent
 
