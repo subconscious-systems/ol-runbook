@@ -50,10 +50,9 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayRouterActiveRequestsHigh | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
 | GatewayAdapterUpstreamTtftP95High | Slow adapter → worker path | Adapter upstream TTFT, router latency |
 | GatewayMeteringOutboxFailures | Billing pipeline errors | Gateway operations / metering widgets |
-| GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, publisher phase duration, CloudWatch postgres slow logs |
-| GatewayExportPublisherSlow | Publisher tick > 2s (Skip drops 1s ticks) | `phase:usage` duration, RDS CPU / lock waits |
+| GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, webhook pending/dead letters |
 | GatewayWebhookPending / DeadLetters | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
-| GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Publisher lock, webhook worker, Vercel `gateway_webhook.received` |
+| GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Webhook worker, Vercel `gateway_webhook.received` |
 | GatewayTracePersistenceFailures | Trace write failures | Observability drops widget |
 | Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
 
@@ -110,8 +109,10 @@ Prerequisites (`shared_preload_libraries=pg_stat_statements`) need a reboot;
 `DATADOG_POSTGRES_DBM_ENABLED` should stay false until that window completes.
 The contract forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
-apply, read slow-statement **text** in CloudWatch Logs (filter
-`gateway_export_events` / `NOT EXISTS`). Use Datadog DBM for normalized
+apply, read slow-statement **text** in CloudWatch Logs. Do not treat
+`gateway_export_events` / `NOT EXISTS` as the current hot query; usage webhooks
+enqueue at insert time. The journal table may still exist until a later
+release drops it. Use Datadog DBM for normalized
 `query_signature`, duration, and wait events once phase 3 is on.
 
 ## LLM Observability (opt-in)
