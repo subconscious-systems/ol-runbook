@@ -56,7 +56,9 @@ kubectl -n <GATEWAY_DISTR_DEPLOYMENT_NAME> logs deploy/<name> --tail=200
 
 ### Datadog metric-tag ensure failed / flaky API
 
-Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.
+Terraform and the infra runner upsert Datadog metric tag configurations during apply. HTTP 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.
+
+A 400 `Cannot configure tags on a metric that does not exist` is expected on the first apply of a new histogram (for example Valkey command duration) before the gateway has emitted that series. The runner skips that metric and continues, so gateway auto-deploy is not blocked. The next infra job retries the upsert after scrape traffic exists.
 
 ### Datadog AWS integration bootstrap failed
 
