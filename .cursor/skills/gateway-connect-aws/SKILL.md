@@ -35,8 +35,8 @@ export AWS_REGION=<your-region>
 - After `shell`, on the box: `sudo -i` then
   `export HOME=/root KUBECONFIG=/root/.kube/config`.
 
-`scripts/sql/usage-lag.sql` compares live gateway usage to exported
-`usage.recorded` events and webhook delivery status. The file header explains
+`scripts/sql/usage-lag.sql` compares live gateway usage to delivered
+`usage.recorded` webhooks and webhook delivery status. The file header explains
 how to read the result.
 
 ## Never

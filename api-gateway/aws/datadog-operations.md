@@ -50,10 +50,9 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayRouterActiveRequestsHigh | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
 | GatewayAdapterUpstreamTtftP95High | Slow adapter → worker path | Adapter upstream TTFT, router latency |
 | GatewayMeteringOutboxFailures | Billing pipeline errors | Gateway operations / metering widgets |
-| GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, publisher phase duration, CloudWatch postgres slow logs |
-| GatewayExportPublisherSlow | Publisher tick > 2s (Skip drops 1s ticks) | `phase:usage` duration, RDS CPU / lock waits |
+| GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, webhook pending/dead letters |
 | GatewayWebhookPending / DeadLetters | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
-| GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Publisher lock, webhook worker, Vercel `gateway_webhook.received` |
+| GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Webhook worker, Vercel `gateway_webhook.received` |
 | GatewayTracePersistenceFailures | Trace write failures | Observability drops widget |
 | Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
 
@@ -114,8 +113,10 @@ RDS PostgreSQL 11+ already loads `pg_stat_statements`. Phase 2 does not reboot
 RDS, change parameter groups, or set `RDS_APPLY_IMMEDIATELY`. The contract
 forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
-apply, read slow-statement **text** in CloudWatch Logs (filter
-`gateway_export_events` / `NOT EXISTS`). Use Datadog DBM for normalized
+apply, read slow-statement **text** in CloudWatch Logs. Do not treat
+`gateway_export_events` / `NOT EXISTS` as the current hot query; usage webhooks
+enqueue at insert time. The journal table may still exist until a later
+release drops it. Use Datadog DBM for normalized
 query structure, duration, and wait events once phase 2 is on.
 
 If the bootstrap Job is stuck, increment
