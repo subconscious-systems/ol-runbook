@@ -122,7 +122,7 @@ cd api-gateway/aws/bootstrap
 
 `--ns` is required for `sql` (do not guess the gateway namespace from the infra name). On the box after `shell`: `sudo -i` then `export HOME=/root KUBECONFIG=/root/.kube/config`. `sql` uses a one-shot client Job because SSM is not a TTY and the host has no `psql`.
 
-`scripts/sql/usage-lag.sql` compares `max(gateway_usage_events.received_at)` to the latest delivered usage webhook and delivery status counts (see the file header). All `delivered` / HTTP 200 plus an old delivered tip is **delivery-worker lag**, not missing POSTs. Rotate the RDS password if a connection URL or `SecretString` was printed.
+`scripts/sql/usage-lag.sql` compares `max(gateway_usage_events.received_at)` to the latest delivered usage webhook and delivery status counts (see the file header). All `delivered` / HTTP 200 plus an old delivered tip is **delivery-worker lag**, not missing POSTs. Schema stays additive; rolling the gateway version back still delivers usage webhooks. Rotate the RDS password if a connection URL or `SecretString` was printed.
 
 ## Database / release rollback
 

@@ -1,11 +1,9 @@
 -- Export / webhook lag tips for Orangeline gateway RDS.
 --
 -- Compare live ingest (gateway_usage_events) to the latest delivered
--- usage.recorded webhook and delivery health. Platform usage moves through write-time enqueue
--- of gateway_webhook_deliveries, not the export journal.
---
--- gateway_export_events may still exist until a later release drops it. Do not
--- grep NOT EXISTS / gateway_export_events as the hot query.
+-- usage.recorded webhook and delivery health. New usage is dual-written to
+-- gateway_export_events and gateway_webhook_deliveries at insert time. A previous
+-- gateway binary can still claim by joining the journal.
 --
 -- Run:
 --   ./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> \
@@ -21,7 +19,11 @@ FROM gateway_usage_events;
 
 SELECT u.received_at AS latest_delivered_usage_at, d.export_sequence, d.status
 FROM gateway_webhook_deliveries d
-JOIN gateway_usage_events u ON u.idempotency_key = d.usage_idempotency_key
+JOIN gateway_export_events e
+  ON e.export_sequence = d.export_sequence
+ AND e.event_type = 'usage.recorded'
+JOIN gateway_usage_events u
+  ON u.idempotency_key = COALESCE(d.usage_idempotency_key, e.resource_id)
 WHERE d.status = 'delivered'
 ORDER BY d.export_sequence DESC
 LIMIT 1;
