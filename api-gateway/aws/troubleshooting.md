@@ -58,20 +58,18 @@ kubectl -n <GATEWAY_DISTR_DEPLOYMENT_NAME> logs deploy/<name> --tail=200
 
 Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.
 
-### Datadog AWS integration bootstrap failed
+### Datadog AWS CloudWatch metrics missing
 
-With `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the runner automatically
-creates the account integration and IAM role in separate account-global state.
-A `403` from the Datadog API means the application key is missing one of
-`aws_configuration_read`, `aws_configuration_edit`, or
-`aws_configurations_manage`. Duplicate or incompatible customer-managed
-integrations fail closed instead of being modified. Do not work around this by
-enabling the Datadog log forwarder; database metrics do not require it.
+When `DATADOG_ENABLED=true`, RDS, ElastiCache, and ALB widgets expect Datadog's
+normal AWS integration. Connect the AWS account in Datadog (Integrations →
+Amazon Web Services → Set Permissions) with Datadog's default read-only
+policy, then enable metric collection for `AWS/RDS`, `AWS/ElastiCache`, and
+`AWS/ApplicationELB`. Do not create `DatadogApiGatewayIntegrationRole`. The
+infra runner does not manage that integration. A leftover Hub field
+`DATADOG_AWS_DATABASE_METRICS_ENABLED` is ignored.
 
-If the runner reports that the Datadog configuration ID or ownership marker
-does not match account state, verify that the deployment still uses credentials
-for the original Datadog organization. The runner intentionally refuses to
-rewrite account-global state or IAM trust with another organization's keys.
+Empty charts after a new connect are usually CloudWatch delay. Do not work
+around missing metrics by enabling the Datadog log forwarder.
 
 ### Why can’t I just kubectl from my laptop?
 
