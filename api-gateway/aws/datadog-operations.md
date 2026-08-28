@@ -114,9 +114,11 @@ RDS, change parameter groups, or set `RDS_APPLY_IMMEDIATELY`. The contract
 forbids raw SQL samples in Datadog DBM. After AWS
 `log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
 apply, read slow-statement **text** in CloudWatch Logs. Usage webhooks
-enqueue at insert time (one delivery row). Do not grep `NOT EXISTS` as
-the hot query; that skip-scan copier is gone. Use Datadog DBM for
-normalized query structure, duration, and wait events once phase 2 is on.
+enqueue at insert time (one delivery row). A previous gateway binary
+still bills against that schema. The journal table may still exist
+until a later release drops it. Do not grep `NOT EXISTS` as the hot
+query; that skip-scan copier is gone. Use Datadog DBM for normalized
+query structure, duration, and wait events once phase 2 is on.
 
 If the bootstrap Job is stuck, increment
 `DATADOG_POSTGRES_DBM_BOOTSTRAP_REVISION` and re-apply.

@@ -3,8 +3,8 @@
 -- Compare live ingest (gateway_usage_events) to the latest delivered
 -- usage.recorded webhook and delivery health. New usage enqueues
 -- gateway_webhook_deliveries at insert time. Payload is rebuilt from
--- gateway_usage_events. Do not treat a NOT EXISTS skip-scan of the
--- journal as the hot query; that copier is gone.
+-- gateway_usage_events. The journal table may still exist until a later
+-- drop; do not treat a NOT EXISTS skip-scan of it as the hot query.
 --
 -- Run:
 --   ./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> \
