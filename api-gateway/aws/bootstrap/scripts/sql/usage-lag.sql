@@ -3,7 +3,8 @@
 -- Compare live ingest (gateway_usage_events) to the latest delivered
 -- usage.recorded webhook and delivery health. New usage enqueues
 -- gateway_webhook_deliveries at insert time. Payload is rebuilt from
--- gateway_usage_events. The journal table may still exist until a later
+-- gateway_usage_events. Platform billing keys on event id and usage
+-- idempotency_key. The journal table may still exist until a later
 -- drop; do not treat a NOT EXISTS skip-scan of it as the hot query.
 --
 -- Run:
@@ -18,12 +19,12 @@
 SELECT max(received_at) AS usage_received_at
 FROM gateway_usage_events;
 
-SELECT u.received_at AS latest_delivered_usage_at, d.export_sequence, d.status
+SELECT u.received_at AS latest_delivered_usage_at, d.event_id, d.status
 FROM gateway_webhook_deliveries d
 JOIN gateway_usage_events u
   ON u.idempotency_key = d.usage_idempotency_key
 WHERE d.status = 'delivered'
-ORDER BY d.export_sequence DESC
+ORDER BY d.created_at DESC, d.id DESC
 LIMIT 1;
 
 SELECT status, last_status_code, count(*) AS n
@@ -31,7 +32,7 @@ FROM gateway_webhook_deliveries
 GROUP BY 1, 2
 ORDER BY 1, 2;
 
-SELECT d.export_sequence, d.status, d.usage_idempotency_key, d.updated_at
+SELECT d.id, d.status, d.usage_idempotency_key, d.event_id, d.updated_at
 FROM gateway_webhook_deliveries d
-ORDER BY d.export_sequence DESC
+ORDER BY d.created_at DESC, d.id DESC
 LIMIT 8;

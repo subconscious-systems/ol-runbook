@@ -115,6 +115,9 @@ assert_rc "sql usage-lag file ok" 0 connect_parse_args sql acme-api-gateway-infr
 assert_contains "usage-lag file header" "${SQL_TEXT}" "Export / webhook lag tips"
 assert_contains "usage-lag loads tip SQL" "${SQL_TEXT}" "usage.recorded"
 assert_contains "usage-lag loads deliveries" "${SQL_TEXT}" "gateway_webhook_deliveries"
+assert_contains "usage-lag joins usage key" "${SQL_TEXT}" "usage_idempotency_key"
+assert_not_contains "usage-lag does not join journal" "${SQL_TEXT}" "JOIN gateway_export_events"
+assert_not_contains "usage-lag does not order by sequence" "${SQL_TEXT}" "ORDER BY d.export_sequence"
 assert_rc "ns on env" 2 connect_parse_args env acme-api-gateway-infra --ns acme-api-gateway
 
 echo "== DNS-1123 =="
