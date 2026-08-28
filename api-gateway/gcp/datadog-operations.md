@@ -201,6 +201,12 @@ Search Datadog for:
 Use `$env`, `$service`, `$model`, and `$request_id` template variables.
 Production and sandbox must have different `DATADOG_ENV` values.
 
+From a 5xx metric or error-ratio monitor, search the log tag
+`status_code:503` (or `@status_code:503`). Do not search
+`@http.status_code`. The matching line is `gateway.request.completed`.
+See [AWS Datadog operations](../aws/datadog-operations.md) for the
+request-log playbook.
+
 Recommended rollout:
 
 1. `DATADOG_MONITORS_DRAFT=true` and

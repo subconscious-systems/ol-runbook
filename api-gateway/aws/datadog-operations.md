@@ -27,7 +27,7 @@ variables:
 | `$model` | Logical model filter |
 | `$request_id` | Drill into correlated request logs |
 
-The Overview group keeps **Gateway readiness** as a last-value card. **Active requests** (`gateway.inflight`), **Gateway RPS**, **Requests / minute**, **Requests / hour**, and **5xx error ratio** are time series. Token usage input/output/total rates are time series in the Token usage group.
+The Overview group keeps **Gateway readiness** as a last-value card. **Active requests** (`gateway.inflight`), **Gateway RPS**, **Requests / minute**, **Requests / hour**, and **5xx error ratio** are time series. The Token usage group has input/output/total tokens per minute plus a 30-day **Tokens per day** bar chart by model.
 
 ## What pages (monitors)
 
@@ -185,6 +185,18 @@ environment, and search Logs Explorer:
 ```text
 source:subconscious-gateway env:<DATADOG_ENV> @request_id:<REQUEST_ID>
 ```
+
+From a 5xx metric or `GatewayErrorBudgetBurnPage` / `GatewayHighErrorRatio`,
+use the metric tags. The managed JSON pipeline copies them onto
+`gateway.request.completed` as log tags (APM is not required):
+
+```text
+source:subconscious-gateway env:<DATADOG_ENV> status_code:503
+```
+
+`@status_code:503` still works. Do not search `@http.status_code`. The log
+message is only `gateway.request.completed`; the status lives on
+`@status_code`, `@outcome`, and `@error_type`.
 
 The managed gateway dashboard provides the same filter through
 `$request_id`. Inspect `@outcome`, `@error_type`,
