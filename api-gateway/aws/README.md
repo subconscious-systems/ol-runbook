@@ -52,8 +52,13 @@ Implications:
 - Gateway chart applies are in-place Helm rolling updates (`maxUnavailable: 0`),
   not a second stack. Typical short agent turns can survive a gateway or adapter
   roll; hour-long streams can still be cut at the five-minute grace deadline.
-  A singleton router image change, an EKS node drain, or a Terraform replace of
-  RDS / Valkey / ACM is not a zero-downtime event. Infra auto-deploy runs only
+  A router image change is no longer an automatic inference hole. Helm surges a
+  second router pod (`maxSurge: 1`); the old singleton stays in Service until
+  the new one reports dashboard models. If the new pod CrashLoops, the old one
+  keeps serving — look at `ops-cli router-workers` / DB env, not webhook secrets
+  on the router. Cache-aware hits still reset once the cutover happens. An EKS
+  node drain or a Terraform replace of RDS / Valkey / ACM is still not a
+  zero-downtime event. Infra auto-deploy runs only
   when the Terraform plan is expand-safe. Helm-facing replace plans fail closed.
   Add another public name with `GATEWAY_EXTRA_INGRESS_HOSTS`; tear the stack
   down with [teardown.md](teardown.md).
