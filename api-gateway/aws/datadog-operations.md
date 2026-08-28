@@ -53,7 +53,6 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, webhook pending/dead letters |
 | GatewayWebhookPending / DeadLetters | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
 | GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Webhook worker, Vercel `gateway_webhook.received` |
-| GatewayTracePersistenceFailures | Trace write failures | Observability drops widget |
 | Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
 
 Router and adapter monitors can be disabled with `DATADOG_INCLUDE_ROUTER_MONITORS`
@@ -129,7 +128,7 @@ connection count. Phase 1 also creates these monitors in draft:
 | Monitor | Signal | Default threshold |
 | --- | --- | --- |
 | DatabaseRdsIopsHigh | Combined read+write IOPS | 2400 (80% of gp3 3000 IOPS baseline) |
-| DatabaseRdsDiskQueueHigh | Disk queue depth | 10 |
+| DatabaseRdsDiskQueueHigh | Disk queue depth | warn 10 / alert 20 |
 
 To list queries by structure (literals stripped) and latency:
 
