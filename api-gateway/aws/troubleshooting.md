@@ -54,6 +54,14 @@ kubectl -n <GATEWAY_DISTR_DEPLOYMENT_NAME> get pods,deploy,svc
 kubectl -n <GATEWAY_DISTR_DEPLOYMENT_NAME> logs deploy/<name> --tail=200
 ```
 
+### Infra apply fails: `api_key and app_key or orgUUID must be set`
+
+The Datadog Terraform provider used to validate credentials even when
+`DATADOG_ENABLED=false`. Empty Hub `DD_API_KEY` / `DD_APP_KEY` then failed
+before any cloud resources. Select an `api-gateway-infra` release that skips
+provider validation when Datadog is off. Do not paste dummy keys. Hub secrets
+can stay empty until Datadog is enabled.
+
 ### Datadog metric-tag ensure failed / flaky API
 
 Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.

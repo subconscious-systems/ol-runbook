@@ -347,6 +347,14 @@ infra. Do not hand-edit the live BackendConfig; auto-deploy will overwrite it.
 
 ## Datadog
 
+### Infra apply fails: `api_key and app_key or orgUUID must be set`
+
+The Datadog Terraform provider used to validate credentials even when
+`DATADOG_ENABLED=false`. Empty Hub `DD_API_KEY` / `DD_APP_KEY` then failed
+before any cloud resources. Select an `api-gateway-infra` release that skips
+provider validation when Datadog is off. Do not paste dummy keys. Hub secrets
+can stay empty until Datadog is enabled.
+
 ### Datadog delegate is not in the permitted organization
 
 `constraints/iam.allowedPolicyMemberDomains` is blocking Datadog's external
