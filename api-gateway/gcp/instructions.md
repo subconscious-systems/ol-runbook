@@ -12,9 +12,9 @@ Secrets: [gateway-secrets.md](gateway-secrets.md). Datadog:
 [rollback.md](rollback.md). Teardown:
 [teardown.md](teardown.md).
 
-The Google-specific differences are project creation, user + ADC login, a
-private IAP/OS Login host, automatic first-state migration to GCS, shared Cloud
-DNS project IAM, and the IAM-protected GKE DNS endpoint.
+The Google-specific differences are selecting an existing project, user + ADC
+login, a private IAP/OS Login host, automatic first-state migration to GCS,
+shared Cloud DNS project IAM, and the IAM-protected GKE DNS endpoint.
 
 ## Interactive installer (recommended)
 
@@ -51,16 +51,13 @@ Useful commands:
 The CLI deliberately does not call the Distr API or store cloud/application
 credentials. The detailed checklist below is the reference behind each prompt.
 
-In the foundation step, the CLI queries resources visible to the authenticated
-Google account and presents numbered choices for the organization, open billing
-account, optional ADC quota project, existing DNS project, and top-level folder
-in one combined parent list. Each choice shows the human display name and exact
-saved ID. For ADC quota, `c` creates a dedicated control-plane project
-under the selected parent and billing account after an explicit confirmation.
-Nested folders and resources hidden by customer policy can be entered manually.
-The production project ID is typed because it must be new and globally unique.
-The CLI validates each answer and generates `bootstrap/terraform.tfvars`; Vim
-is not part of the default flow.
+In the foundation step, the CLI presents numbered existing production and DNS
+projects visible to the authenticated Google account. Each choice shows the
+human display name and exact saved ID. It reads the selected production
+project's attached billing account automatically. ADC quota defaults to that
+same existing project; another existing project can be selected when policy
+requires separation. Terraform creates resources inside the selected project
+but never creates, imports, moves, relabels, or deletes the project itself.
 
 ## Detailed checklist
 
@@ -84,14 +81,15 @@ Choose names of at most 32 characters:
 | --- | --- |
 | Infra Docker deployment / Terraform prefix | `{slug}-api-gateway-infra` |
 | Gateway Helm deployment / namespace / release | `{slug}-api-gateway` |
-| New production GCP project | globally unique project ID |
+| Existing production GCP project | project ID selected by number |
 
 Also choose:
 
 - one existing shared Cloud DNS project and managed zone for `DOMAIN_NAME`;
 - one canonical, non-overlapping RFC1918 `/16` for the platform;
 - one separate canonical RFC1918 `/24` for the bootstrap host;
-- organization or folder, billing account, budget, and operator principals.
+- budget and operator principals; billing must already be enabled on the
+  selected production project.
 
 Keep deployment names at most 32 characters. Greenfield uses the same string
 for the Hub Kubernetes target, namespace, and Helm release
@@ -115,19 +113,18 @@ cd api-gateway/gcp/bootstrap
 ./scripts/install.sh
 ```
 
-The guided foundation step requires exactly one organization/folder parent, an
-open billing account, a new project ID and display name, an existing public-DNS
-project, a budget alert amount, a non-overlapping private `/24`, and at least
-one operator user or Google Group. An ADC quota project is optional and can be
-selected, created as a dedicated control-plane project, or skipped when policy
-already provides one; region, VM sizing, and deletion protections are fixed to
-production-safe values. Organizations are also visible under **IAM & Admin > Manage Resources**,
-billing IDs under **Billing > Manage billing accounts**, and projects/DNS zones
-under **Manage Resources** and **Network services > Cloud DNS**. The installer
-shows the matching accessible resources and allows selection by number.
+The guided foundation step requires an existing ACTIVE project with billing
+enabled, an existing public-DNS project, a budget alert amount, a
+non-overlapping private `/24`, and at least one operator user or Google Group.
+ADC quota defaults to the selected production project; region, VM sizing, and
+VM deletion protection are fixed to production-safe values. Projects and DNS
+zones are visible under **IAM & Admin > Manage Resources** and
+**Network services > Cloud DNS**. The installer shows matching accessible
+resources and allows selection by number.
 
-It then plans, asks for the production project ID, applies the project and
-private VM, migrates state to the new versioned GCS bucket, runs preflight, and
+It then plans, asks for the selected production project ID as confirmation,
+applies the foundation resources and private VM inside it, migrates state to
+the versioned GCS bucket, runs preflight, and
 repairs Docker/Compose/kubectl on the host. Re-running with
 `./scripts/install.sh --from-step 3` offers to reuse a valid completed foundation
 file. The VM has no public IP; access uses IAP and OS Login. Authentication uses

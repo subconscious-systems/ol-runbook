@@ -1,5 +1,5 @@
 resource "google_service_account" "bootstrap" {
-  project      = google_project.environment.project_id
+  project      = data.google_project.environment.project_id
   account_id   = "gateway-platform"
   display_name = "Gateway production platform applier"
   description  = "Attached only to the keyless Distr bootstrap VM; no user-managed keys."
@@ -10,7 +10,7 @@ resource "google_service_account" "bootstrap" {
 resource "google_project_iam_member" "platform_apply" {
   for_each = local.platform_apply_roles
 
-  project = google_project.environment.project_id
+  project = data.google_project.environment.project_id
   role    = each.value
   member  = "serviceAccount:${google_service_account.bootstrap.email}"
 }
@@ -32,7 +32,7 @@ resource "google_storage_bucket_iam_member" "platform_state" {
 resource "google_project_iam_member" "operator_project_access" {
   for_each = local.operator_project_bindings
 
-  project = google_project.environment.project_id
+  project = data.google_project.environment.project_id
   role    = each.value.role
   member  = each.value.principal
 }

@@ -116,23 +116,6 @@ assert_rc "non-overlapping CIDRs" 0 install_validate_cidrs_do_not_overlap \
   '10.80.0.0/16' '10.40.0.0/24'
 assert_rc "overlapping CIDRs rejected" 2 install_validate_cidrs_do_not_overlap \
   '10.40.0.0/16' '10.40.10.0/24'
-assert_rc "numeric organization ID" 0 install_validate_numeric_id \
-  '1051986809840' organization
-assert_rc "display name rejected as organization ID" 2 \
-  install_validate_numeric_id 'Example Org' organization
-assert_rc "organization parent reference" 0 install_validate_parent_reference \
-  'organization:1051986809840'
-assert_rc "folder parent reference" 0 install_validate_parent_reference \
-  'folder:123456789012'
-assert_rc "bare parent ID rejected" 2 install_validate_parent_reference \
-  '1051986809840'
-install_apply_parent_reference 'folder:123456789012'
-assert_eq "folder parent sets folder ID" "${FOLDER_ID}" '123456789012'
-assert_eq "folder parent clears organization ID" "${ORGANIZATION_ID}" ''
-install_apply_parent_reference 'organization:1051986809840'
-assert_eq "organization parent sets organization ID" "${ORGANIZATION_ID}" \
-  '1051986809840'
-assert_eq "organization parent clears folder ID" "${FOLDER_ID}" ''
 assert_rc "billing account ID" 0 install_validate_billing_account_id \
   '016933-06250C-0D5324'
 assert_rc "malformed billing account rejected" 2 \
@@ -141,9 +124,6 @@ assert_rc "valid GCP project ID" 0 install_validate_gcp_project_id \
   'subconscious-gateway-prod' project
 assert_rc "uppercase GCP project rejected" 2 install_validate_gcp_project_id \
   'Subconscious-Gateway-Prod' project
-assert_rc "valid project display name" 0 install_validate_project_name \
-  'Subconscious Gateway Prod'
-assert_rc "short project display name rejected" 2 install_validate_project_name 'GW'
 assert_rc "positive budget" 0 install_validate_positive_integer 1200 budget
 assert_rc "zero budget rejected" 2 install_validate_positive_integer 0 budget
 assert_rc "production bootstrap zone" 0 install_validate_bootstrap_zone us-east1-b
@@ -154,25 +134,6 @@ assert_rc "multiple operator principals" 0 install_validate_operator_principals 
   'group:platform@example.com, user:installer@example.com'
 assert_rc "bare operator email rejected" 2 install_validate_operator_principals \
   'installer@example.com'
-parent_type=organization
-install_prompt_choice parent_type 'Production project parent' \
-  'organization|folder' <<<'2' >/dev/null
-assert_eq "numbered parent choice selects folder" "${parent_type}" 'folder'
-parent_type=organization
-install_prompt_choice parent_type 'Production project parent' \
-  'organization|folder' <<<'' >/dev/null
-assert_eq "blank parent choice keeps default" "${parent_type}" 'organization'
-parent_type=
-install_prompt_choice parent_type 'Production project parent' \
-  'organization|folder' <<<'folder' >/dev/null
-assert_eq "typed parent choice remains supported" "${parent_type}" 'folder'
-candidate_parents=$'organization:1051986809840\tOrganization: Subconscious\nfolder:123456789012\tFolder: Production'
-project_parent_reference=
-install_prompt_candidate project_parent_reference 'Required project parent' \
-  "${candidate_parents}" install_validate_parent_reference \
-  <<<'2' >/dev/null
-assert_eq "combined parent list selects folder ID" \
-  "${project_parent_reference}" 'folder:123456789012'
 candidate_billing_accounts=$'111111-AAAAAA-222222\tPrimary billing\n333333-BBBBBB-444444\tProduction billing'
 BILLING_ACCOUNT_ID=
 install_prompt_candidate BILLING_ACCOUNT_ID 'Required billing account' \
@@ -183,53 +144,39 @@ assert_eq "billing account selectable by number" "${BILLING_ACCOUNT_ID}" \
 candidate_projects=$'customer-quota-admin\tQuota administration\ncustomer-shared-dns\tShared DNS'
 QUOTA_PROJECT_ID=
 install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id '' 'quota project ID' \
+  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
   <<<'1' >/dev/null
 assert_eq "quota project selectable by number" "${QUOTA_PROJECT_ID}" \
   'customer-quota-admin'
 QUOTA_PROJECT_ID=old-value
 install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id '' 'quota project ID' \
+  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
   <<<'s' >/dev/null
 assert_eq "optional candidate can be skipped" "${QUOTA_PROJECT_ID}" ''
 QUOTA_PROJECT_ID=customer-quota-admin
 install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id '' 'quota project ID' \
+  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
   <<<'' >/dev/null
 assert_eq "optional candidate keeps step 2 selection" "${QUOTA_PROJECT_ID}" \
   'customer-quota-admin'
-# shellcheck disable=SC2329 # Invoked indirectly by the candidate prompt.
-mock_create_quota_project() { QUOTA_PROJECT_ID=created-quota-project; }
-QUOTA_PROJECT_ID=
-install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id \
-  mock_create_quota_project 'quota project ID' <<<'c' >/dev/null
-assert_eq "quota project create option" "${QUOTA_PROJECT_ID}" \
-  'created-quota-project'
-unset -f mock_create_quota_project
-gcloud_calls=""
-# shellcheck disable=SC2329 # Invoked by install_create_quota_project.
-gcloud() { gcloud_calls+="${gcloud_calls:+|}$*"; }
-# shellcheck disable=SC2329 # Invoked by install_create_quota_project.
-install_wait_for_word() { :; }
-unset FOUNDATION_QUOTA_PROJECT_ID FOUNDATION_QUOTA_PROJECT_NAME
-ORGANIZATION_ID=1051986809840
-FOLDER_ID=
-BILLING_ACCOUNT_ID=016933-06250C-0D5324
-QUOTA_PROJECT_ID=
-install_create_quota_project \
-  <<<$'subconscious-admin-quota\n' >/dev/null
-assert_eq "created quota project selected" "${QUOTA_PROJECT_ID}" \
-  'subconscious-admin-quota'
-if [[ "${gcloud_calls}" == *'projects create subconscious-admin-quota'* \
-  && "${gcloud_calls}" == *'--organization 1051986809840'* \
-  && "${gcloud_calls}" == *'billing projects link subconscious-admin-quota'* \
-  && "${gcloud_calls}" == *'--billing-account 016933-06250C-0D5324'* ]]; then
-  ok "quota project creation uses selected parent and billing account"
-else
-  fail "quota project creation lost selected parent or billing account"
-fi
-unset -f gcloud install_wait_for_word
+# shellcheck disable=SC2329 # Invoked by install_load_existing_project_context.
+gcloud() {
+  case "$*" in
+    'projects describe subconscious-gateway-prod --format=json')
+      printf '%s\n' \
+        '{"lifecycleState":"ACTIVE","parent":{"type":"organization","id":"1051986809840"}}'
+      ;;
+    'billing projects describe subconscious-gateway-prod --format=json')
+      printf '%s\n' \
+        '{"billingEnabled":true,"billingAccountName":"billingAccounts/016933-06250C-0D5324"}'
+      ;;
+    *) return 1 ;;
+  esac
+}
+install_load_existing_project_context subconscious-gateway-prod
+assert_eq "existing project billing discovered" "${BILLING_ACCOUNT_ID}" \
+  '016933-06250C-0D5324'
+unset -f gcloud
 assert_eq "safe Hub secret prefix" "$(install_secret_prefix example-prod-gateway)" \
   "EXAMPLE_PROD_GATEWAY"
 printf '%s\n' 'enabled_environments = ["retired"]' \
@@ -242,12 +189,9 @@ assert_rc "production-only tfvars accepted" 1 \
   install_tfvars_is_legacy "${TMP}/production.tfvars"
 
 echo "== Guided production foundation file =="
-export ORGANIZATION_ID=1051986809840
-export FOLDER_ID=
 export BILLING_ACCOUNT_ID=016933-06250C-0D5324
 export QUOTA_PROJECT_ID=customer-quota-admin
 export FOUNDATION_PROJECT_ID=subconscious-gateway-prod
-export FOUNDATION_PROJECT_NAME='Subconscious Gateway Prod'
 export FOUNDATION_DNS_PROJECT_ID=customer-shared-dns
 export MONTHLY_BUDGET_AMOUNT_USD=1200
 export BOOTSTRAP_ZONE=us-east1-b
@@ -255,12 +199,9 @@ export BOOTSTRAP_SUBNET_CIDR=10.40.0.0/24
 export OPERATOR_PRINCIPALS='group:platform@example.com,user:installer@example.com'
 install_render_bootstrap_tfvars "${TMP}/guided.tfvars"
 for expected in \
-  'organization_id = "1051986809840"' \
-  'folder_id       = ""' \
   'billing_account_id = "016933-06250C-0D5324"' \
   'quota_project_id   = "customer-quota-admin"' \
-  'project_id   = "subconscious-gateway-prod"' \
-  'project_name = "Subconscious Gateway Prod"' \
+  'project_id = "subconscious-gateway-prod"' \
   'dns_project_id = "customer-shared-dns"' \
   'monthly_budget_amount_usd = 1200' \
   'region                = "us-east1"' \
@@ -268,12 +209,19 @@ for expected in \
   'bootstrap_subnet_cidr = "10.40.0.0/24"' \
   '"group:platform@example.com",' \
   '"user:installer@example.com",' \
-  'project_deletion_policy = "PREVENT"' \
-  'protect_bootstrap_vms   = true'; do
+  'protect_bootstrap_vms = true'; do
   if grep -Fq "${expected}" "${TMP}/guided.tfvars"; then
     ok "generated foundation ${expected%% =*}"
   else
     fail "generated foundation missing ${expected}"
+  fi
+done
+for removed_field in organization_id folder_id project_name project_deletion_policy; do
+  if grep -Eq "^[[:space:]]*${removed_field}[[:space:]]*=" \
+    "${TMP}/guided.tfvars"; then
+    fail "generated foundation still contains ${removed_field}"
+  else
+    ok "generated foundation omits ${removed_field}"
   fi
 done
 if stat -c '%a' "${TMP}/guided.tfvars" >/dev/null 2>&1; then

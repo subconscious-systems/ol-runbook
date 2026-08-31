@@ -87,16 +87,9 @@ locals {
   }
 }
 
-check "project_parent" {
-  assert {
-    condition     = (var.organization_id != "") != (var.folder_id != "")
-    error_message = "Set exactly one of organization_id or folder_id."
-  }
-}
-
 check "external_dns_project" {
   assert {
     condition     = var.dns_project_id != var.project_id
-    error_message = "dns_project_id must name the existing shared DNS project, not the new gateway project."
+    error_message = "dns_project_id must name the existing shared DNS project, not the gateway project."
   }
 }

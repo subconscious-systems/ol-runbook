@@ -4,7 +4,7 @@ data "google_compute_image" "ubuntu" {
 }
 
 resource "google_compute_instance" "bootstrap" {
-  project                   = google_project.environment.project_id
+  project                   = data.google_project.environment.project_id
   name                      = "gateway-bootstrap"
   zone                      = var.bootstrap_zone
   machine_type              = var.bootstrap_machine_type

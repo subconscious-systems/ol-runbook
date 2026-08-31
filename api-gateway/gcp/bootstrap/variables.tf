@@ -1,28 +1,6 @@
-variable "organization_id" {
-  type        = string
-  description = "Numeric Google Cloud organization ID. Set this or folder_id, not both."
-  default     = ""
-
-  validation {
-    condition     = var.organization_id == "" || can(regex("^[0-9]+$", var.organization_id))
-    error_message = "organization_id must be empty or numeric."
-  }
-}
-
-variable "folder_id" {
-  type        = string
-  description = "Numeric folder ID for the project. Set this or organization_id, not both."
-  default     = ""
-
-  validation {
-    condition     = var.folder_id == "" || can(regex("^[0-9]+$", var.folder_id))
-    error_message = "folder_id must be empty or numeric."
-  }
-}
-
 variable "billing_account_id" {
   type        = string
-  description = "Billing account ID attached to the project (for example 000000-000000-000000)."
+  description = "Billing account already attached to the selected project, used for budget alerts."
 
   validation {
     condition     = can(regex("^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", upper(var.billing_account_id)))
@@ -32,7 +10,7 @@ variable "billing_account_id" {
 
 variable "quota_project_id" {
   type        = string
-  description = "Existing project used for client-based API quota during foundation creation."
+  description = "Existing project used for client-based API quota during foundation administration."
   default     = ""
 
   validation {
@@ -46,22 +24,11 @@ variable "quota_project_id" {
 
 variable "project_id" {
   type        = string
-  description = "Globally unique project ID for the production gateway."
+  description = "Existing Google Cloud project where the production gateway is deployed."
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
     error_message = "project_id must be a valid 6-30 character Google Cloud project ID."
-  }
-}
-
-variable "project_name" {
-  type        = string
-  description = "Display name for the production gateway project."
-  default     = "Gateway Production"
-
-  validation {
-    condition     = length(var.project_name) >= 4 && length(var.project_name) <= 30
-    error_message = "project_name must be 4-30 characters."
   }
 }
 
@@ -160,17 +127,6 @@ variable "operator_principals" {
   }
 }
 
-variable "project_deletion_policy" {
-  type        = string
-  description = "PREVENT protects projects; set DELETE only during an approved final teardown."
-  default     = "PREVENT"
-
-  validation {
-    condition     = contains(["PREVENT", "ABANDON", "DELETE"], var.project_deletion_policy)
-    error_message = "project_deletion_policy must be PREVENT, ABANDON, or DELETE."
-  }
-}
-
 variable "protect_bootstrap_vms" {
   type        = bool
   description = "Enable Compute Engine deletion protection on the bootstrap VM."
@@ -179,7 +135,7 @@ variable "protect_bootstrap_vms" {
 
 variable "labels" {
   type        = map(string)
-  description = "Additional labels applied to projects and bootstrap resources."
+  description = "Additional labels applied to bootstrap resources."
   default = {
     application = "subconscious-gateway"
     managed-by  = "terraform"

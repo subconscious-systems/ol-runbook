@@ -30,16 +30,14 @@ Branch changes do not replace an ignored local `terraform.tfvars`. If the CLI
 finds the retired multi-environment schema, it requires an explicit `replace`
 confirmation and moves the old values to a private temporary archive. The CLI
 then discovers accessible GCP resources, lets the operator select numbered
-organization, top-level-folder, billing-account, quota-project, and DNS-project
-candidates, and generates a fresh production-only file. A text editor is only
-an optional final review. Delete the temporary archive after verifying the
-generated file.
+existing production-project, quota-project, and DNS-project candidates, reads
+the production project's attached billing account, and generates a fresh
+production-only file. A text editor is only an optional final review. Delete
+the temporary archive after verifying the generated file.
 
-For ADC quota, the operator can select a numbered existing project, press `c`
-to create a dedicated control-plane project under the selected parent and
-billing account, enter an ID manually, or skip when customer policy already
-provides quota. Project creation requires the explicit word `create` before the
-CLI changes GCP.
+ADC quota defaults to the selected existing production project. The operator
+can select another existing project or enter its ID manually only when customer
+policy requires separation. The CLI does not create GCP projects.
 
 ## What the one bootstrap command does
 
@@ -64,9 +62,9 @@ Re-running step 3 offers to reuse an already-valid production file:
 `bootstrap.sh`:
 
 1. initializes and validates Terraform;
-2. displays the project/bootstrap plan;
-3. asks for the production project ID;
-4. applies the project, APIs, budget, state bucket, private network/NAT,
+2. displays the bootstrap plan for the selected existing project;
+3. asks for that project ID as confirmation;
+4. applies APIs, budget, state bucket, private network/NAT,
    service account/IAM, IAP firewall, and private VM;
 5. migrates the first local state into the versioned GCS bucket;
 6. verifies billing, APIs, private access, Shielded VM, OS Login, NAT, and the
@@ -78,13 +76,14 @@ for an already-approved non-interactive recovery run.
 
 ## Security properties
 
-- One dedicated production project.
+- One selected existing production project, outside Terraform ownership.
 - Private VM with no public IP; egress through Cloud NAT.
 - IAP TCP forwarding and OS Login for operator access.
 - Attached service account with scoped platform roles; no service-account key.
 - GCS state bucket with uniform access, public-access prevention, and
   versioning.
-- Project and VM deletion protection enabled by default.
+- Existing project lifecycle remains outside Terraform; VM deletion protection
+  is enabled by default.
 - DNS administration granted only in the selected existing DNS project.
 
 ## Agent commands
@@ -161,13 +160,14 @@ foundation.
 
 Do not destroy these foundations while either Distr agent or platform stack is
 still running. Complete platform teardown first
-([../teardown.md](../teardown.md)). For an approved final project deletion:
+([../teardown.md](../teardown.md)). The selected existing project is never
+deleted by this stack. For an approved foundation teardown:
 
 1. Preserve/export required audit evidence and state.
 2. Set `protect_bootstrap_vms = false` and apply.
 3. Empty or preserve the state buckets according to retention policy.
-4. Set `project_deletion_policy = "DELETE"` and apply that policy change.
-5. Run the reviewed destroy from the remote backend.
+4. Run the reviewed destroy from the remote backend.
 
-Project deletion is asynchronous and has organization-level consequences.
-`terraform destroy` is intentionally blocked by the default protections.
+Project deletion is a separate customer-owned action outside this runbook.
+`terraform destroy` is intentionally blocked by the default VM protections
+until step 2 is completed.

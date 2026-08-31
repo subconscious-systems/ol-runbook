@@ -59,7 +59,8 @@ requires an approved provider or worker endpoint.
 
 ## GCP-only differences from AWS
 
-- The bootstrap Terraform creates the dedicated project and attaches billing.
+- The bootstrap Terraform deploys into a selected existing project and never
+  creates, imports, moves, relabels, or deletes that project.
 - Human login needs both gcloud user auth and Application Default Credentials.
 - The first local state is automatically migrated into the new GCS bucket.
 - The platform service account receives scoped DNS access in the existing DNS
@@ -129,10 +130,9 @@ Keep each Distr deployment name at most 32 characters:
 
 ## Prerequisites
 
-- Rights to create a project under the selected organization/folder, attach
-  billing, enable services, administer the budget, set IAM, and update the
-  selected Cloud DNS zone.
-- One production project ID, an existing DNS project/zone, and non-overlapping
+- Rights in an existing billing-enabled production project to enable services,
+  administer the budget, set IAM, and update the selected Cloud DNS zone.
+- One existing production project ID, an existing DNS project/zone, and non-overlapping
   RFC1918 `/24` bootstrap and `/16` platform ranges.
 - Distr customer PAT plus Application and artifact entitlements.
 - Terraform 1.11.4+, gcloud, GKE auth plugin, jq, and curl.

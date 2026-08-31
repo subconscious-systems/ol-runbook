@@ -32,7 +32,7 @@ Options:
 
 Optional environment defaults:
   INFRA_DEPLOY_NAME, GATEWAY_DEPLOY_NAME, DOMAIN_NAME,
-  CLOUDSQL_INSTANCE, REDIS_INSTANCE, QUOTA_PROJECT_ID, DATADOG_ENABLED
+  CLOUDSQL_INSTANCE, REDIS_INSTANCE, DATADOG_ENABLED
 EOF
 }
 
@@ -255,32 +255,22 @@ install_validate_provider_suffixes() {
   done
 }
 
-install_validate_numeric_id() {
-  local value="${1:-}"
-  local label="${2:-ID}"
-  [[ "${value}" =~ ^[0-9]+$ ]] || {
-    printf 'ERROR: %s must be a numeric Google Cloud ID\n' "${label}" >&2
-    return 2
-  }
-}
+install_load_existing_project_context() {
+  local project_id="$1"
+  local billing_json billing_name lifecycle_state project_json
+  project_json="$(gcloud projects describe "${project_id}" --format=json)" \
+    || install_die "cannot read existing project: ${project_id}"
+  lifecycle_state="$(jq -r '.lifecycleState // ""' <<<"${project_json}")"
+  [[ "${lifecycle_state}" == "ACTIVE" ]] \
+    || install_die "selected project is not ACTIVE: ${project_id}"
 
-install_validate_parent_reference() {
-  local value="${1:-}"
-  [[ "${value}" =~ ^(organization|folder):[0-9]+$ ]] || {
-    printf 'ERROR: parent must look like organization:123456 or folder:123456\n' >&2
-    return 2
-  }
-}
-
-install_apply_parent_reference() {
-  local value="$1"
-  ORGANIZATION_ID=""
-  FOLDER_ID=""
-  case "${value}" in
-    organization:*) ORGANIZATION_ID="${value#organization:}" ;;
-    folder:*) FOLDER_ID="${value#folder:}" ;;
-    *) install_validate_parent_reference "${value}" ;;
-  esac
+  billing_json="$(gcloud billing projects describe "${project_id}" --format=json)" \
+    || install_die "cannot read billing for existing project: ${project_id}"
+  [[ "$(jq -r '.billingEnabled // false' <<<"${billing_json}")" == "true" ]] \
+    || install_die "billing is not enabled on existing project: ${project_id}"
+  billing_name="$(jq -r '.billingAccountName // ""' <<<"${billing_json}")"
+  BILLING_ACCOUNT_ID="${billing_name##*/}"
+  install_validate_billing_account_id "${BILLING_ACCOUNT_ID}"
 }
 
 install_validate_billing_account_id() {
@@ -299,15 +289,6 @@ install_validate_gcp_project_id() {
       "${label}" >&2
     return 2
   }
-}
-
-install_validate_project_name() {
-  local value="${1:-}"
-  if [[ "${#value}" -lt 4 || "${#value}" -gt 30 ]] \
-    || [[ "${value}" == *\"* || "${value}" == *\\* ]]; then
-    printf 'ERROR: project name must be 4-30 plain-text characters\n' >&2
-    return 2
-  fi
 }
 
 install_validate_positive_integer() {
@@ -359,22 +340,27 @@ install_tfvar_string() {
 
 install_validate_tfvars() {
   local file="${BOOTSTRAP_DIR}/terraform.tfvars"
-  local organization_id folder_id parent_count=0
+  local billing_account_id dns_project_id project_id quota_project_id
   [[ -r "${file}" ]] || install_die "terraform.tfvars is missing"
 
   if grep -Eq \
-    '^[[:space:]]*((organization_id|folder_id)[[:space:]]*=[[:space:]]*"123456789012"|billing_account_id[[:space:]]*=[[:space:]]*"000000-000000-000000"|quota_project_id[[:space:]]*=[[:space:]]*"example-platform-admin"|project_id[[:space:]]*=[[:space:]]*"example-gateway-prod"|project_name[[:space:]]*=[[:space:]]*"Example Gateway Production"|dns_project_id[[:space:]]*=[[:space:]]*"example-shared-dns"|"group:gateway-platform@example\.com")' \
+    '^[[:space:]]*(billing_account_id[[:space:]]*=[[:space:]]*"000000-000000-000000"|quota_project_id[[:space:]]*=[[:space:]]*"example-platform-admin"|project_id[[:space:]]*=[[:space:]]*"example-gateway-prod"|dns_project_id[[:space:]]*=[[:space:]]*"example-shared-dns"|"group:gateway-platform@example\.com")' \
     "${file}"; then
     install_die \
       'terraform.tfvars still contains an example value; replace every customer-specific example'
   fi
 
-  organization_id="$(install_tfvar_string organization_id)"
-  folder_id="$(install_tfvar_string folder_id)"
-  [[ -n "${organization_id}" ]] && parent_count=$((parent_count + 1))
-  [[ -n "${folder_id}" ]] && parent_count=$((parent_count + 1))
-  [[ "${parent_count}" -eq 1 ]] || install_die \
-    'set exactly one quoted organization_id or folder_id in terraform.tfvars'
+  project_id="$(install_tfvar_string project_id)"
+  billing_account_id="$(install_tfvar_string billing_account_id)"
+  quota_project_id="$(install_tfvar_string quota_project_id)"
+  dns_project_id="$(install_tfvar_string dns_project_id)"
+  install_validate_gcp_project_id "${project_id}" 'project ID'
+  install_validate_billing_account_id "${billing_account_id}"
+  [[ -z "${quota_project_id}" ]] \
+    || install_validate_gcp_project_id "${quota_project_id}" 'quota project ID'
+  install_validate_gcp_project_id "${dns_project_id}" 'DNS project ID'
+  [[ "${project_id}" != "${dns_project_id}" ]] \
+    || install_die 'deployment and DNS project IDs must differ'
   chmod 0600 "${file}"
 }
 
@@ -382,7 +368,7 @@ install_tfvars_is_legacy() {
   local file="$1"
   local legacy_environment_label='sand''box'
   grep -Eq \
-    "^[[:space:]]*(enabled_environments|production_project_id|${legacy_environment_label}_project_id|monthly_budget_amounts_usd|bootstrap_zones|bootstrap_subnet_cidrs)[[:space:]]*=" \
+    "^[[:space:]]*(enabled_environments|production_project_id|${legacy_environment_label}_project_id|monthly_budget_amounts_usd|bootstrap_zones|bootstrap_subnet_cidrs|organization_id|folder_id|project_name|project_deletion_policy)[[:space:]]*=" \
     "${file}"
 }
 
@@ -412,54 +398,6 @@ EOF
   printf '[install] delete that temporary archive after verifying the new configuration\n'
 }
 
-install_create_quota_project() {
-  local parent_description parent_flag=()
-  cat <<'EOF'
-
-Create a dedicated ADC quota project
-------------------------------------
-This is a small Google Cloud control-plane project used to attribute API quota
-while Terraform creates and administers the production gateway project. It is
-not the production gateway project and does not run gateway workloads.
-
-Creating it requires permission to create a project under the selected parent,
-attach the selected billing account, enable APIs, and consume Service Usage.
-Keep it available for future Terraform administration, or change
-quota_project_id before retiring it. The selected billing account is attached,
-but this workflow creates no compute, database, or network resources in it.
-EOF
-  FOUNDATION_QUOTA_PROJECT_NAME="${FOUNDATION_QUOTA_PROJECT_NAME:-Subconscious Gateway Admin}"
-  install_prompt_validated FOUNDATION_QUOTA_PROJECT_ID \
-    'New globally unique quota project ID' install_validate_gcp_project_id \
-    'quota project ID'
-  install_prompt_validated FOUNDATION_QUOTA_PROJECT_NAME \
-    'Quota project display name' install_validate_project_name
-
-  if [[ -n "${ORGANIZATION_ID}" ]]; then
-    parent_description="organization ${ORGANIZATION_ID}"
-    parent_flag=(--organization "${ORGANIZATION_ID}")
-  else
-    parent_description="folder ${FOLDER_ID}"
-    parent_flag=(--folder "${FOLDER_ID}")
-  fi
-  cat <<EOF
-
-The CLI will now create:
-  project ID:      ${FOUNDATION_QUOTA_PROJECT_ID}
-  display name:    ${FOUNDATION_QUOTA_PROJECT_NAME}
-  parent:          ${parent_description}
-  billing account: ${BILLING_ACCOUNT_ID}
-EOF
-  install_wait_for_word \
-    'Confirm this new billable Google Cloud project.' create
-  gcloud projects create "${FOUNDATION_QUOTA_PROJECT_ID}" \
-    --name "${FOUNDATION_QUOTA_PROJECT_NAME}" "${parent_flag[@]}"
-  gcloud billing projects link "${FOUNDATION_QUOTA_PROJECT_ID}" \
-    --billing-account "${BILLING_ACCOUNT_ID}"
-  QUOTA_PROJECT_ID="${FOUNDATION_QUOTA_PROJECT_ID}"
-  printf '[install] created quota project: %s\n' "${QUOTA_PROJECT_ID}"
-}
-
 install_render_bootstrap_tfvars() {
   local output_file="$1"
   local temporary_file="${output_file}.tmp.$$"
@@ -468,12 +406,9 @@ install_render_bootstrap_tfvars() {
   umask 077
   {
     printf '# Generated by scripts/install.sh. Identifiers only; no secrets.\n\n'
-    printf 'organization_id = "%s"\n' "${ORGANIZATION_ID}"
-    printf 'folder_id       = "%s"\n\n' "${FOLDER_ID}"
     printf 'billing_account_id = "%s"\n' "${BILLING_ACCOUNT_ID}"
     printf 'quota_project_id   = "%s"\n\n' "${QUOTA_PROJECT_ID:-}"
-    printf 'project_id   = "%s"\n' "${FOUNDATION_PROJECT_ID}"
-    printf 'project_name = "%s"\n\n' "${FOUNDATION_PROJECT_NAME}"
+    printf 'project_id = "%s"\n\n' "${FOUNDATION_PROJECT_ID}"
     printf 'dns_project_id = "%s"\n\n' "${FOUNDATION_DNS_PROJECT_ID}"
     printf 'monthly_budget_amount_usd = %s\n\n' "${MONTHLY_BUDGET_AMOUNT_USD}"
     printf 'region                = "us-east1"\n'
@@ -489,8 +424,7 @@ install_render_bootstrap_tfvars() {
       printf '  "%s",\n' "${item}"
     done
     printf ']\n\n'
-    printf 'project_deletion_policy = "PREVENT"\n'
-    printf 'protect_bootstrap_vms   = true\n\n'
+    printf 'protect_bootstrap_vms = true\n\n'
     printf 'labels = {\n'
     printf '  application = "subconscious-gateway"\n'
     printf '  managed-by  = "terraform"\n'
@@ -502,9 +436,7 @@ install_render_bootstrap_tfvars() {
 }
 
 install_collect_bootstrap_tfvars() {
-  local active_account billing_candidates folder_candidates folder_id folder_name
-  local organization_candidates organization_id organization_name parent_candidates=""
-  local project_candidates project_parent_reference
+  local active_account project_candidates
   local retired_environment_name='sand''box' retired_environment_short='s''box'
   cat <<'EOF'
 
@@ -514,66 +446,22 @@ The CLI will discover candidates where Google permits it and then ask for the
 exact value. These are identifiers/configuration, not secrets.
 
 REQUIRED:
-  - one numeric organization ID or folder ID;
-  - one open billing-account ID;
-  - a new globally unique production project ID and display name;
+  - one existing ACTIVE production project with billing already enabled;
   - an existing project that owns the approved public Cloud DNS zone;
   - a positive whole-dollar monthly budget alert;
   - a non-overlapping private /24 for the bootstrap VM;
   - at least one IAP/OS Login operator user or Google Group.
 
 OPTIONAL:
-  - an ADC quota project for client API charges. Select an existing project,
-    create a dedicated control-plane project, or skip only when customer policy
-    already configures ADC quota.
+  - an ADC quota project for client API charges. It defaults to the selected
+    production project; select another existing project only when policy
+    requires it.
 
 FIXED production safety values:
   - region us-east1, e2-standard-2/40 GiB bootstrap VM;
-  - project deletion PREVENT and VM deletion protection enabled.
+  - the selected project remains outside Terraform ownership;
+  - bootstrap VM deletion protection enabled.
 EOF
-
-  organization_candidates="$(
-    gcloud organizations list --format=json 2>/dev/null \
-      | jq -r '.[] | [((.name // "") | split("/") | last), (.displayName // "unnamed")] | @tsv' \
-      || true
-  )"
-  while IFS=$'\t' read -r organization_id organization_name; do
-    [[ -n "${organization_id}" ]] || continue
-    parent_candidates+="${parent_candidates:+$'\n'}organization:${organization_id}"$'\t'"Organization: ${organization_name:-unnamed}"
-    folder_candidates="$(
-      gcloud resource-manager folders list \
-        --organization "${organization_id}" --format=json 2>/dev/null \
-        | jq -r '.[] | [((.name // "") | split("/") | last), (.displayName // "unnamed")] | @tsv' \
-        || true
-    )"
-    while IFS=$'\t' read -r folder_id folder_name; do
-      [[ -n "${folder_id}" ]] || continue
-      parent_candidates+="${parent_candidates:+$'\n'}folder:${folder_id}"$'\t'"Folder: ${folder_name:-unnamed}"
-    done <<<"${folder_candidates}"
-  done <<<"${organization_candidates}"
-  cat <<'EOF'
-Organizations and top-level folders come from Google Cloud Resource Manager.
-They are also visible in Google Cloud Console > IAM & Admin > Manage Resources.
-Select the exact parent below. Each entry shows its numeric ID.
-EOF
-  install_prompt_candidate project_parent_reference \
-    'Required production project parent' "${parent_candidates}" \
-    install_validate_parent_reference
-  install_apply_parent_reference "${project_parent_reference}"
-
-  billing_candidates="$(
-    gcloud billing accounts list --filter='open=true' --format=json 2>/dev/null \
-      | jq -r '.[] | [((.name // "") | split("/") | last), (.displayName // "unnamed")] | @tsv' \
-      || true
-  )"
-  cat <<'EOF'
-Also available in Google Cloud Console > Billing > Manage billing accounts.
-Copy the ID shaped 000000-000000-000000. The active user must be allowed to
-attach this account to the new project.
-EOF
-  install_prompt_candidate BILLING_ACCOUNT_ID \
-    'Required billing account' "${billing_candidates}" \
-    install_validate_billing_account_id
 
   project_candidates="$(
     gcloud projects list --filter='lifecycleState=ACTIVE' --format=json \
@@ -590,14 +478,28 @@ EOF
       || true
   )"
   cat <<'EOF'
-The quota project, when used, must already exist and allow your user to consume
-and enable Google APIs, or you can create a dedicated one here. It is not the
-new production project Terraform will create.
+Select the EXISTING project where the production gateway will be deployed.
+Terraform will enable APIs and create the gateway foundation resources inside
+it, but will never create, import, move, relabel, or delete the project itself.
+The CLI reads the project's attached billing account automatically.
+EOF
+  install_prompt_candidate FOUNDATION_PROJECT_ID \
+    'Required existing production project' "${project_candidates}" \
+    install_validate_gcp_project_id 'production project ID'
+  install_load_existing_project_context "${FOUNDATION_PROJECT_ID}"
+  printf '[install] deployment project: %s\n' "${FOUNDATION_PROJECT_ID}"
+  printf '[install] attached billing account: %s\n' "${BILLING_ACCOUNT_ID}"
+
+  QUOTA_PROJECT_ID="${FOUNDATION_PROJECT_ID}"
+  cat <<'EOF'
+
+ADC quota defaults to the same existing production project. This attributes
+Google client-library API quota while Terraform administers that project. Use
+a different existing project only when customer policy requires separation.
 EOF
   install_prompt_optional_candidate QUOTA_PROJECT_ID \
     'Optional ADC quota project' "${project_candidates}" \
-    install_validate_gcp_project_id install_create_quota_project \
-    'quota project ID'
+    install_validate_gcp_project_id 'quota project ID'
   if [[ -n "${QUOTA_PROJECT_ID:-}" ]]; then
     "${SCRIPT_DIR}/setup-gcloud.sh" \
       --skip-login --quota-project "${QUOTA_PROJECT_ID}"
@@ -605,22 +507,9 @@ EOF
 
   cat <<'EOF'
 
-Choose a NEW globally unique project ID. Use 6-30 lowercase letters, digits,
-and hyphens; it cannot be changed after creation. Terraform creates it, so do
-not create it manually. The display name is human-readable and can change.
-EOF
-  install_prompt_validated FOUNDATION_PROJECT_ID \
-    'Required new production project ID' install_validate_gcp_project_id \
-    'production project ID'
-  FOUNDATION_PROJECT_NAME="${FOUNDATION_PROJECT_NAME:-Subconscious Gateway Prod}"
-  install_prompt_validated FOUNDATION_PROJECT_NAME \
-    'Required production project display name' install_validate_project_name
-
-  cat <<'EOF'
-
 The DNS project is an EXISTING project containing the public managed zone for
-the gateway hostname. It is usually a shared DNS/network project, not the new
-production project. Copy the project ID from Manage Resources.
+the gateway hostname. It is usually a shared DNS/network project, not the
+selected gateway deployment project.
 EOF
   install_prompt_candidate FOUNDATION_DNS_PROJECT_ID \
     'Required existing Cloud DNS project' "${project_candidates}" \
@@ -912,32 +801,27 @@ install_prompt_optional_candidate() {
   local label="$2"
   local candidates="$3"
   local validator="$4"
-  local create_function="$5"
-  shift 5
-  local candidate_count choice create_option="" current selected value
+  shift 4
+  local candidate_count choice current selected value
   current="${!variable_name:-}"
-  if [[ -n "${create_function}" ]]; then
-    create_option=', c to create a new project'
-  fi
   printf '\n%s candidates visible to the active Google account:\n' "${label}"
   install_print_candidates "${candidates}"
   candidate_count="$(install_candidate_count "${candidates}")"
   if [[ "${candidate_count}" -eq 0 ]]; then
-    printf '  No candidates were returned. Check access, create one, or enter an ID manually.\n'
+    printf '  No candidates were returned. Check access or enter an ID manually.\n'
   fi
   while true; do
     if [[ "${candidate_count}" -eq 0 && -n "${current}" ]]; then
-      printf 'Type m for manual entry%s, s to skip, or Enter to keep %s: ' \
-        "${create_option}" "${current}"
+      printf 'Type m for manual entry, s to skip, or Enter to keep %s: ' \
+        "${current}"
     elif [[ "${candidate_count}" -eq 0 ]]; then
-      printf 'Type m for manual entry%s, or press Enter to skip: ' \
-        "${create_option}"
+      printf 'Type m for manual entry, or press Enter to skip: '
     elif [[ -n "${current}" ]]; then
-      printf 'Select 1-%s, m for manual entry%s, s to skip, or Enter to keep %s: ' \
-        "${candidate_count}" "${create_option}" "${current}"
+      printf 'Select 1-%s, m for manual entry, s to skip, or Enter to keep %s: ' \
+        "${candidate_count}" "${current}"
     else
-      printf 'Select 1-%s, m for manual entry%s, or press Enter to skip: ' \
-        "${candidate_count}" "${create_option}"
+      printf 'Select 1-%s, m for manual entry, or press Enter to skip: ' \
+        "${candidate_count}"
     fi
     read -r choice
     [[ -n "${choice}" ]] || {
@@ -946,11 +830,6 @@ install_prompt_optional_candidate() {
     }
     if [[ "${choice}" == "s" || "${choice}" == "S" ]]; then
       printf -v "${variable_name}" '%s' ''
-      return
-    fi
-    if [[ -n "${create_function}" \
-      && ( "${choice}" == "c" || "${choice}" == "C" ) ]]; then
-      "${create_function}"
       return
     fi
     if [[ "${choice}" == "m" || "${choice}" == "M" ]]; then
@@ -969,8 +848,7 @@ install_prompt_optional_candidate() {
         return
       fi
     fi
-    printf 'Choose a listed number, m for manual entry%s, s to skip, or Enter for the default.\n' \
-      "${create_option}"
+    printf 'Choose a listed number, m for manual entry, s to skip, or Enter for the default.\n'
   done
 }
 
@@ -1257,11 +1135,10 @@ Before changing GCP, confirm all four ownership areas:
     - The customer admin can sign in to that organization and create a PAT.
 
   Google Cloud
-    - The installer identity can create a project under the intended
-      organization or folder, attach billing, assign IAM, and administer the
-      selected existing public Cloud DNS zone.
-    - Choose one globally unique production project ID and one existing
-      project that can be used for ADC client-quota billing during bootstrap.
+    - Choose one existing ACTIVE production project with billing enabled.
+    - The installer identity can enable APIs, administer budgets and IAM in
+      that project, and administer the selected public Cloud DNS zone.
+    - ADC client-quota billing defaults to that same production project.
 
   Network/DNS
     - Reserve a free production hostname in an existing public Cloud DNS zone.
@@ -1274,9 +1151,9 @@ Before changing GCP, confirm all four ownership areas:
     - Identify at least one operator user or Google Group, the approved monthly
       budget-alert amount, Datadog ownership, and rollback/upgrade owners.
 
-Do not proceed with guessed organization, billing, DNS, CIDR, or entitlement
-values. None of the Google IDs above are passwords, but they must belong to the
-customer's approved production boundary.
+Do not proceed with guessed project, DNS, CIDR, or entitlement values. None of
+the Google IDs above are passwords, but they must belong to the customer's
+approved production boundary.
 EOF
   install_wait_for_word 'Complete those checks before continuing.' ready
 }
@@ -1297,10 +1174,9 @@ EOF
   "${SCRIPT_DIR}/setup-gcloud.sh"
   cat <<'EOF'
 
-The optional ADC quota project is selected in step 3, after the CLI knows the
-approved parent and billing account. You can select an existing project, create
-a dedicated control-plane project, or skip it when customer policy already
-supplies ADC quota. It is never the new production gateway project.
+The existing production project is selected in step 3. ADC quota defaults to
+that same project; select a different existing project only when customer
+policy requires separation.
 EOF
 }
 

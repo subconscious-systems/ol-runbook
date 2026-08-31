@@ -62,19 +62,19 @@ deployment stage.
 
 ## Foundation projects and APIs
 
-### Project create or billing attachment denied
+### Existing project or billing access denied
 
-The human foundation identity needs project creation on the selected
-folder/organization and Billing Account User on the billing account. Confirm
-the project ID is globally unique and not held by a recently deleted project.
+The human foundation identity must be able to read the selected existing
+project and its attached billing account, enable required services, administer
+the project budget, and set the documented IAM bindings. Confirm the project is
+ACTIVE and billing is enabled.
 
 ```bash
 gcloud billing accounts get-iam-policy <BILLING_ACCOUNT_ID>
-gcloud resource-manager folders get-iam-policy <FOLDER_ID>
+gcloud projects get-iam-policy <PROJECT_ID>
 ```
 
-Do not grant the VM service account billing-account access; billing attachment
-is a day-0 human operation.
+Do not grant the VM service account billing-account access.
 
 ### API not enabled / Service Usage 403
 

@@ -103,8 +103,21 @@ done
 
 grep -Fq 'billing_account = var.billing_account_id' \
   "${BOOTSTRAP_DIR}/billing.tf"
-grep -Fq 'resource "google_project" "environment"' \
+grep -Fq 'data "google_project" "environment"' \
   "${BOOTSTRAP_DIR}/projects.tf"
+grep -Fq 'from = google_project.environment' \
+  "${BOOTSTRAP_DIR}/projects.tf"
+grep -Fq 'destroy = false' "${BOOTSTRAP_DIR}/projects.tf"
+if grep -Fq 'resource "google_project" "environment"' \
+  "${BOOTSTRAP_DIR}/projects.tf"; then
+  printf 'ERROR: bootstrap must not create or own the selected project\n' >&2
+  exit 1
+fi
+if grep -Eq 'gcloud[[:space:]]+projects[[:space:]]+create' \
+  "${SCRIPTS_DIR}/install.sh"; then
+  printf 'ERROR: installer must not create a GCP project\n' >&2
+  exit 1
+fi
 grep -Fq 'resource "google_project_iam_member" "platform_dns"' \
   "${BOOTSTRAP_DIR}/iam.tf"
 grep -Fq 'project = var.dns_project_id' \

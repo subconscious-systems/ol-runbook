@@ -1,19 +1,16 @@
 # Copy to terraform.tfvars and replace every example value.
 # terraform.tfvars is ignored by git.
 
-# Set exactly one parent.
-organization_id = "123456789012"
-# folder_id = "123456789012"
-
+# Billing account already attached to the selected existing project.
 billing_account_id = "000000-000000-000000"
 
-# Optional existing project used to bill client-based API quota while the
-# production project is being created. Leave empty if ADC already has one.
+# Existing project used to bill client-based API quota. Usually the same as
+# project_id; use another only when customer policy requires it.
 quota_project_id = "example-platform-admin"
 
-# One production project per installation.
-project_id   = "example-gateway-prod"
-project_name = "Example Gateway Production"
+# Existing production project selected for this installation. Terraform never
+# creates, imports, relabels, moves, or deletes the project itself.
+project_id = "example-gateway-prod"
 
 # Existing project that owns the public zone used by DOMAIN_NAME. The bootstrap
 # plan grants only roles/dns.admin to the keyless platform service account here.
@@ -36,9 +33,8 @@ operator_principals = [
   "group:gateway-platform@example.com",
 ]
 
-# Keep protections enabled until the approved final teardown.
-project_deletion_policy = "PREVENT"
-protect_bootstrap_vms   = true
+# Keep VM protection enabled until the approved final teardown.
+protect_bootstrap_vms = true
 
 labels = {
   application = "subconscious-gateway"

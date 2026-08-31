@@ -1,5 +1,5 @@
 resource "google_compute_network" "bootstrap" {
-  project                 = google_project.environment.project_id
+  project                 = data.google_project.environment.project_id
   name                    = "gateway-bootstrap"
   auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
@@ -8,7 +8,7 @@ resource "google_compute_network" "bootstrap" {
 }
 
 resource "google_compute_subnetwork" "bootstrap" {
-  project                  = google_project.environment.project_id
+  project                  = data.google_project.environment.project_id
   name                     = "gateway-bootstrap-${var.region}"
   region                   = var.region
   network                  = google_compute_network.bootstrap.id
@@ -23,14 +23,14 @@ resource "google_compute_subnetwork" "bootstrap" {
 }
 
 resource "google_compute_router" "bootstrap" {
-  project = google_project.environment.project_id
+  project = data.google_project.environment.project_id
   name    = "gateway-bootstrap"
   region  = var.region
   network = google_compute_network.bootstrap.id
 }
 
 resource "google_compute_router_nat" "bootstrap" {
-  project                            = google_project.environment.project_id
+  project                            = data.google_project.environment.project_id
   name                               = "gateway-bootstrap"
   region                             = var.region
   router                             = google_compute_router.bootstrap.name
@@ -50,7 +50,7 @@ resource "google_compute_router_nat" "bootstrap" {
 }
 
 resource "google_compute_firewall" "iap_ssh" {
-  project   = google_project.environment.project_id
+  project   = data.google_project.environment.project_id
   name      = "gateway-allow-iap-ssh"
   network   = google_compute_network.bootstrap.name
   direction = "INGRESS"

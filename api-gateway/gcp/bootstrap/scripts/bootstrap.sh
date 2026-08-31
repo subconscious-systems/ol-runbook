@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap the production GCP project and Distr Docker-agent host.
+# Bootstrap the production foundation in an existing GCP project.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +12,7 @@ usage() {
   cat >&2 <<'EOF'
 usage: bootstrap.sh [--yes]
 
-Plans and applies the production project/bootstrap foundation, migrates the
+Plans and applies the production bootstrap foundation in an existing project, migrates the
 first local state into the versioned GCS bucket, verifies the foundation, and
 repairs the host. Without --yes, type the production project ID before apply.
 EOF
@@ -64,9 +64,7 @@ terraform -chdir="${TF_DIR}" validate
 terraform -chdir="${TF_DIR}" plan -input=false -var-file="${VAR_FILE}" -out="${PLAN_FILE}"
 
 PROJECT_ID="$(terraform -chdir="${TF_DIR}" show -json "${PLAN_FILE}" | jq -er '
-  .planned_values.root_module.resources[]
-  | select(.address == "google_project.environment")
-  | .values.project_id
+  .planned_values.outputs.project_id.value
 ')"
 terraform -chdir="${TF_DIR}" show "${PLAN_FILE}"
 if [[ "${ASSUME_YES}" -ne 1 ]]; then

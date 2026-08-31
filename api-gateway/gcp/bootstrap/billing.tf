@@ -3,7 +3,7 @@ resource "google_billing_budget" "environment" {
   display_name    = "Subconscious gateway production monthly budget"
 
   budget_filter {
-    projects               = ["projects/${google_project.environment.number}"]
+    projects               = ["projects/${data.google_project.environment.number}"]
     calendar_period        = "MONTH"
     credit_types_treatment = "INCLUDE_ALL_CREDITS"
   }

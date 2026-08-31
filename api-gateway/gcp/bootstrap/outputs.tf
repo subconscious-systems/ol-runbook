@@ -1,11 +1,11 @@
 output "project_id" {
   description = "Production project ID."
-  value       = google_project.environment.project_id
+  value       = data.google_project.environment.project_id
 }
 
 output "project_number" {
   description = "Production project number."
-  value       = google_project.environment.number
+  value       = data.google_project.environment.number
 }
 
 output "region" {
