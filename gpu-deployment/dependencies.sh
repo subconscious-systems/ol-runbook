@@ -98,7 +98,7 @@ kubectl_cmd() {
 cat <<EOF
 [dep] Will ensure:
   1. Base packages (curl, ca-certificates, gnupg, docker)
-  2. NVIDIA host drivers via Google cuda_installer.pyz (if nvidia-smi missing; may reboot)
+  2. NVIDIA host drivers (if nvidia-smi is missing; may require a reboot)
   3. NVIDIA Container Toolkit (Docker + k3s/containerd)
   4. k3s
   5. kubectl (+ kubeconfig for the current user)
@@ -123,6 +123,27 @@ CUDA_INSTALLER_URL="${CUDA_INSTALLER_URL:-https://storage.googleapis.com/compute
 CUDA_INSTALLER_PATH="${CUDA_INSTALLER_PATH:-/tmp/cuda_installer.pyz}"
 CUDA_INSTALLER_WORKDIR="${CUDA_INSTALLER_WORKDIR:-/opt/google/cuda-installer}"
 
+install_debian_13_nvidia_drivers() {
+  local repo_arch keyring
+  case "$(uname -m)" in
+    x86_64 | amd64) repo_arch=x86_64 ;;
+    aarch64 | arm64) repo_arch=sbsa ;;
+    *) die "unsupported Debian 13 architecture for NVIDIA drivers: $(uname -m)" ;;
+  esac
+
+  log "installing NVIDIA drivers from the official Debian 13 repository"
+  run_as_root apt-get update
+  run_as_root apt-get install -y "linux-headers-$(uname -r)"
+  keyring="$(mktemp --suffix=.deb)"
+  curl -fsSL \
+    "https://developer.download.nvidia.com/compute/cuda/repos/debian13/${repo_arch}/cuda-keyring_1.1-1_all.deb" \
+    -o "${keyring}"
+  run_as_root dpkg -i "${keyring}"
+  rm -f "${keyring}"
+  run_as_root apt-get update
+  run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-open
+}
+
 ensure_nvidia_drivers() {
   if [[ "${SKIP_NVIDIA_DRIVERS}" == "true" ]]; then
     log "SKIP_NVIDIA_DRIVERS=true; not installing host drivers"
@@ -130,6 +151,23 @@ ensure_nvidia_drivers() {
   fi
   if have nvidia-smi && nvidia-smi >/dev/null 2>&1; then
     log "nvidia-smi OK — skipping host driver install"
+    nvidia-smi -L || true
+    return
+  fi
+
+  if [[ "${ID:-}" == "debian" && "${VERSION_ID%%.*}" == "13" ]]; then
+    # Google cuda_installer can select the original Compute Engine image kernel
+    # after apt has rotated its headers out of the mirror. Native DKMS packages
+    # build against the running kernel and avoid that stale-version failure.
+    install_debian_13_nvidia_drivers
+    if ! have nvidia-smi || ! nvidia-smi >/dev/null 2>&1; then
+      cat >&2 <<EOF
+[dep] Drivers installed but nvidia-smi is not usable yet.
+Reboot, then rerun: sudo reboot && ./dependencies.sh
+EOF
+      exit 2
+    fi
+    log "nvidia-smi OK after driver install"
     nvidia-smi -L || true
     return
   fi
