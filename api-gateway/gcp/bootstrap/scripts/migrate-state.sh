@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Migrate the first local bootstrap state into the sandbox foundation bucket.
+# Migrate the first local bootstrap state into the production foundation bucket.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,7 +66,7 @@ if [[ -f "${TF_DIR}/backend.tf" ]]; then
 fi
 
 if [[ ! -f "${TF_DIR}/terraform.tfstate" ]]; then
-  printf 'ERROR: no local terraform.tfstate found; run bootstrap.sh --apply first\n' >&2
+  printf 'ERROR: no local terraform.tfstate found; run bootstrap.sh first\n' >&2
   exit 1
 fi
 

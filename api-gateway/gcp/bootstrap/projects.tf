@@ -1,24 +1,20 @@
-resource "google_project" "environment" {
-  for_each = local.environments
+removed {
+  from = google_project.environment
 
-  project_id          = each.value.project_id
-  name                = each.value.project_name
-  billing_account     = var.billing_account_id
-  org_id              = var.organization_id != "" ? var.organization_id : null
-  folder_id           = var.folder_id != "" ? var.folder_id : null
-  auto_create_network = false
-  deletion_policy     = var.project_deletion_policy
+  lifecycle {
+    destroy = false
+  }
+}
 
-  labels = merge(var.labels, {
-    environment = each.key
-  })
+data "google_project" "environment" {
+  project_id = var.project_id
 }
 
 resource "google_project_service" "api" {
-  for_each = local.api_bindings
+  for_each = local.required_apis
 
-  project                    = google_project.environment[each.value.environment].project_id
-  service                    = each.value.service
+  project                    = data.google_project.environment.project_id
+  service                    = each.value
   disable_on_destroy         = false
   disable_dependent_services = false
 
@@ -29,10 +25,8 @@ resource "google_project_service" "api" {
 }
 
 resource "google_storage_bucket" "terraform_state" {
-  for_each = local.environments
-
-  project                     = google_project.environment[each.key].project_id
-  name                        = "${each.value.project_id}-subconscious-tfstate"
+  project                     = data.google_project.environment.project_id
+  name                        = "${var.project_id}-subconscious-tfstate"
   location                    = upper(var.region)
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
@@ -44,7 +38,7 @@ resource "google_storage_bucket" "terraform_state" {
   }
 
   labels = merge(var.labels, {
-    environment = each.key
+    environment = "production"
     component   = "terraform-state"
   })
 

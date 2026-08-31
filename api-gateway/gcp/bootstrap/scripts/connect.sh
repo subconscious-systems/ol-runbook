@@ -9,7 +9,7 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  connect.sh <sandbox|prod> [INFRA_DEPLOY_NAME]
+  connect.sh [INFRA_DEPLOY_NAME]
 
 Uses IAP and OS Login; the VM has no public IP and no static SSH key. When a
 cluster name is supplied, root's kubeconfig is refreshed with --dns-endpoint
@@ -21,18 +21,19 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
-if [[ $# -lt 1 || $# -gt 2 ]]; then
+if [[ $# -gt 1 ]]; then
   usage
   exit 2
 fi
 
-ENVIRONMENT_ARG="$1"
-CLUSTER_NAME="${2:-}"
-if [[ -n "${CLUSTER_NAME}" ]]; then
-  bootstrap_assert_dns1123 "${CLUSTER_NAME}" "INFRA_DEPLOY_NAME"
+INFRA_DEPLOY_NAME="${1:-}"
+CLUSTER_NAME=""
+if [[ -n "${INFRA_DEPLOY_NAME}" ]]; then
+  bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
+  CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"
 fi
 
-bootstrap_resolve_targets "${ENVIRONMENT_ARG}"
+bootstrap_resolve_targets
 bootstrap_check_gcloud_auth
 bootstrap_wait_vm
 bootstrap_print_target

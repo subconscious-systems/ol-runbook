@@ -44,27 +44,22 @@ assert_rc "help --help" 0 teardown_platform_parse_args --help
 
 echo "== CLI --yes =="
 assert_rc "missing --yes" 2 teardown_platform_parse_args \
-  sandbox acme-api-gateway-infra acme-api-gateway
+  example-api-gateway-infra example-api-gateway
 assert_rc "missing names after --yes" 2 teardown_platform_parse_args --yes
-assert_rc "environment only after --yes" 2 teardown_platform_parse_args \
-  --yes sandbox
 assert_rc "one name after --yes" 2 teardown_platform_parse_args \
-  --yes sandbox acme-api-gateway-infra
-assert_rc "--yes with environment and both names" 0 teardown_platform_parse_args \
-  --yes sandbox acme-api-gateway-infra acme-api-gateway
-assert_eq "ENV" "${TEARDOWN_ENVIRONMENT}" "sandbox"
-assert_eq "INFRA" "${INFRA_DEPLOY_NAME}" "acme-api-gateway-infra"
-assert_eq "GATEWAY" "${GATEWAY_DEPLOY_NAME}" "acme-api-gateway"
-assert_rc "prod with both names" 0 teardown_platform_parse_args \
-  --yes prod acme-api-gateway-infra acme-api-gateway
+  --yes example-api-gateway-infra
+assert_rc "extra name after --yes" 2 teardown_platform_parse_args \
+  --yes extra example-api-gateway-infra example-api-gateway
+assert_rc "--yes with both names" 0 teardown_platform_parse_args \
+  --yes example-api-gateway-infra example-api-gateway
+assert_eq "INFRA" "${INFRA_DEPLOY_NAME}" "example-api-gateway-infra"
+assert_eq "GATEWAY" "${GATEWAY_DEPLOY_NAME}" "example-api-gateway"
 
 echo "== CLI validation =="
-assert_rc "rejects bad environment" 2 teardown_platform_parse_args \
-  --yes staging acme-api-gateway-infra acme-api-gateway
 assert_rc "rejects infra uppercase" 2 teardown_platform_parse_args \
-  --yes sandbox Acme-Infra acme-api-gateway
+  --yes Example-Infra example-api-gateway
 assert_rc "rejects gateway underscore" 2 teardown_platform_parse_args \
-  --yes sandbox acme-api-gateway-infra acme_api_gateway
+  --yes example-api-gateway-infra example_api_gateway
 
 echo "== IAP timeout =="
 assert_eq "destroy timeout" "$(teardown_platform_iap_timeout)" "7200"

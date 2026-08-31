@@ -54,7 +54,7 @@ mutation if the required Datadog identity is absent.
 Create one dedicated integration service account per project, for example:
 
 ```text
-datadog-integration@acme-gateway-prod.iam.gserviceaccount.com
+datadog-integration@example-gateway-prod.iam.gserviceaccount.com
 ```
 
 The released infra Terraform should create the Datadog V2 GCP STS integration,
@@ -77,9 +77,9 @@ the impersonation role required by the selected Datadog provider/API release
 (`roles/iam.serviceAccountTokenCreator` for the current STS Terraform
 resource). Do not grant Token Creator project-wide.
 
-Keep sandbox and production as separate Datadog integration accounts or
-strictly filtered resource configs. Disable CSPM, Security Command Center, logs,
-and unrelated product collection unless separately approved.
+Keep this production deployment distinct from every other Datadog integration
+account and project. Disable CSPM, Security Command Center, logs, and unrelated
+product collection unless separately approved.
 
 The integration default-denies the pinned Datadog namespace inventory and
 enables only `cloudsql`, `compute`, `container`, `kubernetes`, `loadbalancing`,
@@ -199,7 +199,7 @@ Search Datadog for:
 ```
 
 Use `$env`, `$service`, and `$model` template variables.
-Production and sandbox must have different `DATADOG_ENV` values.
+`DATADOG_ENV` must uniquely identify this production deployment.
 
 From a 5xx metric or the "Too many gateway 5xx responses" monitor, search the log tag
 `status_code:503` (or `@status_code:503`). Do not search

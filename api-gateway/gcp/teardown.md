@@ -1,6 +1,7 @@
 # Teardown (GCP)
 
-Teardown permanently removes an environment in reverse dependency order.
+Teardown permanently removes the production platform in reverse dependency
+order.
 
 Teardown production only after traffic has moved, retention/export decisions
 are approved, and an independent operator has verified the target project.
@@ -15,19 +16,18 @@ are approved, and an independent operator has verified the target project.
 Copy-paste (from `api-gateway/gcp/bootstrap`):
 
 ```bash
-./scripts/teardown-platform.sh --yes <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
 ```
 
 Example:
 
 ```bash
-./scripts/teardown-platform.sh --yes sandbox acme-api-gateway-infra acme-api-gateway
+./scripts/teardown-platform.sh --yes example-api-gateway-infra example-api-gateway
 ```
 
 | Arg | Meaning |
 | --- | --- |
 | `--yes` | Required. Refuses to destroy without it. |
-| `sandbox` or `prod` | Selects the bootstrap project/VM |
 | `INFRA_DEPLOY_NAME` | Infra Distr Docker / Terraform name prefix. GKE is `<name>-gke`. Must match Hub `DEPLOY_NAME`. |
 | `GATEWAY_DEPLOY_NAME` | Gateway Distr Helm deploy name / Kubernetes namespace |
 

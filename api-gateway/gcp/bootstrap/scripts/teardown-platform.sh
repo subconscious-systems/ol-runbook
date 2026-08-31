@@ -4,10 +4,10 @@
 # then runs teardown-platform.sh from the entitled api-gateway-infra runner image.
 #
 # Usage:
-#   ./scripts/teardown-platform.sh --yes <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+#   ./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
 #
 # Example:
-#   ./scripts/teardown-platform.sh --yes sandbox acme-api-gateway-infra acme-api-gateway
+#   ./scripts/teardown-platform.sh --yes example-api-gateway-infra example-api-gateway
 #
 # Optional env:
 #   RUNNER_IMAGE   Pin or override the infra runner image (default: discover
@@ -27,7 +27,7 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  ./scripts/teardown-platform.sh --yes <sandbox|prod> <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+  ./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
 
 INFRA_DEPLOY_NAME    Distr Docker / Terraform name prefix (GKE cluster is <name>-gke)
 GATEWAY_DEPLOY_NAME  Distr Helm deploy name / Kubernetes namespace
@@ -46,10 +46,9 @@ Optional: RUNNER_IMAGE=registry.distr.sh/subconscious/api-gateway-infra/runner:<
 EOF
 }
 
-# Parse + validate CLI. Sets TEARDOWN_ENVIRONMENT, INFRA_DEPLOY_NAME, GATEWAY_DEPLOY_NAME.
+# Parse + validate CLI. Sets INFRA_DEPLOY_NAME and GATEWAY_DEPLOY_NAME.
 # Return 0 on success, 2 on usage/validation error. Does not touch GCP/terraform.
 teardown_platform_parse_args() {
-  TEARDOWN_ENVIRONMENT=""
   INFRA_DEPLOY_NAME=""
   GATEWAY_DEPLOY_NAME=""
 
@@ -65,16 +64,14 @@ teardown_platform_parse_args() {
   fi
   shift
 
-  if [[ $# -lt 3 ]]; then
+  if [[ $# -ne 2 ]]; then
     usage
     return 2
   fi
 
-  TEARDOWN_ENVIRONMENT="${1}"
-  INFRA_DEPLOY_NAME="${2}"
-  GATEWAY_DEPLOY_NAME="${3}"
+  INFRA_DEPLOY_NAME="${1}"
+  GATEWAY_DEPLOY_NAME="${2}"
 
-  bootstrap_validate_environment "${TEARDOWN_ENVIRONMENT}" || return 2
   bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME" || return 2
   bootstrap_assert_dns1123 "${GATEWAY_DEPLOY_NAME}" "GATEWAY_DEPLOY_NAME" || return 2
   return 0
@@ -99,7 +96,7 @@ teardown_platform_main() {
     exit 2
   fi
 
-  bootstrap_resolve_targets "${TEARDOWN_ENVIRONMENT}"
+  bootstrap_resolve_targets
   bootstrap_check_gcloud_auth
   bootstrap_wait_vm
   bootstrap_print_target

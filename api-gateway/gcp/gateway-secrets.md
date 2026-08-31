@@ -32,8 +32,8 @@ orangeline__{DEPLOY_NAME}__app
 uses Memorystore for Redis 7. Labels should include `deploy`, `environment`,
 `bundle`, and `managed-by`, without placing secret values in labels.
 
-Sandbox and production use different projects and independently generated
-versions. Never copy a bundle across projects.
+Generate every production secret independently. Never copy a bundle from a
+developer machine, another cloud deployment, or a previous customer.
 
 ## Payload ownership
 
@@ -128,12 +128,20 @@ Secret Manager; it must not create a new cloud secret version.
 
 ## What belongs in Distr Hub
 
-Masked, environment-specific Hub Secrets:
+Create the same masked Hub Secrets used by the AWS workflow:
 
-- customer `DISTR_TOKEN`;
-- Datadog API/application keys;
-- optional dashboard bootstrap password;
-- optional OIDC client secret.
+| Hub secret | Used by |
+| --- | --- |
+| `DISTR_TOKEN` | Required infra-runner PAT created in the customer Distr account; never use a vendor publish token. |
+| `DD_API_KEY` | Required only when Datadog is enabled; create in the customer's Datadog organization/site. |
+| `DD_APP_KEY` | Required only when Datadog is enabled; dedicated application key with the documented GCP/Terraform permissions. |
+| `<GW>_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Required for day-0 login; unique 20+ character password generated and retained in the customer password manager. |
+| `<GW>_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Required only when OIDC is enabled; client secret copied from the customer's Web OIDC application. |
+| `<GW>_GATEWAY_WEBHOOK_SIGNING_SECRET` | Required only when webhook delivery is enabled; unique 32-byte HMAC secret also configured on the receiver. |
+
+`<GW>` is the gateway deployment name converted to uppercase with hyphens
+replaced by underscores; the guided installer prints every exact name and
+inserts only its Hub Secret reference into the generated environment.
 
 Never place these in Hub:
 

@@ -1,44 +1,18 @@
 # Copy to terraform.tfvars and replace every example value.
 # terraform.tfvars is ignored by git.
 
-# Set exactly one parent.
-organization_id = "123456789012"
-# folder_id = "123456789012"
+# Existing production project selected for this installation. Terraform never
+# creates, imports, relabels, moves, or deletes the project itself.
+project_id = "example-gateway-prod"
 
-billing_account_id = "000000-000000-000000"
+# Existing project that owns the public zone used by DOMAIN_NAME. The bootstrap
+# plan grants only roles/dns.admin to the keyless platform service account here.
+dns_project_id = "example-shared-dns"
 
-# Optional existing project used to bill client-based API quota while these
-# projects are being created. Leave empty if your ADC setup already has one.
-quota_project_id = "acme-platform-admin"
-
-# Create only sandbox first. Add "prod" after the sandbox rebuild evidence is
-# approved and immediately review the production-only plan.
-enabled_environments = ["sandbox"]
-
-# Reserve both globally unique IDs up front; only enabled projects are created.
-sandbox_project_id       = "acme-gateway-sbox"
-production_project_id    = "acme-gateway-prod"
-sandbox_project_name     = "Acme Gateway Sandbox"
-production_project_name  = "Acme Gateway Production"
-
-# Alerts are sent to default billing-account/project recipients. These are not
-# hard caps; replace with approved Calculator-based whole-dollar amounts.
-monthly_budget_amounts_usd = {
-  sandbox = 1200
-  prod    = 1200
-}
-
-# Locked region. The bootstrap VMs can use any supported us-east1 zone.
-region = "us-east1"
-bootstrap_zones = {
-  sandbox = "us-east1-b"
-  prod    = "us-east1-c"
-}
-
-bootstrap_subnet_cidrs = {
-  sandbox = "10.40.0.0/24"
-  prod    = "10.41.0.0/24"
-}
+# Locked region. The bootstrap VM can use any supported us-east1 zone.
+region                = "us-east1"
+bootstrap_zone        = "us-east1-b"
+bootstrap_subnet_cidr = "10.40.0.0/24"
 
 bootstrap_machine_type = "e2-standard-2"
 bootstrap_disk_size_gb = 40
@@ -48,9 +22,8 @@ operator_principals = [
   "group:gateway-platform@example.com",
 ]
 
-# Keep protections enabled until the approved final teardown.
-project_deletion_policy = "PREVENT"
-protect_bootstrap_vms   = true
+# Keep VM protection enabled until the approved final teardown.
+protect_bootstrap_vms = true
 
 labels = {
   application = "subconscious-gateway"

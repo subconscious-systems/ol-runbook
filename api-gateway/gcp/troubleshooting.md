@@ -53,21 +53,28 @@ After a Hub-only rename, set `GATEWAY_DISTR_PORTAL_NAME` rather than changing
 the cluster identity. Logs: `no Distr deployment target named …`.
 Hand-edited Hub Helm values will be overwritten by the next runner fragment.
 
+### Terraform plan-only run
+
+As on AWS, `DISTR_DRY_RUN=1` shows the Terraform plan and stops. Return it to
+`0` and trigger the infra deployment to apply. A normal new installation uses
+`0`; plan-only is an optional operator review tool, not another required
+deployment stage.
+
 ## Foundation projects and APIs
 
-### Project create or billing attachment denied
+### Existing project or billing access denied
 
-The human foundation identity needs project creation on the selected
-folder/organization and Billing Account User on the billing account. Confirm
-the project ID is globally unique and not held by a recently deleted project.
+The human foundation identity must be able to read the selected existing
+project and its attached billing account, enable required services, administer
+the documented IAM bindings, and create the foundation resources. Confirm the
+project is ACTIVE and billing is enabled.
 
 ```bash
 gcloud billing accounts get-iam-policy <BILLING_ACCOUNT_ID>
-gcloud resource-manager folders get-iam-policy <FOLDER_ID>
+gcloud projects get-iam-policy <PROJECT_ID>
 ```
 
-Do not grant the VM service account billing-account access; billing attachment
-is a day-0 human operation.
+Do not grant the VM service account billing-account access.
 
 ### API not enabled / Service Usage 403
 
@@ -75,11 +82,11 @@ Run:
 
 ```bash
 cd api-gateway/gcp/bootstrap
-bash scripts/preflight.sh <sandbox|prod>
+bash scripts/preflight.sh
 ```
 
 The bootstrap Terraform enables required APIs. Fix the human/organization
-policy or rerun the reviewed foundation apply. Do not enable random APIs until
+policy or rerun `scripts/bootstrap.sh`. Do not enable random APIs until
 the missing service name is identified.
 
 ### Terraform backend access denied
@@ -91,9 +98,8 @@ gcloud storage buckets describe "gs://$TF_STATE_BUCKET"
 gcloud storage buckets get-iam-policy "gs://$TF_STATE_BUCKET"
 ```
 
-The VM service account receives Storage Admin only on its own bucket. Sandbox
-must not use the production platform state prefix. Do not copy state locally to
-bypass IAM.
+The VM service account receives Storage Admin only on the production state
+bucket. Do not copy state locally to bypass IAM.
 
 ## Bootstrap VM, IAP, and Docker
 
@@ -110,9 +116,9 @@ The VPC firewall must allow TCP/22 from `35.235.240.0/20` to the VM service
 account. Verify:
 
 ```bash
-gcloud compute firewall-rules describe gateway-prod-allow-iap-ssh \
+gcloud compute firewall-rules describe gateway-allow-iap-ssh \
   --project="$GCP_PROJECT"
-gcloud compute instances describe gateway-prod-bootstrap \
+gcloud compute instances describe gateway-bootstrap \
   --project="$GCP_PROJECT" --zone="$GCP_ZONE" \
   --format='yaml(status,networkInterfaces,metadata,serviceAccounts)'
 ```
@@ -126,8 +132,8 @@ No public IP is expected. Check Cloud NAT, router, subnet, Private Google
 Access, DNS, and NAT logs:
 
 ```bash
-gcloud compute routers nats describe gateway-prod-bootstrap \
-  --router=gateway-prod-bootstrap \
+gcloud compute routers nats describe gateway-bootstrap \
+  --router=gateway-bootstrap \
   --region=us-east1 \
   --project="$GCP_PROJECT"
 ```
@@ -135,7 +141,7 @@ gcloud compute routers nats describe gateway-prod-bootstrap \
 Repair host packages after egress is fixed:
 
 ```bash
-bash api-gateway/gcp/bootstrap/scripts/repair-host.sh prod
+bash api-gateway/gcp/bootstrap/scripts/repair-host.sh
 ```
 
 Do not add an `access_config` to the VM.
@@ -145,7 +151,7 @@ Do not add an `access_config` to the VM.
 Open the VM:
 
 ```bash
-bash api-gateway/gcp/bootstrap/scripts/connect.sh prod
+bash api-gateway/gcp/bootstrap/scripts/connect.sh
 sudo -i
 docker ps -a
 docker logs --tail 200 <distr-agent-container>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install Google Cloud CLI and the GKE auth plugin on macOS or Debian/Ubuntu.
+# Install all local bootstrap CLIs on macOS or Debian/Ubuntu.
 set -euo pipefail
 
 MODE="install"
@@ -15,7 +15,7 @@ fi
 
 check_tools() {
   local missing=0
-  for tool in gcloud gke-gcloud-auth-plugin; do
+  for tool in gcloud gke-gcloud-auth-plugin terraform jq; do
     if command -v "${tool}" >/dev/null 2>&1; then
       printf '[install-gcloud] found %s at %s\n' "${tool}" "$(command -v "${tool}")"
     else
@@ -23,6 +23,22 @@ check_tools() {
       missing=1
     fi
   done
+  if command -v terraform >/dev/null 2>&1 \
+    && command -v jq >/dev/null 2>&1; then
+    if terraform version -json 2>/dev/null | jq -e '
+      .terraform_version
+      | split(".")
+      | map(capture("^(?<n>[0-9]+)").n | tonumber) as $v
+      | ($v[0] > 1
+          or ($v[0] == 1 and $v[1] > 11)
+          or ($v[0] == 1 and $v[1] == 11 and $v[2] >= 4))
+    ' >/dev/null; then
+      printf '[install-gcloud] Terraform version satisfies >= 1.11.4\n'
+    else
+      printf '[install-gcloud] Terraform 1.11.4 or newer is required\n' >&2
+      missing=1
+    fi
+  fi
   return "${missing}"
 }
 
@@ -39,6 +55,15 @@ case "$(uname -s)" in
     fi
     if ! command -v gcloud >/dev/null 2>&1; then
       brew install --cask google-cloud-sdk
+      hash -r
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+      brew install jq
+      hash -r
+    fi
+    if ! command -v terraform >/dev/null 2>&1; then
+      brew tap hashicorp/tap
+      brew install hashicorp/tap/terraform
       hash -r
     fi
     if ! command -v gke-gcloud-auth-plugin >/dev/null 2>&1; then
@@ -74,7 +99,7 @@ case "$(uname -s)" in
         fi
 
         "${SUDO[@]}" apt-get update -y
-        "${SUDO[@]}" apt-get install -y ca-certificates curl gnupg
+        "${SUDO[@]}" apt-get install -y ca-certificates curl gnupg jq
         "${SUDO[@]}" install -d -m 0755 /etc/apt/keyrings
         curl --proto '=https' --tlsv1.2 -fsSL \
           https://packages.cloud.google.com/apt/doc/apt-key.gpg \
@@ -82,10 +107,20 @@ case "$(uname -s)" in
         printf '%s\n' \
           'deb [signed-by=/etc/apt/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' \
           | "${SUDO[@]}" tee /etc/apt/sources.list.d/google-cloud-sdk.list >/dev/null
+        if ! command -v terraform >/dev/null 2>&1; then
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            https://apt.releases.hashicorp.com/gpg \
+            | "${SUDO[@]}" gpg --dearmor --yes \
+              -o /etc/apt/keyrings/hashicorp.gpg
+          printf 'deb [signed-by=/etc/apt/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com %s main\n' \
+            "${VERSION_CODENAME}" \
+            | "${SUDO[@]}" tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
+        fi
         "${SUDO[@]}" apt-get update -y
         "${SUDO[@]}" apt-get install -y \
           google-cloud-cli \
-          google-cloud-cli-gke-gcloud-auth-plugin
+          google-cloud-cli-gke-gcloud-auth-plugin \
+          terraform
         ;;
       *)
         printf 'ERROR: automated Linux install supports Debian/Ubuntu; use the official package instructions for %s\n' \
@@ -108,5 +143,7 @@ fi
 
 gcloud version
 gke-gcloud-auth-plugin --version
+terraform version
+jq --version
 printf '[install-gcloud] next: %s/setup-gcloud.sh\n' \
   "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

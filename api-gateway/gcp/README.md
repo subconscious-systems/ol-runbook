@@ -1,17 +1,12 @@
-# API Gateway on GCP (greenfield production parity)
+# API Gateway on GCP (Assisted Self-Managed)
 
-Customer-facing runbook for an Assisted Self-Managed Subconscious Inference
-System API Gateway on Google Cloud. This path is greenfield: it creates
-independent sandbox and production projects and does not migrate AWS data or
-provision GPU workers.
+Customer-facing architecture for deploying the Subconscious Inference System
+API Gateway on Google Cloud with Distr. The setup intentionally mirrors the
+[AWS workflow](../aws/instructions.md): one Docker-agent bootstrap host, one
+infra Docker Application, one gateway Helm Application, and two infra
+deployment cycles around connecting the Kubernetes agent.
 
-> **Release gate:** this runbook defines the required GCP production contract,
-> but the selected `api-gateway-infra` Distr Application must explicitly state
-> that its complete `CLOUD=gcp` path is enabled. A runner that still identifies
-> GCP as a stub will fail closed and cannot create this stack. Complete the full
-> sandbox dress rehearsal before production.
-
-End-to-end checklist: [instructions.md](instructions.md). Project/VM bootstrap:
+Step-by-step setup: [instructions.md](instructions.md). Bootstrap:
 [bootstrap/](bootstrap/). Secrets: [gateway-secrets.md](gateway-secrets.md).
 Rotation: [secret-rotation.md](secret-rotation.md). Operations:
 [datadog-operations.md](datadog-operations.md),
@@ -19,15 +14,34 @@ Rotation: [secret-rotation.md](secret-rotation.md). Operations:
 [rollback.md](rollback.md), and
 [teardown.md](teardown.md).
 
-## Locked architecture
+## Architecture overview
 
-Sandbox and production use the same topology, sizing, and controls, but no
-project, cluster, state prefix, service account, secret, or Distr deployment is
-shared.
+| Application | Type | Where it runs | Job |
+| --- | --- | --- | --- |
+| `api-gateway-infra` | Distr Docker Application | Private bootstrap VM | Terraform for VPC, GKE, Cloud SQL, Redis, DNS, ESO/WIF, Datadog, and generated Helm values |
+| `api-gateway` | Distr Helm Application | GKE via the Kubernetes agent | Installs and upgrades the gateway chart |
+
+The bootstrap VM authenticates with its attached service account. Distr never
+receives Google credentials. Both agents make egress-only connections to Hub.
+
+The normal deployment sequence is the same as AWS:
+
+1. Bootstrap the Docker-agent VM.
+2. Create Hub secrets and the infra Docker deployment.
+3. Connect the Docker agent and run infra with `GATEWAY_AUTO_DEPLOY=false`.
+4. Create the gateway Helm deployment and connect the Kubernetes agent.
+5. Re-run infra with `GATEWAY_AUTO_DEPLOY=true`.
+
+GCP internally creates its cloud foundation before the in-cluster resources so
+the Terraform runner can reach the IAM-protected GKE DNS endpoint. That
+checkpoint completes inside the first infra deployment and does not add a
+customer-facing deployment cycle.
+
+## Production architecture
 
 | Layer | Required configuration |
 | --- | --- |
-| Projects | Separate sandbox and production projects with billing and quotas |
+| Project | One existing production project; its DNS zone may be local or in a shared DNS project |
 | Region | `us-east1` |
 | Kubernetes | GKE Standard regional cluster; N4A node pool in `us-east1-b`/`us-east1-c`; two `n4a-standard-4` ARM64 nodes initially, autoscaling 2–4 |
 | Control plane | Private nodes; DNS-based endpoint enabled; IP endpoints disabled; IAM permission `container.clusters.connect` required |
@@ -39,20 +53,24 @@ shared.
 | Bootstrap | Private `e2-standard-2` GCE VM, attached service account, Cloud NAT, IAP + OS Login; no service-account key or public IP |
 | Observability | Datadog GCP STS integration, GKE Agent, managed gateway assets, and direct Cloud SQL PostgreSQL DBM |
 
-`n4a-standard-4` is Google Axion ARM64. Before every new environment, verify
-live N4A quota and capacity in at least two `us-east1` zones; a documented
-machine type is not a capacity reservation.
+Before installation, verify N4A quota and capacity in `us-east1-b` and
+`us-east1-c`. The gateway can become healthy without GPU capacity; inference
+requires an approved provider or worker endpoint.
 
-## Two Distr Applications
+## GCP-only differences from AWS
 
-| Application | Type | Where it runs | Responsibility |
-| --- | --- | --- | --- |
-| `api-gateway-infra` | Docker | Private bootstrap GCE VM | GCS state; VPC/GKE/Cloud SQL/Redis/DNS/ingress dependencies; WIF/ESO; Datadog; generated Helm fragment; optional gateway deployment update |
-| `api-gateway` | Helm | GKE via the Distr Kubernetes agent | Gateway, router, adapter, migrations, dashboard, services, and GCE Ingress resources |
+- The bootstrap Terraform deploys into a selected existing project and never
+  creates, imports, moves, relabels, or deletes that project.
+- Human login needs both gcloud user auth and Application Default Credentials.
+- The first local state is automatically migrated into the new GCS bucket.
+- The platform service account receives scoped DNS access in the existing DNS
+  project.
+- Operator access uses IAP/OS Login and the GKE DNS endpoint instead of SSM and
+  the EKS endpoint.
 
-The bootstrap VM authenticates to Google APIs with its attached service
-account. Distr Hub never receives a GCP credential file. Both agents make
-egress-only connections to Distr.
+Hub secrets, deployment naming, Docker/Kubernetes agent connection, gateway
+version selection, generated Helm values, and the second infra auto-deploy
+match AWS.
 
 ```mermaid
 flowchart LR
@@ -99,81 +117,33 @@ reach the GKE API through its DNS endpoint. IP-based control-plane endpoints
 remain disabled; authorization is identity-based through IAM and Kubernetes
 RBAC.
 
-## Project and environment model
+## Production naming
 
-Use readable, distinct identifiers:
-
-```text
-acme-gateway-sbox   # sandbox GCP project
-acme-gateway-prod   # production GCP project
-
-acme-sbox-api-gateway-infra / acme-sbox-api-gateway
-acme-prod-api-gateway-infra / acme-prod-api-gateway
-```
-
-Keep each Distr deployment name at most 32 characters. In each environment:
+Keep each Distr deployment name at most 32 characters:
 
 - infra `DEPLOY_NAME` = GKE cluster name and secret-bundle name component;
 - gateway `GATEWAY_DISTR_DEPLOYMENT_NAME` = Kubernetes namespace = Helm release;
 - optional `GATEWAY_DISTR_PORTAL_NAME` when the Hub Kubernetes target was renamed;
-- state bucket and state prefix are environment-specific;
-- `DATADOG_ENV` is environment-specific;
+- the state bucket and prefix belong only to the production project;
+- `DATADOG_ENV` uniquely identifies the production deployment;
 - public hostname and global static IP name are unique.
-
-Do not promote by copying Terraform state, Secret Manager versions, Cloud SQL
-backups, or Redis data between projects. Promote the same pinned Application
-versions and reviewed configuration, then run independent smoke checks.
 
 ## Prerequisites
 
-- Google Cloud organization/folder, billable account, and project-creation
-  approval.
-- Cloud DNS ownership for separate sandbox and production hostnames.
-- Quota/capacity confirmation for regional GKE, N4A vCPU, Cloud SQL regional
-  HA, Memorystore, global IP/forwarding rules, NAT, and SSD/backup storage.
-- Distr customer organization, PAT, artifact entitlements, and access to the
-  separate GCP infra Application published from `runner/template.gcp.env`.
-- A GCP infra Application version that uses the same runner image/version as
-  the reviewed release and implements this exact contract.
-- Datadog API/application keys and permission to configure the GCP STS
-  integration.
-- One canonical, non-overlapping RFC1918 `/16` per environment; platform
-  Terraform deterministically carves node, Pod, Service, private-service, and
-  control-plane ranges from it.
-- Terraform 1.11.4+, gcloud, GKE auth plugin, kubectl, jq, and curl.
+- Rights in an existing billing-enabled production project to enable services,
+  set IAM, and update the selected Cloud DNS zone.
+- One existing production project ID, an existing DNS project/zone (which may
+  be the same project), and non-overlapping
+  RFC1918 `/24` bootstrap and `/16` platform ranges.
+- Distr customer PAT plus Application and artifact entitlements.
+- Terraform 1.11.4+, gcloud, GKE auth plugin, jq, and curl.
+- Optional Datadog API/application keys and GCP STS approval.
 
-No GPU capacity is required to make the gateway/dashboard healthy. An
-authenticated inference smoke requires an already approved provider endpoint;
-GPU host provisioning remains outside this runbook.
+## Next steps
 
-## Required release contract
-
-Before using a runner release, confirm its release notes and a dry-run show all
-of the following:
-
-- `CLOUD=gcp`, `GCP_PROJECT`, `GCP_REGION`, GCS backend, and DNS-endpoint
-  kubeconfig support;
-- regional GKE Standard with `n4a-standard-4` ARM nodes, WIF enabled, private
-  nodes, DNS endpoint external traffic enabled, and IP endpoints disabled;
-- Cloud SQL PG16 regional HA/private IP/backups/PITR and Redis 7
-  Standard HA/AUTH/TLS;
-- the three Secret Manager bundles and ESO projections;
-- GCE Ingress static IP, ManagedCertificate, FrontendConfig, and BackendConfig
-  900-second overlay;
-- Datadog STS, Agent, and PostgreSQL DBM support;
-- GCP app-secret ensure and rotation support;
-- portable outputs and a generated GCP Helm values fragment;
-- a sandbox create/reapply/destroy test from the same release.
-
-If any item is absent, stop. Do not compensate with hand-edited Helm values,
-plaintext secrets, public VM addresses, service-account keys, or ad hoc cloud
-resources.
-
-## Runbook map
-
-1. [instructions.md](instructions.md) — greenfield sandbox then production
-2. [bootstrap/](bootstrap/) — projects, APIs, private keyless VMs, state migration
-3. [sample-gateway-infra.env](sample-gateway-infra.env) — Distr infra environment
+1. [instructions.md](instructions.md) — one-command guided installer and detailed checklist
+2. [bootstrap/](bootstrap/) — project and private Docker-agent VM
+3. [sample-gateway-infra.env](sample-gateway-infra.env) — Hub environment
 4. [gateway-secrets.md](gateway-secrets.md) — Secret Manager, ESO, and WIF
 5. [secret-rotation.md](secret-rotation.md) — crypto, database, Redis, and API keys
 6. [datadog-operations.md](datadog-operations.md) — STS, Agent, DBM, dashboards

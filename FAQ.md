@@ -11,9 +11,9 @@ GCP: [architecture and release gate](api-gateway/gcp/README.md) · [setup](api-g
 No. The GCP runbook defines a complete production-parity contract, but the
 selected `api-gateway-infra` Distr Application release must explicitly say its
 full `CLOUD=gcp` path is enabled. A release whose runner still reports GCP as a
-stub fails closed. Complete the sandbox dress rehearsal before production.
+stub fails closed. Complete the production release preflight before deployment.
 
-The GCP path is greenfield only: separate sandbox/production projects in
+The GCP path is greenfield production only: one dedicated project in
 `us-east1`, no AWS data migration, and no GPU provisioning. See
 [api-gateway/gcp/README.md](api-gateway/gcp/README.md).
 
@@ -29,7 +29,7 @@ Use a short readable slug and keep the Distr deployment names consistent:
 | Helm release name | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
 | Hub Kubernetes target (optional `GATEWAY_DISTR_PORTAL_NAME`) | same as cluster identity unless the Hub target was renamed |
 
-Example: slug `acme` → infra `acme-api-gateway-infra`, gateway/namespace/release `acme-api-gateway`.
+Example: slug `example` → infra `example-api-gateway-infra`, gateway/namespace/release `example-api-gateway`.
 
 It is rare to need more than one deployment of the infra package or the api-gateway chart. If you do, use a different readable slug for each stack. The same rule applies to the public hostname where the api-gateway dashboard is hosted (`DOMAIN_NAME`): each deploy needs its own unique hostname.
 
@@ -37,8 +37,8 @@ Terraform state keys and Datadog `env` (defaults from the infra `DEPLOY_NAME` un
 
 On GCP the same logical bundles map to Secret Manager IDs such as
 `orangeline__{infra-name}__rds|valkey|app` and sync through ESO with Workload
-Identity Federation. Sandbox and production use independent projects and
-secret versions. Details:
+Identity Federation. Production uses its dedicated project and secret
+versions. Details:
 [api-gateway/gcp/gateway-secrets.md](api-gateway/gcp/gateway-secrets.md).
 
 Keep each Distr deployment name **32 characters or fewer**. Longer names can hit cloud resource id limits (especially cache replication group ids).
