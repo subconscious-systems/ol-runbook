@@ -15,6 +15,8 @@ grep -Fq 'firewall-cmd --permanent --zone=trusted' "${PROFILE_DIR}/install.sh"
 grep -Fq 'K3S_FIREWALL_NODEPORTS must stay within' "${PROFILE_DIR}/install.sh"
 grep -Fq 'semanage fcontext -a -t container_file_t' "${PROFILE_DIR}/install.sh"
 grep -Fq 'restorecon -RF' "${PROFILE_DIR}/install.sh"
+grep -Fq 'stat -fc %T /sys/fs/cgroup' "${PROFILE_DIR}/install.sh"
+grep -Fq 'fail-cgroupv1=false' "${PROFILE_DIR}/install.sh"
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"
 test "$(grep -Fc 'path: /mnt/glm-5.2-nvfp4' "$nvfp4_values")" -eq 1
