@@ -48,6 +48,17 @@ cd api-gateway/azure/bootstrap
 API_GATEWAY_INFRA_AZURE_APPLICATION_ID=<vendor-provided-id> ./scripts/setup-azure.sh
 ```
 
+When an FDE runs setup with a vendor PAT on behalf of a customer organization,
+scope every Distr object created by the command with that organization's ID:
+
+```bash
+DISTR_CUSTOMER_ORG_ID=<customer-organization-id> \
+  API_GATEWAY_INFRA_AZURE_APPLICATION_ID=<vendor-provided-id> \
+  ./scripts/setup-azure.sh
+```
+
+Customer admins using their own customer PAT do not need this variable.
+
 Normal prompts:
 
 | Prompt | Example | Notes |
