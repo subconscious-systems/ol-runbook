@@ -264,6 +264,25 @@ install_validate_numeric_id() {
   }
 }
 
+install_validate_parent_reference() {
+  local value="${1:-}"
+  [[ "${value}" =~ ^(organization|folder):[0-9]+$ ]] || {
+    printf 'ERROR: parent must look like organization:123456 or folder:123456\n' >&2
+    return 2
+  }
+}
+
+install_apply_parent_reference() {
+  local value="$1"
+  ORGANIZATION_ID=""
+  FOLDER_ID=""
+  case "${value}" in
+    organization:*) ORGANIZATION_ID="${value#organization:}" ;;
+    folder:*) FOLDER_ID="${value#folder:}" ;;
+    *) install_validate_parent_reference "${value}" ;;
+  esac
+}
+
 install_validate_billing_account_id() {
   local value="${1:-}"
   [[ "${value}" =~ ^[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}-[0-9A-Fa-f]{6}$ ]] || {
@@ -483,8 +502,9 @@ install_render_bootstrap_tfvars() {
 }
 
 install_collect_bootstrap_tfvars() {
-  local active_account billing_candidates discovery_org_id folder_candidates
-  local organization_candidates parent_type="organization" project_candidates
+  local active_account billing_candidates folder_candidates folder_id folder_name
+  local organization_candidates organization_id organization_name parent_candidates=""
+  local project_candidates project_parent_reference
   local retired_environment_name='sand''box' retired_environment_short='s''box'
   cat <<'EOF'
 
@@ -517,43 +537,29 @@ EOF
       | jq -r '.[] | [((.name // "") | split("/") | last), (.displayName // "unnamed")] | @tsv' \
       || true
   )"
-  cat <<'EOF'
-Find these in Google Cloud Console > IAM & Admin > Manage Resources. Select the
-customer organization or folder and copy its numeric ID, not its display name.
-
-Choose where the new production project belongs:
-  1) organization — directly at the customer organization root;
-  2) folder       — inside an existing GCP folder used by the customer.
-EOF
-  install_prompt_choice parent_type \
-    'Production project parent' \
-    'organization|folder' false
-  ORGANIZATION_ID=""
-  FOLDER_ID=""
-  if [[ "${parent_type}" == "organization" ]]; then
-    install_prompt_candidate ORGANIZATION_ID \
-      'Required parent organization' "${organization_candidates}" \
-      install_validate_numeric_id \
-      'organization ID'
-  else
-    cat <<'EOF'
-Choose the organization containing the folder so Google can list its direct
-top-level folders. For a nested or permission-hidden folder, choose manual ID
-entry at the next prompt. Manage Resources shows every visible folder ID.
-EOF
-    install_prompt_candidate discovery_org_id \
-      'Organization used to discover folders' "${organization_candidates}" \
-      install_validate_numeric_id 'organization ID'
+  while IFS=$'\t' read -r organization_id organization_name; do
+    [[ -n "${organization_id}" ]] || continue
+    parent_candidates+="${parent_candidates:+$'\n'}organization:${organization_id}"$'\t'"Organization: ${organization_name:-unnamed}"
     folder_candidates="$(
       gcloud resource-manager folders list \
-        --organization "${discovery_org_id}" --format=json 2>/dev/null \
+        --organization "${organization_id}" --format=json 2>/dev/null \
         | jq -r '.[] | [((.name // "") | split("/") | last), (.displayName // "unnamed")] | @tsv' \
         || true
     )"
-    install_prompt_candidate FOLDER_ID \
-      'Required parent folder' "${folder_candidates}" \
-      install_validate_numeric_id 'folder ID'
-  fi
+    while IFS=$'\t' read -r folder_id folder_name; do
+      [[ -n "${folder_id}" ]] || continue
+      parent_candidates+="${parent_candidates:+$'\n'}folder:${folder_id}"$'\t'"Folder: ${folder_name:-unnamed}"
+    done <<<"${folder_candidates}"
+  done <<<"${organization_candidates}"
+  cat <<'EOF'
+Organizations and top-level folders come from Google Cloud Resource Manager.
+They are also visible in Google Cloud Console > IAM & Admin > Manage Resources.
+Select the exact parent below. Each entry shows its numeric ID.
+EOF
+  install_prompt_candidate project_parent_reference \
+    'Required production project parent' "${parent_candidates}" \
+    install_validate_parent_reference
+  install_apply_parent_reference "${project_parent_reference}"
 
   billing_candidates="$(
     gcloud billing accounts list --filter='open=true' --format=json 2>/dev/null \
@@ -828,12 +834,13 @@ install_prompt_validated() {
 
 install_print_candidates() {
   local candidates="$1"
-  local candidate_value candidate_label index=0
+  local candidate_value candidate_label display_id index=0
   while IFS=$'\t' read -r candidate_value candidate_label; do
     [[ -n "${candidate_value}" ]] || continue
     index=$((index + 1))
+    display_id="${candidate_value#*:}"
     printf '  %d) %s  [ID: %s]\n' "${index}" \
-      "${candidate_label:-unnamed}" "${candidate_value}"
+      "${candidate_label:-unnamed}" "${display_id}"
   done <<<"${candidates}"
 }
 
@@ -868,7 +875,7 @@ install_prompt_candidate() {
   local candidates="$3"
   local validator="$4"
   shift 4
-  local candidate_count choice selected
+  local candidate_count choice selected selected_display_id
   printf '\n%s candidates visible to the active Google account:\n' "${label}"
   install_print_candidates "${candidates}"
   candidate_count="$(install_candidate_count "${candidates}")"
@@ -891,7 +898,8 @@ install_prompt_candidate() {
       && selected="$(install_candidate_value "${candidates}" "${choice}")"; then
       if "${validator}" "${selected}" "$@"; then
         printf -v "${variable_name}" '%s' "${selected}"
-        printf '[install] selected ID: %s\n' "${selected}"
+        selected_display_id="${selected#*:}"
+        printf '[install] selected ID: %s\n' "${selected_display_id}"
         return
       fi
     fi

@@ -120,6 +120,19 @@ assert_rc "numeric organization ID" 0 install_validate_numeric_id \
   '1051986809840' organization
 assert_rc "display name rejected as organization ID" 2 \
   install_validate_numeric_id 'Example Org' organization
+assert_rc "organization parent reference" 0 install_validate_parent_reference \
+  'organization:1051986809840'
+assert_rc "folder parent reference" 0 install_validate_parent_reference \
+  'folder:123456789012'
+assert_rc "bare parent ID rejected" 2 install_validate_parent_reference \
+  '1051986809840'
+install_apply_parent_reference 'folder:123456789012'
+assert_eq "folder parent sets folder ID" "${FOLDER_ID}" '123456789012'
+assert_eq "folder parent clears organization ID" "${ORGANIZATION_ID}" ''
+install_apply_parent_reference 'organization:1051986809840'
+assert_eq "organization parent sets organization ID" "${ORGANIZATION_ID}" \
+  '1051986809840'
+assert_eq "organization parent clears folder ID" "${FOLDER_ID}" ''
 assert_rc "billing account ID" 0 install_validate_billing_account_id \
   '016933-06250C-0D5324'
 assert_rc "malformed billing account rejected" 2 \
@@ -153,6 +166,13 @@ parent_type=
 install_prompt_choice parent_type 'Production project parent' \
   'organization|folder' <<<'folder' >/dev/null
 assert_eq "typed parent choice remains supported" "${parent_type}" 'folder'
+candidate_parents=$'organization:1051986809840\tOrganization: Subconscious\nfolder:123456789012\tFolder: Production'
+project_parent_reference=
+install_prompt_candidate project_parent_reference 'Required project parent' \
+  "${candidate_parents}" install_validate_parent_reference \
+  <<<'2' >/dev/null
+assert_eq "combined parent list selects folder ID" \
+  "${project_parent_reference}" 'folder:123456789012'
 candidate_billing_accounts=$'111111-AAAAAA-222222\tPrimary billing\n333333-BBBBBB-444444\tProduction billing'
 BILLING_ACCOUNT_ID=
 install_prompt_candidate BILLING_ACCOUNT_ID 'Required billing account' \
