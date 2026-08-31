@@ -1,0 +1,42 @@
+project_id     = "worker-project-id"
+dns_project_id = "dns-project-id"
+region         = "us-central1"
+
+worker_zone                 = "us-central1-a"
+worker_instance_name        = "gpu-worker-1"
+worker_service_account_email = "gpu-worker@worker-project-id.iam.gserviceaccount.com"
+worker_network_name         = "gpu-workers"
+worker_subnetwork_name      = "gpu-workers-us-central1"
+
+# internal peers the gateway and worker VPCs. public-api-key creates a public
+# HTTPS frontend and requires a published profile with worker auth enabled.
+exposure_mode = "internal"
+# Set true only after confirming worker.auth.enabled=true and the
+# SGLANG_WORKER_API_KEY Distr secret is populated for public-api-key mode.
+confirm_worker_api_key = false
+
+gateway_project_id  = "gateway-project-id"
+gateway_network_name = "gateway-production"
+manage_network_peering = true
+
+# Reuse the region's ACTIVE proxy-only subnet or leave null to create one.
+proxy_only_subnet_name = null
+proxy_only_subnet_cidr = "10.129.0.0/23"
+
+dns_managed_zone_name = "example-com"
+worker_domain         = "workers.example.com"
+
+# Reuse a regional Certificate Manager certificate or leave null to create it.
+existing_certificate_id = null
+
+workers = {
+  "8b-a" = { node_port = 30003 }
+  "8b-b" = { node_port = 30004 }
+  "8b-c" = { node_port = 30005 }
+  "8b-d" = { node_port = 30006 }
+}
+
+labels = {
+  environment = "production"
+  project     = "subconscious-inference"
+}

@@ -86,7 +86,7 @@ NLB-source rule does not cancel a broader existing rule.
 The interactive setup is the preferred path:
 
 ```bash
-./gpu-deployment/terraform/aws-private-workers/setup.sh
+./gpu-deployment/setup.sh aws
 ```
 
 Before planning, the wizard checks the selected worker VPC and DNS zone for
