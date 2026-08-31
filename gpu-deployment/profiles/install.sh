@@ -37,7 +37,8 @@ Install GPU host dependencies (drivers, k3s, NVIDIA device plugin).
 Creates namespace sglang (override with NAMESPACE=...) for the Distr agent
 and Helm Apply — same namespace for every profile.
 
-Model weights are downloaded separately with ./weights.sh <profile.yaml>.
+Model weights are downloaded separately from the selected profile directory
+with ./weights.sh.
 EOF
 }
 
