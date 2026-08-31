@@ -393,6 +393,54 @@ EOF
   printf '[install] delete that temporary archive after verifying the new configuration\n'
 }
 
+install_create_quota_project() {
+  local parent_description parent_flag=()
+  cat <<'EOF'
+
+Create a dedicated ADC quota project
+------------------------------------
+This is a small Google Cloud control-plane project used to attribute API quota
+while Terraform creates and administers the production gateway project. It is
+not the production gateway project and does not run gateway workloads.
+
+Creating it requires permission to create a project under the selected parent,
+attach the selected billing account, enable APIs, and consume Service Usage.
+Keep it available for future Terraform administration, or change
+quota_project_id before retiring it. The selected billing account is attached,
+but this workflow creates no compute, database, or network resources in it.
+EOF
+  FOUNDATION_QUOTA_PROJECT_NAME="${FOUNDATION_QUOTA_PROJECT_NAME:-Subconscious Gateway Admin}"
+  install_prompt_validated FOUNDATION_QUOTA_PROJECT_ID \
+    'New globally unique quota project ID' install_validate_gcp_project_id \
+    'quota project ID'
+  install_prompt_validated FOUNDATION_QUOTA_PROJECT_NAME \
+    'Quota project display name' install_validate_project_name
+
+  if [[ -n "${ORGANIZATION_ID}" ]]; then
+    parent_description="organization ${ORGANIZATION_ID}"
+    parent_flag=(--organization "${ORGANIZATION_ID}")
+  else
+    parent_description="folder ${FOLDER_ID}"
+    parent_flag=(--folder "${FOLDER_ID}")
+  fi
+  cat <<EOF
+
+The CLI will now create:
+  project ID:      ${FOUNDATION_QUOTA_PROJECT_ID}
+  display name:    ${FOUNDATION_QUOTA_PROJECT_NAME}
+  parent:          ${parent_description}
+  billing account: ${BILLING_ACCOUNT_ID}
+EOF
+  install_wait_for_word \
+    'Confirm this new billable Google Cloud project.' create
+  gcloud projects create "${FOUNDATION_QUOTA_PROJECT_ID}" \
+    --name "${FOUNDATION_QUOTA_PROJECT_NAME}" "${parent_flag[@]}"
+  gcloud billing projects link "${FOUNDATION_QUOTA_PROJECT_ID}" \
+    --billing-account "${BILLING_ACCOUNT_ID}"
+  QUOTA_PROJECT_ID="${FOUNDATION_QUOTA_PROJECT_ID}"
+  printf '[install] created quota project: %s\n' "${QUOTA_PROJECT_ID}"
+}
+
 install_render_bootstrap_tfvars() {
   local output_file="$1"
   local temporary_file="${output_file}.tmp.$$"
@@ -437,6 +485,7 @@ install_render_bootstrap_tfvars() {
 install_collect_bootstrap_tfvars() {
   local active_account billing_candidates discovery_org_id folder_candidates
   local organization_candidates parent_type="organization" project_candidates
+  local retired_environment_name='sand''box' retired_environment_short='s''box'
   cat <<'EOF'
 
 Required production foundation inputs
@@ -454,8 +503,9 @@ REQUIRED:
   - at least one IAP/OS Login operator user or Google Group.
 
 OPTIONAL:
-  - an existing quota project for ADC client API charges. Step 2 normally set
-    this; leave it empty only if customer policy already configures ADC quota.
+  - an ADC quota project for client API charges. Select an existing project,
+    create a dedicated control-plane project, or skip only when customer policy
+    already configures ADC quota.
 
 FIXED production safety values:
   - region us-east1, e2-standard-2/40 GiB bootstrap VM;
@@ -526,16 +576,30 @@ EOF
   project_candidates="$(
     gcloud projects list --filter='lifecycleState=ACTIVE' --format=json \
       --limit=100 2>/dev/null \
-      | jq -r '.[] | [(.projectId // ""), (.name // .projectId // "unnamed")] | @tsv' \
+      | jq -r \
+        --arg retired_name "${retired_environment_name}" \
+        --arg retired_short "${retired_environment_short}" \
+        '.[]
+         | (((.projectId // "") + " " + (.name // "")) | ascii_downcase) as $identity
+         | select(($identity | contains($retired_name)) | not)
+         | select(($identity | contains($retired_short)) | not)
+         | [(.projectId // ""), (.name // .projectId // "unnamed")]
+         | @tsv' \
       || true
   )"
   cat <<'EOF'
 The quota project, when used, must already exist and allow your user to consume
-and enable Google APIs. It is not the new project Terraform will create.
+and enable Google APIs, or you can create a dedicated one here. It is not the
+new production project Terraform will create.
 EOF
   install_prompt_optional_candidate QUOTA_PROJECT_ID \
-    'Optional existing quota project' "${project_candidates}" \
-    install_validate_gcp_project_id 'quota project ID'
+    'Optional ADC quota project' "${project_candidates}" \
+    install_validate_gcp_project_id install_create_quota_project \
+    'quota project ID'
+  if [[ -n "${QUOTA_PROJECT_ID:-}" ]]; then
+    "${SCRIPT_DIR}/setup-gcloud.sh" \
+      --skip-login --quota-project "${QUOTA_PROJECT_ID}"
+  fi
 
   cat <<'EOF'
 
@@ -844,27 +908,32 @@ install_prompt_optional_candidate() {
   local label="$2"
   local candidates="$3"
   local validator="$4"
-  shift 4
-  local candidate_count choice current selected value
+  local create_function="$5"
+  shift 5
+  local candidate_count choice create_option="" current selected value
   current="${!variable_name:-}"
+  if [[ -n "${create_function}" ]]; then
+    create_option=', c to create a new project'
+  fi
   printf '\n%s candidates visible to the active Google account:\n' "${label}"
   install_print_candidates "${candidates}"
   candidate_count="$(install_candidate_count "${candidates}")"
   if [[ "${candidate_count}" -eq 0 ]]; then
-    while true; do
-      install_prompt_optional "${variable_name}" "${label} ID"
-      value="${!variable_name:-}"
-      [[ -z "${value}" ]] || "${validator}" "${value}" "$@" || continue
-      return
-    done
+    printf '  No candidates were returned. Check access, create one, or enter an ID manually.\n'
   fi
   while true; do
-    if [[ -n "${current}" ]]; then
-      printf 'Select 1-%s, m for manual entry, s to skip, or Enter to keep %s: ' \
-        "${candidate_count}" "${current}"
+    if [[ "${candidate_count}" -eq 0 && -n "${current}" ]]; then
+      printf 'Type m for manual entry%s, s to skip, or Enter to keep %s: ' \
+        "${create_option}" "${current}"
+    elif [[ "${candidate_count}" -eq 0 ]]; then
+      printf 'Type m for manual entry%s, or press Enter to skip: ' \
+        "${create_option}"
+    elif [[ -n "${current}" ]]; then
+      printf 'Select 1-%s, m for manual entry%s, s to skip, or Enter to keep %s: ' \
+        "${candidate_count}" "${create_option}" "${current}"
     else
-      printf 'Select 1-%s, m for manual entry, or press Enter to skip: ' \
-        "${candidate_count}"
+      printf 'Select 1-%s, m for manual entry%s, or press Enter to skip: ' \
+        "${candidate_count}" "${create_option}"
     fi
     read -r choice
     [[ -n "${choice}" ]] || {
@@ -873,6 +942,11 @@ install_prompt_optional_candidate() {
     }
     if [[ "${choice}" == "s" || "${choice}" == "S" ]]; then
       printf -v "${variable_name}" '%s' ''
+      return
+    fi
+    if [[ -n "${create_function}" \
+      && ( "${choice}" == "c" || "${choice}" == "C" ) ]]; then
+      "${create_function}"
       return
     fi
     if [[ "${choice}" == "m" || "${choice}" == "M" ]]; then
@@ -891,7 +965,8 @@ install_prompt_optional_candidate() {
         return
       fi
     fi
-    printf 'Choose a listed number, m for manual entry, s to skip, or Enter for the default.\n'
+    printf 'Choose a listed number, m for manual entry%s, s to skip, or Enter for the default.\n' \
+      "${create_option}"
   done
 }
 
@@ -1213,25 +1288,13 @@ key, copy the ADC file into this repository, or paste a Google credential into
 Distr Hub. Revoke the user session after handoff when customer policy requires.
 EOF
   "${SCRIPT_DIR}/setup-gcloud.sh"
-  printf '\nAccessible existing projects (possible quota projects):\n'
-  gcloud projects list \
-    --filter='lifecycleState=ACTIVE' \
-    --format='table(projectId,name)' \
-    --limit=50 || true
   cat <<'EOF'
 
-The optional quota project is an EXISTING customer project used to charge
-client-based Google API quota while Terraform creates the new production
-project. It is not the new production project. Choose one where your human
-identity can enable/consume the listed control-plane APIs. Leave it empty only
-when the organization's ADC policy already supplies a usable quota project.
+The optional ADC quota project is selected in step 3, after the CLI knows the
+approved parent and billing account. You can select an existing project, create
+a dedicated control-plane project, or skip it when customer policy already
+supplies ADC quota. It is never the new production gateway project.
 EOF
-  install_prompt_optional QUOTA_PROJECT_ID \
-    'Existing quota project ID for ADC/API enablement'
-  if [[ -n "${QUOTA_PROJECT_ID:-}" ]]; then
-    "${SCRIPT_DIR}/setup-gcloud.sh" \
-      --skip-login --quota-project "${QUOTA_PROJECT_ID}"
-  fi
 }
 
 install_step_3() {

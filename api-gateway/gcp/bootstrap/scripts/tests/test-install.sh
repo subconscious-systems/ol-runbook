@@ -163,21 +163,53 @@ assert_eq "billing account selectable by number" "${BILLING_ACCOUNT_ID}" \
 candidate_projects=$'customer-quota-admin\tQuota administration\ncustomer-shared-dns\tShared DNS'
 QUOTA_PROJECT_ID=
 install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
+  "${candidate_projects}" install_validate_gcp_project_id '' 'quota project ID' \
   <<<'1' >/dev/null
 assert_eq "quota project selectable by number" "${QUOTA_PROJECT_ID}" \
   'customer-quota-admin'
 QUOTA_PROJECT_ID=old-value
 install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
+  "${candidate_projects}" install_validate_gcp_project_id '' 'quota project ID' \
   <<<'s' >/dev/null
 assert_eq "optional candidate can be skipped" "${QUOTA_PROJECT_ID}" ''
 QUOTA_PROJECT_ID=customer-quota-admin
 install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
+  "${candidate_projects}" install_validate_gcp_project_id '' 'quota project ID' \
   <<<'' >/dev/null
 assert_eq "optional candidate keeps step 2 selection" "${QUOTA_PROJECT_ID}" \
   'customer-quota-admin'
+# shellcheck disable=SC2329 # Invoked indirectly by the candidate prompt.
+mock_create_quota_project() { QUOTA_PROJECT_ID=created-quota-project; }
+QUOTA_PROJECT_ID=
+install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
+  "${candidate_projects}" install_validate_gcp_project_id \
+  mock_create_quota_project 'quota project ID' <<<'c' >/dev/null
+assert_eq "quota project create option" "${QUOTA_PROJECT_ID}" \
+  'created-quota-project'
+unset -f mock_create_quota_project
+gcloud_calls=""
+# shellcheck disable=SC2329 # Invoked by install_create_quota_project.
+gcloud() { gcloud_calls+="${gcloud_calls:+|}$*"; }
+# shellcheck disable=SC2329 # Invoked by install_create_quota_project.
+install_wait_for_word() { :; }
+unset FOUNDATION_QUOTA_PROJECT_ID FOUNDATION_QUOTA_PROJECT_NAME
+ORGANIZATION_ID=1051986809840
+FOLDER_ID=
+BILLING_ACCOUNT_ID=016933-06250C-0D5324
+QUOTA_PROJECT_ID=
+install_create_quota_project \
+  <<<$'subconscious-admin-quota\n' >/dev/null
+assert_eq "created quota project selected" "${QUOTA_PROJECT_ID}" \
+  'subconscious-admin-quota'
+if [[ "${gcloud_calls}" == *'projects create subconscious-admin-quota'* \
+  && "${gcloud_calls}" == *'--organization 1051986809840'* \
+  && "${gcloud_calls}" == *'billing projects link subconscious-admin-quota'* \
+  && "${gcloud_calls}" == *'--billing-account 016933-06250C-0D5324'* ]]; then
+  ok "quota project creation uses selected parent and billing account"
+else
+  fail "quota project creation lost selected parent or billing account"
+fi
+unset -f gcloud install_wait_for_word
 assert_eq "safe Hub secret prefix" "$(install_secret_prefix example-prod-gateway)" \
   "EXAMPLE_PROD_GATEWAY"
 printf '%s\n' 'enabled_environments = ["retired"]' \

@@ -35,6 +35,12 @@ candidates, and generates a fresh production-only file. A text editor is only
 an optional final review. Delete the temporary archive after verifying the
 generated file.
 
+For ADC quota, the operator can select a numbered existing project, press `c`
+to create a dedicated control-plane project under the selected parent and
+billing account, enter an ID manually, or skip when customer policy already
+provides quota. Project creation requires the explicit word `create` before the
+CLI changes GCP.
+
 ## What the one bootstrap command does
 
 ```bash

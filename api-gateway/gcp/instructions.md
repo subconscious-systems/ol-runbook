@@ -53,12 +53,14 @@ credentials. The detailed checklist below is the reference behind each prompt.
 
 In the foundation step, the CLI queries resources visible to the authenticated
 Google account and presents numbered choices for the organization, open billing
-account, optional quota project, existing DNS project, and top-level folder
+account, optional ADC quota project, existing DNS project, and top-level folder
 when a folder parent is selected. Each choice shows the human display name and
-exact saved ID. Nested folders and resources hidden by customer policy can be
-entered manually. The production project ID is typed because it must be new
-and globally unique. The CLI validates each answer and generates
-`bootstrap/terraform.tfvars`; Vim is not part of the default flow.
+exact saved ID. For ADC quota, `c` creates a dedicated control-plane project
+under the selected parent and billing account after an explicit confirmation.
+Nested folders and resources hidden by customer policy can be entered manually.
+The production project ID is typed because it must be new and globally unique.
+The CLI validates each answer and generates `bootstrap/terraform.tfvars`; Vim
+is not part of the default flow.
 
 ## Detailed checklist
 
@@ -116,9 +118,10 @@ cd api-gateway/gcp/bootstrap
 The guided foundation step requires exactly one organization/folder parent, an
 open billing account, a new project ID and display name, an existing public-DNS
 project, a budget alert amount, a non-overlapping private `/24`, and at least
-one operator user or Google Group. An existing ADC quota project is optional;
-region, VM sizing, and deletion protections are fixed to production-safe
-values. Organizations are also visible under **IAM & Admin > Manage Resources**,
+one operator user or Google Group. An ADC quota project is optional and can be
+selected, created as a dedicated control-plane project, or skipped when policy
+already provides one; region, VM sizing, and deletion protections are fixed to
+production-safe values. Organizations are also visible under **IAM & Admin > Manage Resources**,
 billing IDs under **Billing > Manage billing accounts**, and projects/DNS zones
 under **Manage Resources** and **Network services > Cloud DNS**. The installer
 shows the matching accessible resources and allows selection by number.
