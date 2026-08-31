@@ -128,6 +128,17 @@ workers = {
 }
 ```
 
+For either GLM-5.2 B200 profile, use one worker on its profile NodePort:
+
+```hcl
+workers = {
+  "glm-52" = { node_port = 30001 }
+}
+```
+
+The interactive AWS wizard currently generates only the 8B and 27B layouts.
+Use this manual configuration path for GLM.
+
 Initialize and review the plan:
 
 ```bash

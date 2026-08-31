@@ -223,6 +223,16 @@ terraform validate
 terraform plan
 ```
 
+The interactive GCP wizard currently generates only the 8B and 27B layouts.
+For either GLM-5.2 B200 profile, set a single worker on NodePort 30001 in
+`terraform.tfvars`:
+
+```hcl
+workers = {
+  "glm-52" = { node_port = 30001 }
+}
+```
+
 Set `proxy_only_subnet_name` when the VPC already has its one active regional
 proxy subnet. Set `existing_certificate_id` to the resource name of an active
 regional Certificate Manager certificate covering `*.worker_domain`.
