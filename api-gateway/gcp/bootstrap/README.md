@@ -26,6 +26,12 @@ not persist connect URLs or resolved secrets. It generates the ignored
 and prompted production values. The first is pasted for the foundation pass;
 the second is already prepared for the gateway auto-deploy pass.
 
+Branch changes do not replace an ignored local `terraform.tfvars`. If the CLI
+finds the retired multi-environment schema, it stops before opening the editor,
+requires an explicit `replace` confirmation, moves the old values to a private
+temporary archive, and creates a fresh production-only file. Copy only approved
+production identifiers into the new schema, then delete the temporary archive.
+
 ## What the one bootstrap command does
 
 ```bash

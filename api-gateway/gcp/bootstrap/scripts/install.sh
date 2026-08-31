@@ -290,6 +290,42 @@ install_validate_tfvars() {
   chmod 0600 "${file}"
 }
 
+install_tfvars_is_legacy() {
+  local file="$1"
+  local legacy_environment_label='sand''box'
+  grep -Eq \
+    "^[[:space:]]*(enabled_environments|production_project_id|${legacy_environment_label}_project_id|monthly_budget_amounts_usd|bootstrap_zones|bootstrap_subnet_cidrs)[[:space:]]*=" \
+    "${file}"
+}
+
+install_replace_legacy_tfvars() {
+  local file="${BOOTSTRAP_DIR}/terraform.tfvars"
+  local archive_dir archive_file
+  cat <<'EOF'
+
+This checkout contains an ignored terraform.tfvars from the retired
+multi-environment bootstrap. Git branch changes do not replace ignored files.
+It cannot be used by the production-only stack and will not be opened.
+
+The installer can move that file to a private temporary archive and create a
+fresh production-only terraform.tfvars. Use the archive only to copy approved
+production IDs into the new schema; do not copy retired environment fields.
+EOF
+  install_wait_for_word \
+    'Replace the active legacy file with the production-only template.' replace
+  archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/orangeline-legacy-tfvars.XXXXXX")"
+  chmod 0700 "${archive_dir}"
+  archive_file="${archive_dir}/terraform.tfvars"
+  mv "${file}" "${archive_file}"
+  chmod 0600 "${archive_file}"
+  cp "${BOOTSTRAP_DIR}/terraform.tfvars.example" "${file}"
+  chmod 0600 "${file}"
+  printf '[install] production-only terraform.tfvars created\n'
+  printf '[install] previous local values archived temporarily at %s\n' \
+    "${archive_file}"
+  printf '[install] delete that temporary archive after copying approved production values\n'
+}
+
 install_check_files() {
   local script
   for script in \
@@ -744,6 +780,10 @@ install_step_3() {
   local editor_text editor_command
   local editor_parts=()
   install_header 3 'Apply the production foundation'
+  if [[ -f "${BOOTSTRAP_DIR}/terraform.tfvars" ]] \
+    && install_tfvars_is_legacy "${BOOTSTRAP_DIR}/terraform.tfvars"; then
+    install_replace_legacy_tfvars
+  fi
   if [[ ! -f "${BOOTSTRAP_DIR}/terraform.tfvars" ]]; then
     cp "${BOOTSTRAP_DIR}/terraform.tfvars.example" \
       "${BOOTSTRAP_DIR}/terraform.tfvars"

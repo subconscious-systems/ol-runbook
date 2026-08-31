@@ -118,6 +118,14 @@ assert_rc "overlapping CIDRs rejected" 2 install_validate_cidrs_do_not_overlap \
   '10.40.0.0/16' '10.40.10.0/24'
 assert_eq "safe Hub secret prefix" "$(install_secret_prefix example-prod-gateway)" \
   "EXAMPLE_PROD_GATEWAY"
+printf '%s\n' 'enabled_environments = ["retired"]' \
+  >"${TMP}/legacy.tfvars"
+printf '%s\n' 'project_id = "example-production"' \
+  >"${TMP}/production.tfvars"
+assert_rc "legacy multi-environment tfvars detected" 0 \
+  install_tfvars_is_legacy "${TMP}/legacy.tfvars"
+assert_rc "production-only tfvars accepted" 1 \
+  install_tfvars_is_legacy "${TMP}/production.tfvars"
 
 echo "== Generated Hub environment =="
 export INFRA_DEPLOY_NAME=example-gw-infra
