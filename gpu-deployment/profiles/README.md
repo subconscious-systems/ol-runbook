@@ -6,18 +6,21 @@ selected YAML into Distr as the complete Helm values document.
 ```bash
 cd gpu-deployment/profiles
 ./install.sh
-./weights.sh <profile.yaml>
+cd <profile>
+./weights.sh
 ```
 
 `install.sh` prepares NVIDIA drivers, Docker, k3s, kubectl, and the NVIDIA
 device plugin. It may request a reboot; rerun it afterward.
 
-`weights.sh` securely prompts for a Hugging Face token and a download root. It
-reads every `hfRepo` and `targetPath` declared by the selected profile and runs
-the Hugging Face CLI downloads on the host. For example:
+Each profile directory contains its own `values.yaml` and `weights.sh`. The
+script declares only that profile's repositories and target paths, securely
+prompts for a Hugging Face token and download root, and runs the Hugging Face
+CLI downloads on the host. For example:
 
 ```bash
-./weights.sh glm-5.2-nvfp4-b200-4gpu.yaml
+cd glm-5.2-nvfp4-b200-4gpu
+./weights.sh
 ```
 
 Accept the default download root unless you also update `worker.modelPath`, any
@@ -31,16 +34,16 @@ families are:
 
 | Model | Profile YAML | Weight repositories |
 |---|---|---|
-| GLM-5.2 NVFP4, 4×B200 | `glm-5.2-nvfp4-b200-4gpu.yaml` | `nvidia/GLM-5.2-NVFP4` |
-| GLM-5.2 FP8 + DFLASH, 4×B200 | `glm-5.2-b200-4gpu.yaml` | `zai-org/GLM-5.2-FP8`, then `SubconsciousDev/glm-5.2-fp8-dflash-v2` |
-| GLM-5.2 FP8 + DFLASH, 8×B200 | `glm-5.2-b200-8gpu.yaml` | Same two repositories |
-| Qwen3.6-27B-FP8 | `qwen36-27b-{gpu}-{count}gpu.yaml` | `Qwen/Qwen3.6-27B-FP8` |
-| Qwen3-8B-FP8 | `qwen3-8b-l4-1gpu.yaml` | `Qwen/Qwen3-8B-FP8` |
+| GLM-5.2 NVFP4, 4×B200 | `glm-5.2-nvfp4-b200-4gpu/` | `nvidia/GLM-5.2-NVFP4` |
+| GLM-5.2 FP8 + DFLASH, 4×B200 | `glm-5.2-b200-4gpu/` | `zai-org/GLM-5.2-FP8`, then `SubconsciousDev/glm-5.2-fp8-dflash-v2` |
+| GLM-5.2 FP8 + DFLASH, 8×B200 | `glm-5.2-b200-8gpu/` | Same two repositories |
+| Qwen3.6-27B-FP8 | `qwen36-27b-{gpu}-{count}gpu/` | `Qwen/Qwen3.6-27B-FP8` |
+| Qwen3-8B-FP8 | `qwen3-8b-l4-1gpu/` | `Qwen/Qwen3-8B-FP8` |
 
-The legacy `qwen36-27b.yaml` and `qwen3-8b.yaml` files remain available for
+The legacy `qwen36-27b/` and `qwen3-8b/` directories remain available for
 existing multi-worker installs. New installs should use topology-specific
 filenames.
 
-All profiles mount downloaded weights read-only. Kubernetes does not download
-models during Helm Apply; a worker remains pending or fails to start if its
+All profiles mount downloaded weights read-only. The chart contains no model
+downloader or Hugging Face secret; a worker fails to start if its
 configured host path was not populated first.

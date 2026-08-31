@@ -25,13 +25,13 @@ declaring the gateway upgrade healthy.
 
 | Model | Profile | Supported topology |
 |---|---|---|
-| Qwen3.6-27B-FP8 | `profiles/qwen36-27b-*.yaml` | L4 (2/4/8 GPUs); L40S, A100-80GB, H100-80GB, H200, or B200 (1/2/4/8 GPUs) |
-| Qwen3-8B-FP8 | `profiles/qwen3-8b-l4-1gpu.yaml` | One L4 GPU |
-| GLM-5.2-FP8 + DFLASH | `profiles/glm-5.2-b200-{4,8}gpu.yaml` | Four or eight B200 GPUs |
-| GLM-5.2-NVFP4 | `profiles/glm-5.2-nvfp4-b200-4gpu.yaml` | Four B200 GPUs (`CUDA_VISIBLE_DEVICES=0,1,2,3`) |
+| Qwen3.6-27B-FP8 | `profiles/qwen36-27b-*/values.yaml` | L4 (2/4/8 GPUs); L40S, A100-80GB, H100-80GB, H200, or B200 (1/2/4/8 GPUs) |
+| Qwen3-8B-FP8 | `profiles/qwen3-8b-l4-1gpu/values.yaml` | One L4 GPU |
+| GLM-5.2-FP8 + DFLASH | `profiles/glm-5.2-b200-{4,8}gpu/values.yaml` | Four or eight B200 GPUs |
+| GLM-5.2-NVFP4 | `profiles/glm-5.2-nvfp4-b200-4gpu/values.yaml` | Four B200 GPUs (`CUDA_VISIBLE_DEVICES=0,1,2,3`) |
 
 Select a profile that exactly matches the GPU type and count on one node. The
-legacy `qwen36-27b.yaml` and `qwen3-8b.yaml` examples remain for existing
+legacy `qwen36-27b/` and `qwen3-8b/` examples remain for existing
 deployments; use the explicitly named profile for new installs.
 
 ## Step 1 — GPU Host Preparation
@@ -57,11 +57,12 @@ kubectl get namespace sglang
 
 ## Step 2 — Download model weights
 
-From `gpu-deployment/profiles`, run `weights.sh` with the exact YAML selected
-above. Each YAML repeats its own command in the header.
+Enter the selected profile directory and run its profile-specific `weights.sh`.
+Each folder contains only its `values.yaml` and bound download command.
 
 ```bash
-./weights.sh glm-5.2-nvfp4-b200-4gpu.yaml
+cd glm-5.2-nvfp4-b200-4gpu
+./weights.sh
 ```
 
 The script prompts without echoing for a Hugging Face token, then asks for the
@@ -101,7 +102,7 @@ find /mnt/glm-5.2-nvfp4 -maxdepth 1 -name '*.safetensors' | head
    Qwen, or **0.13.0 or newer** for GLM-5.2 FP8 + DFLASH.
 5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
 6. Open [profiles](profiles/), pick the model and exact GPU topology, and paste
-   the **entire** profile into **App Config → Helm Values** (full replace).
+   the folder's **entire `values.yaml`** into **App Config → Helm Values** (full replace).
    Change `datadog.site` if the customer does not use `datadoghq.com`.
 7. **Customize Helm options** — set the operation timeout to 120m.
 8. Create/save the deployment and its namespace-scoped Kubernetes target.

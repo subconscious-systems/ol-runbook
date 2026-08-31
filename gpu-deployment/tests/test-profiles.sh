@@ -6,17 +6,16 @@ PROFILE_DIR="${GPU_DIR}/profiles"
 
 bash -n "${GPU_DIR}/dependencies.sh"
 bash -n "${PROFILE_DIR}/install.sh"
-bash -n "${PROFILE_DIR}/weights.sh"
+bash -n "${PROFILE_DIR}/_weights.sh"
 
-for profile in "${PROFILE_DIR}"/*.yaml; do
-  name="$(basename "${profile}")"
-  grep -Fq "./weights.sh ${name}" "${profile}"
-  if grep -A1 '^  modelDownload:$' "${profile}" | grep -q 'enabled: true'; then
-    echo "ERROR: Kubernetes model download is enabled in ${name}" >&2
-    exit 1
-  fi
-  grep -q 'hfRepo:' "${profile}"
-  grep -q 'targetPath:' "${profile}"
+for profile in "${PROFILE_DIR}"/*/values.yaml; do
+  profile_dir="$(dirname "${profile}")"
+  profile_name="$(basename "${profile_dir}")"
+  bash -n "${profile_dir}/weights.sh"
+  grep -q "${profile_name} profile" "${profile_dir}/weights.sh"
+  test "$(find "${profile_dir}" -maxdepth 1 -type f | wc -l)" -eq 2
+  grep -Fq './weights.sh' "${profile}"
+  ! grep -Eq 'hostModelDownloads|hfRepo|targetPath|modelDownload' "${profile}"
   grep -q 'readOnly: true' "${profile}"
 done
 
