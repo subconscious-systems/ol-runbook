@@ -6,6 +6,7 @@
 #
 # Model: nvidia/GLM-5.2-NVFP4 | GPU: b200 | GPUs/node: 4 (tp=4)
 # Preloaded host weights: /mnt/glm-5.2-nvfp4
+# Route: glm-52 -> NodePort 30001 | served model: glm-5.2
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model glm-5.2
 # Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY
 
@@ -25,7 +26,7 @@ datadog:
     service: sglang-worker-glm-5.2-nvfp4-b200-4gpu
   datadog:
     apiKeyExistingSecret: datadog-secret
-    site: datadoghq.com
+    site: us5.datadoghq.com
 
 worker:
   progressDeadlineSeconds: 7200
@@ -37,7 +38,7 @@ worker:
     type: NodePort
   image:
     repository: registry.distr.sh/subconscious/timrun
-    tag: sm_100-v0
+    tag: sm_100-v0.13
     pullPolicy: IfNotPresent
     prePull:
       enabled: true
@@ -86,11 +87,11 @@ worker:
     - name: FLASHINFER_WORKSPACE_BASE
       value: /opt/sgl-warm-cache/flashinfer
     - name: HF_HOME
-      value: /mnt/.cache/huggingface
+      value: /tmp/huggingface
     - name: PYTHONUNBUFFERED
       value: "1"
     - name: SGLANG_PP_SPIKE_MODE
-      value: on_drop
+      value: "on_drop"
     - name: SGLANG_SUBCONSCIOUS_TRANSPLANT
       value: "1"
     - name: SGLANG_SUBCONSCIOUS_BACKTRACK_MAX_LEVELS

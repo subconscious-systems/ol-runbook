@@ -40,6 +40,11 @@ families are:
 | Qwen3.6-27B-FP8 | `qwen36-27b-{gpu}-{count}gpu/` | `Qwen/Qwen3.6-27B-FP8` |
 | Qwen3-8B-FP8 | `qwen3-8b-l4-1gpu/` | `Qwen/Qwen3-8B-FP8` |
 
+The NVFP4 profile uses `registry.distr.sh/subconscious/timrun:sm_100-v0.13`,
+serves `glm-5.2`, and exposes the existing `glm-52` route on NodePort `30001`.
+Its only model directory is `/mnt/glm-5.2-nvfp4`; no DFLASH draft model is
+used by this profile.
+
 The legacy `qwen36-27b/` and `qwen3-8b/` directories remain available for
 existing multi-worker installs. New installs should use topology-specific
 filenames.
