@@ -524,14 +524,10 @@ customer organization or folder and copy its numeric ID, not its display name.
 Choose where the new production project belongs:
   1) organization — directly at the customer organization root;
   2) folder       — inside an existing GCP folder used by the customer.
-
-If the customer gave you a folder for production workloads, choose folder.
-Otherwise choose organization. Ask the customer's GCP administrator instead of
-guessing when both are visible.
 EOF
   install_prompt_choice parent_type \
     'Production project parent' \
-    'organization|folder'
+    'organization|folder' false
   ORGANIZATION_ID=""
   FOLDER_ID=""
   if [[ "${parent_type}" == "organization" ]]; then
@@ -1055,12 +1051,15 @@ install_prompt_choice() {
   local variable_name="$1"
   local label="$2"
   local choices="$3"
+  local show_choices="${4:-true}"
   local current="${!variable_name:-}"
   local value choice index default_index=""
   local choice_values=()
   IFS='|' read -r -a choice_values <<<"${choices}"
   for index in "${!choice_values[@]}"; do
-    printf '  %d) %s\n' "$((index + 1))" "${choice_values[index]}"
+    if [[ "${show_choices}" == "true" ]]; then
+      printf '  %d) %s\n' "$((index + 1))" "${choice_values[index]}"
+    fi
     if [[ "${choice_values[index]}" == "${current}" ]]; then
       default_index="$((index + 1))"
     fi
