@@ -11,9 +11,9 @@ GCP: [architecture and release gate](api-gateway/gcp/README.md) · [setup](api-g
 No. The GCP runbook defines a complete production-parity contract, but the
 selected `api-gateway-infra` Distr Application release must explicitly say its
 full `CLOUD=gcp` path is enabled. A release whose runner still reports GCP as a
-stub fails closed. Complete the sandbox dress rehearsal before production.
+stub fails closed. Complete the production release preflight before deployment.
 
-The GCP path is greenfield only: separate sandbox/production projects in
+The GCP path is greenfield production only: one dedicated project in
 `us-east1`, no AWS data migration, and no GPU provisioning. See
 [api-gateway/gcp/README.md](api-gateway/gcp/README.md).
 
@@ -37,8 +37,8 @@ Terraform state keys and Datadog `env` (defaults from the infra `DEPLOY_NAME` un
 
 On GCP the same logical bundles map to Secret Manager IDs such as
 `orangeline__{infra-name}__rds|valkey|app` and sync through ESO with Workload
-Identity Federation. Sandbox and production use independent projects and
-secret versions. Details:
+Identity Federation. Production uses its dedicated project and secret
+versions. Details:
 [api-gateway/gcp/gateway-secrets.md](api-gateway/gcp/gateway-secrets.md).
 
 Keep each Distr deployment name **32 characters or fewer**. Longer names can hit cloud resource id limits (especially cache replication group ids).

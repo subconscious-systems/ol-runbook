@@ -116,6 +116,56 @@ assert_rc "non-overlapping CIDRs" 0 install_validate_cidrs_do_not_overlap \
   '10.80.0.0/16' '10.40.0.0/24'
 assert_rc "overlapping CIDRs rejected" 2 install_validate_cidrs_do_not_overlap \
   '10.40.0.0/16' '10.40.10.0/24'
+assert_rc "numeric organization ID" 0 install_validate_numeric_id \
+  '1051986809840' organization
+assert_rc "display name rejected as organization ID" 2 \
+  install_validate_numeric_id 'Example Org' organization
+assert_rc "billing account ID" 0 install_validate_billing_account_id \
+  '016933-06250C-0D5324'
+assert_rc "malformed billing account rejected" 2 \
+  install_validate_billing_account_id 'billingAccounts/016933-06250C-0D5324'
+assert_rc "valid GCP project ID" 0 install_validate_gcp_project_id \
+  'subconscious-gateway-prod' project
+assert_rc "uppercase GCP project rejected" 2 install_validate_gcp_project_id \
+  'Subconscious-Gateway-Prod' project
+assert_rc "valid project display name" 0 install_validate_project_name \
+  'Subconscious Gateway Prod'
+assert_rc "short project display name rejected" 2 install_validate_project_name 'GW'
+assert_rc "positive budget" 0 install_validate_positive_integer 1200 budget
+assert_rc "zero budget rejected" 2 install_validate_positive_integer 0 budget
+assert_rc "production bootstrap zone" 0 install_validate_bootstrap_zone us-east1-b
+assert_rc "wrong bootstrap region rejected" 2 install_validate_bootstrap_zone us-west1-b
+assert_rc "operator user" 0 install_validate_operator_principals \
+  'user:installer@example.com'
+assert_rc "multiple operator principals" 0 install_validate_operator_principals \
+  'group:platform@example.com, user:installer@example.com'
+assert_rc "bare operator email rejected" 2 install_validate_operator_principals \
+  'installer@example.com'
+candidate_billing_accounts=$'111111-AAAAAA-222222\tPrimary billing\n333333-BBBBBB-444444\tProduction billing'
+BILLING_ACCOUNT_ID=
+install_prompt_candidate BILLING_ACCOUNT_ID 'Required billing account' \
+  "${candidate_billing_accounts}" install_validate_billing_account_id \
+  <<<'2' >/dev/null
+assert_eq "billing account selectable by number" "${BILLING_ACCOUNT_ID}" \
+  '333333-BBBBBB-444444'
+candidate_projects=$'customer-quota-admin\tQuota administration\ncustomer-shared-dns\tShared DNS'
+QUOTA_PROJECT_ID=
+install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
+  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
+  <<<'1' >/dev/null
+assert_eq "quota project selectable by number" "${QUOTA_PROJECT_ID}" \
+  'customer-quota-admin'
+QUOTA_PROJECT_ID=old-value
+install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
+  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
+  <<<'s' >/dev/null
+assert_eq "optional candidate can be skipped" "${QUOTA_PROJECT_ID}" ''
+QUOTA_PROJECT_ID=customer-quota-admin
+install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
+  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
+  <<<'' >/dev/null
+assert_eq "optional candidate keeps step 2 selection" "${QUOTA_PROJECT_ID}" \
+  'customer-quota-admin'
 assert_eq "safe Hub secret prefix" "$(install_secret_prefix example-prod-gateway)" \
   "EXAMPLE_PROD_GATEWAY"
 printf '%s\n' 'enabled_environments = ["retired"]' \
@@ -126,6 +176,54 @@ assert_rc "legacy multi-environment tfvars detected" 0 \
   install_tfvars_is_legacy "${TMP}/legacy.tfvars"
 assert_rc "production-only tfvars accepted" 1 \
   install_tfvars_is_legacy "${TMP}/production.tfvars"
+
+echo "== Guided production foundation file =="
+export ORGANIZATION_ID=1051986809840
+export FOLDER_ID=
+export BILLING_ACCOUNT_ID=016933-06250C-0D5324
+export QUOTA_PROJECT_ID=customer-quota-admin
+export FOUNDATION_PROJECT_ID=subconscious-gateway-prod
+export FOUNDATION_PROJECT_NAME='Subconscious Gateway Prod'
+export FOUNDATION_DNS_PROJECT_ID=customer-shared-dns
+export MONTHLY_BUDGET_AMOUNT_USD=1200
+export BOOTSTRAP_ZONE=us-east1-b
+export BOOTSTRAP_SUBNET_CIDR=10.40.0.0/24
+export OPERATOR_PRINCIPALS='group:platform@example.com,user:installer@example.com'
+install_render_bootstrap_tfvars "${TMP}/guided.tfvars"
+for expected in \
+  'organization_id = "1051986809840"' \
+  'folder_id       = ""' \
+  'billing_account_id = "016933-06250C-0D5324"' \
+  'quota_project_id   = "customer-quota-admin"' \
+  'project_id   = "subconscious-gateway-prod"' \
+  'project_name = "Subconscious Gateway Prod"' \
+  'dns_project_id = "customer-shared-dns"' \
+  'monthly_budget_amount_usd = 1200' \
+  'region                = "us-east1"' \
+  'bootstrap_zone        = "us-east1-b"' \
+  'bootstrap_subnet_cidr = "10.40.0.0/24"' \
+  '"group:platform@example.com",' \
+  '"user:installer@example.com",' \
+  'project_deletion_policy = "PREVENT"' \
+  'protect_bootstrap_vms   = true'; do
+  if grep -Fq "${expected}" "${TMP}/guided.tfvars"; then
+    ok "generated foundation ${expected%% =*}"
+  else
+    fail "generated foundation missing ${expected}"
+  fi
+done
+if [[ "$(stat -f '%Lp' "${TMP}/guided.tfvars" 2>/dev/null \
+  || stat -c '%a' "${TMP}/guided.tfvars")" == "600" ]]; then
+  ok "generated foundation file is mode 0600"
+else
+  fail "generated foundation file is not mode 0600"
+fi
+if grep -FqiE '(password|api[_ -]?key|targetSecret|private[_ -]?key)' \
+  "${TMP}/guided.tfvars"; then
+  fail "generated foundation file contains a secret field"
+else
+  ok "generated foundation file contains identifiers only"
+fi
 
 echo "== Generated Hub environment =="
 export INFRA_DEPLOY_NAME=example-gw-infra

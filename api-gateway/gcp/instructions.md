@@ -51,6 +51,15 @@ Useful commands:
 The CLI deliberately does not call the Distr API or store cloud/application
 credentials. The detailed checklist below is the reference behind each prompt.
 
+In the foundation step, the CLI queries resources visible to the authenticated
+Google account and presents numbered choices for the organization, open billing
+account, optional quota project, existing DNS project, and top-level folder
+when a folder parent is selected. Each choice shows the human display name and
+exact saved ID. Nested folders and resources hidden by customer policy can be
+entered manually. The production project ID is typed because it must be new
+and globally unique. The CLI validates each answer and generates
+`bootstrap/terraform.tfvars`; Vim is not part of the default flow.
+
 ## Detailed checklist
 
 ### 1. FDE: Vendor portal entitlements
@@ -101,19 +110,26 @@ cd ol-runbook
 
 ```bash
 cd api-gateway/gcp/bootstrap
-./scripts/install-gcloud.sh
-./scripts/setup-gcloud.sh
-cp terraform.tfvars.example terraform.tfvars
-$EDITOR terraform.tfvars
-./scripts/bootstrap.sh
+./scripts/install.sh
 ```
 
-Like the AWS bootstrap, this is one command. It plans, asks for the production
-project ID, applies the project and private VM, migrates state to the new
-versioned GCS bucket, runs preflight, and repairs Docker/Compose/kubectl on the
-host. Re-running it is idempotent. The VM has no public IP; access uses IAP and
-OS Login. Authentication uses a human Google identity and Application Default
-Credentials; it never creates or downloads a service-account key.
+The guided foundation step requires exactly one organization/folder parent, an
+open billing account, a new project ID and display name, an existing public-DNS
+project, a budget alert amount, a non-overlapping private `/24`, and at least
+one operator user or Google Group. An existing ADC quota project is optional;
+region, VM sizing, and deletion protections are fixed to production-safe
+values. Organizations are also visible under **IAM & Admin > Manage Resources**,
+billing IDs under **Billing > Manage billing accounts**, and projects/DNS zones
+under **Manage Resources** and **Network services > Cloud DNS**. The installer
+shows the matching accessible resources and allows selection by number.
+
+It then plans, asks for the production project ID, applies the project and
+private VM, migrates state to the new versioned GCS bucket, runs preflight, and
+repairs Docker/Compose/kubectl on the host. Re-running with
+`./scripts/install.sh --from-step 3` offers to reuse a valid completed foundation
+file. The VM has no public IP; access uses IAP and OS Login. Authentication uses
+a human Google identity and Application Default Credentials; it never creates
+or downloads a service-account key.
 
 ### 5. Admin: Configure all Distr variables and Hub Secrets
 

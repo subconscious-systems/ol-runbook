@@ -27,19 +27,32 @@ and prompted production values. The first is pasted for the foundation pass;
 the second is already prepared for the gateway auto-deploy pass.
 
 Branch changes do not replace an ignored local `terraform.tfvars`. If the CLI
-finds the retired multi-environment schema, it stops before opening the editor,
-requires an explicit `replace` confirmation, moves the old values to a private
-temporary archive, and creates a fresh production-only file. Copy only approved
-production identifiers into the new schema, then delete the temporary archive.
+finds the retired multi-environment schema, it requires an explicit `replace`
+confirmation and moves the old values to a private temporary archive. The CLI
+then discovers accessible GCP resources, lets the operator select numbered
+organization, top-level-folder, billing-account, quota-project, and DNS-project
+candidates, and generates a fresh production-only file. A text editor is only
+an optional final review. Delete the temporary archive after verifying the
+generated file.
 
 ## What the one bootstrap command does
 
 ```bash
 ./scripts/install-gcloud.sh
 ./scripts/setup-gcloud.sh
-cp terraform.tfvars.example terraform.tfvars
-$EDITOR terraform.tfvars
+# Guided required/optional GCP input questionnaire
+# Generates mode-0600 terraform.tfvars
 ./scripts/bootstrap.sh
+```
+
+The questionnaire says whether each value is required, optional, or fixed and
+where to find it in Google Cloud Console. It lists resources visible to the
+active account and saves the exact selected ID, not the display name. Manual ID
+entry remains available when customer policy hides a resource from list APIs.
+Re-running step 3 offers to reuse an already-valid production file:
+
+```bash
+./scripts/install.sh --from-step 3
 ```
 
 `bootstrap.sh`:
