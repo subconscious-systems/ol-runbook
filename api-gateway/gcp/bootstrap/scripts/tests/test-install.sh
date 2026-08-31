@@ -212,13 +212,17 @@ for expected in \
     fail "generated foundation missing ${expected}"
   fi
 done
-if [[ "$(stat -f '%Lp' "${TMP}/guided.tfvars" 2>/dev/null \
-  || stat -c '%a' "${TMP}/guided.tfvars")" == "600" ]]; then
+if stat -c '%a' "${TMP}/guided.tfvars" >/dev/null 2>&1; then
+  guided_tfvars_mode="$(stat -c '%a' "${TMP}/guided.tfvars")"
+else
+  guided_tfvars_mode="$(stat -f '%Lp' "${TMP}/guided.tfvars")"
+fi
+if [[ "${guided_tfvars_mode}" == "600" ]]; then
   ok "generated foundation file is mode 0600"
 else
   fail "generated foundation file is not mode 0600"
 fi
-if grep -FqiE '(password|api[_ -]?key|targetSecret|private[_ -]?key)' \
+if grep -qiE '(password|api[_ -]?key|targetSecret|private[_ -]?key)' \
   "${TMP}/guided.tfvars"; then
   fail "generated foundation file contains a secret field"
 else
