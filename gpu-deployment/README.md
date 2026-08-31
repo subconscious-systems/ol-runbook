@@ -34,6 +34,12 @@ Select a profile that exactly matches the GPU type and count on one node. The
 legacy `qwen36-27b/` and `qwen3-8b/` examples remain for existing
 deployments; use the explicitly named profile for new installs.
 
+The GLM-5.2 NVFP4 profile uses the existing `glm-52` worker route on NodePort
+`30001`, advertises the served model as `glm-5.2`, and pulls
+`registry.distr.sh/subconscious/timrun:sm_100-v0.13`. It mounts the preloaded
+`nvidia/GLM-5.2-NVFP4` weights from `/mnt/glm-5.2-nvfp4`; it does not use the
+FP8 or DFLASH repositories.
+
 ## Step 1 — GPU Host Preparation
 
 Clone the runbook on the GPU host, enter the profiles directory, and run the
@@ -44,6 +50,11 @@ git clone https://github.com/subconscious-systems/ol-runbook.git
 cd ol-runbook/gpu-deployment/profiles
 ./install.sh
 ```
+
+The bundled installer supports Debian and Ubuntu only. It exits before making
+changes on Rocky Linux, RHEL, CentOS, or Fedora. On those hosts, install and
+validate Docker, k3s, kubectl, the NVIDIA Container Toolkit, RuntimeClass, and
+device plugin through the host's supported provisioning path before continuing.
 
 It may reboot for NVIDIA drivers. Return to the same directory and run
 `./install.sh` again after reboot. The script should print `Install finished.`
@@ -99,7 +110,7 @@ find /mnt/glm-5.2-nvfp4 -maxdepth 1 -name '*.safetensors' | head
 
 3. Navigate to **Deployments** → **New Deployment**.
 4. Select the SGLang / gpu-deployment application. Use **0.10.0 or newer** for
-   Qwen, or **0.13.0 or newer** for GLM-5.2 FP8 + DFLASH.
+   Qwen, or **0.13.0 or newer** for either GLM-5.2 profile.
 5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
 6. Open [profiles](profiles/), pick the model and exact GPU topology, and paste
    the folder's **entire `values.yaml`** into **App Config → Helm Values** (full replace).
