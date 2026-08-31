@@ -3,22 +3,24 @@
 This estimate covers the Subconscious Inference System **API Gateway only**.
 GPU instances, inference workers, and private worker NLBs are excluded.
 
-Use **approximately $680 per month** as the planning baseline for the current
-staged EKS 1.35 gateway with Datadog Infrastructure Pro and APM. EKS 1.35
-standard support ends March 27, 2027 UTC. The AWS-only portion is
-approximately **$588 per month**. After 1.35 enters extended support, the total
-increases by approximately $365 per month.
+Use **approximately $830 per month** as the planning baseline for the current
+EKS 1.35 gateway with Datadog Infrastructure Pro and APM. EKS 1.35 is in
+standard support; extended-support billing begins at 00:00 UTC on March 27,
+2027. The AWS-only portion is approximately **$737 per month**. If the cluster
+remains on 1.35 after that date, the total increases by approximately $365 per
+month.
 
 ## Assumptions
 
-- Prices checked July 28, 2026.
+- AWS component prices checked July 28, 2026; EKS version pricing and lifecycle
+  rechecked August 14, 2026; RDS class rechecked August 24, 2026.
 - AWS Region: US East (Ohio), `us-east-2`.
 - 730 runtime hours per month.
 - On-Demand pricing with no free-tier, Spot, Reserved Instance, Savings Plan,
   private-pricing, tax, or AWS Support adjustments.
 - Two `m7g.xlarge` EKS nodes.
-- EKS Kubernetes 1.35 in standard support (the current staged hop target).
-- Multi-AZ `db.t4g.medium` RDS for PostgreSQL with 50 GB gp3 storage.
+- EKS Kubernetes 1.35 in standard support (the current deployed version).
+- Multi-AZ `db.m7g.large` RDS for PostgreSQL with 50 GB gp3 storage.
 - Two `cache.t4g.small` ElastiCache for Valkey nodes.
 - One always-on `t3.large` bootstrap/Distr agent host.
 - One NAT Gateway and one public ALB spanning two Availability Zones.
@@ -32,7 +34,7 @@ increases by approximately $365 per month.
 | --- | ---: | --- |
 | EKS control plane | $73.00 | Standard support at $0.10/hour |
 | Two EKS nodes | $238.27 | 2 × `m7g.xlarge` |
-| RDS PostgreSQL | $100.65 | Multi-AZ `db.t4g.medium` plus 50 GB gp3 |
+| RDS PostgreSQL | $249.28 | Multi-AZ `db.m7g.large` plus 50 GB gp3 |
 | Bootstrap/Distr host | $60.74 | `t3.large` |
 | ElastiCache for Valkey | $37.38 | 2 × `cache.t4g.small` |
 | NAT Gateway | $32.85 | Hourly charge; processing excluded |
@@ -42,30 +44,27 @@ increases by approximately $365 per month.
 | Secrets Manager, Route 53, and Terraform state | $1.80 | Low-volume estimate |
 | Datadog Infrastructure Pro | $30.00 | 2 hosts × $15/host |
 | Datadog APM | $62.00 | 2 hosts × $31/host |
-| **Estimated total** | **$679.96** | Before usage-variable charges |
+| **Estimated total** | **$828.59** | Before usage-variable charges |
 
-Round the estimate to **$680 per month** for planning.
+Round the estimate to **$830 per month** for planning.
 
 ## EKS version cost warning
 
-EKS charges more when a Kubernetes version enters extended support. EKS 1.34
-enters extended support after December 2, 2026 UTC, and EKS 1.35 enters
-extended support after March 27, 2027 UTC:
+EKS charges more when a Kubernetes version enters extended support. For EKS
+1.35, extended-support billing begins at 00:00 UTC on March 27, 2027:
 
 - Standard-support control plane: $0.10/hour, or about $73/month.
 - Extended-support control plane: $0.60/hour, or about $438/month.
 - Difference: **$365/month** or **$4,380/year** per cluster.
 
-The staged 1.35 target therefore costs approximately **$680 per month** during
-standard support and approximately **$1,045 per month** after its
-standard-support window closes, without adding capacity. The current
+The current EKS 1.35 deployment therefore costs approximately **$830 per
+month** through March 26, 2027 and approximately **$1,195 per month** beginning
+March 27, 2027, without adding capacity. The current
 [`sample-gateway-infra.env`](sample-gateway-infra.env) sets
-`KUBERNETES_VERSION=1.35`; the 1.34→1.35 hop avoids the 1.34
-extended-support premium until the 1.35 standard-support end date. Do not skip
-to a later
-version to reduce cost: use only a
-separately released and user-validated hop. Check current support dates during
-each upgrade and budget the premium until a standard-support hop is approved.
+`KUBERNETES_VERSION=1.35`. Do not move to a later version only to reduce cost:
+use a separately released and user-validated upgrade hop. Check current support
+dates during each upgrade and budget the premium until a standard-support hop
+is approved.
 
 ## Usage-variable and excluded costs
 

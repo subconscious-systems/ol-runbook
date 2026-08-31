@@ -63,14 +63,18 @@ VM only executes kubectl through IAP using the GKE DNS endpoint.
 
 | Path | Role |
 | --- | --- |
+| `scripts/install-gcloud.sh` | Install/check local gcloud and the GKE auth plugin |
 | `scripts/bootstrap.sh` | One-command project/VM bootstrap, state migration, preflight, and host repair |
 | `scripts/setup-gcloud.sh` | Human user and ADC login |
+| `scripts/migrate-state.sh` | Recover or manually complete the first-state migration to GCS |
+| `scripts/preflight.sh` | Read-only billing/API/IAM/network/VM security checks |
 | `scripts/repair-host.sh` | Idempotent Docker/Compose/kubectl repair |
 | `scripts/run-agent.sh` | Connect the Distr Docker target through IAP |
 | `scripts/connect-k8s-agent.sh` | Connect the Distr Kubernetes target through the GKE DNS endpoint |
 | `scripts/connect.sh` | Break-glass IAP/OS Login shell |
 | `scripts/smoke-checks.sh` | Read-only platform and gateway checks |
 | `scripts/rotate-app-secret.sh` | Rotate application secrets using the runner image |
+| `scripts/teardown-platform.sh` | Destroy platform Terraform via IAP and the runner image |
 | `*.tf` | Production project and private bootstrap foundation |
 
 ## Break-glass access
@@ -88,3 +92,37 @@ shell. The second opens an IAP shell only.
 `migrate-state.sh` is normally called automatically. Use it directly only when
 the project/VM apply succeeded but bootstrap stopped before state migration.
 Generated `backend.tf` and `.backend.hcl` are ignored by git.
+
+The kubeconfig is built with `gcloud container clusters get-credentials
+--dns-endpoint`. The released GKE stack must enable the DNS endpoint, allow
+external traffic through that endpoint, grant `container.clusters.connect`, and
+disable IP-based control-plane endpoints.
+
+## Platform teardown
+
+Do not destroy these foundations while either Distr agent or platform stack is
+still running. Undeploy the gateway Helm app in Hub first. Then, from this
+directory:
+
+```bash
+./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+```
+
+Full procedure: [../teardown.md](../teardown.md). After the
+platform is gone, undeploy the infra Docker app, then optionally destroy this
+foundation.
+
+## Bootstrap-only teardown
+
+Do not destroy these foundations while either Distr agent or platform stack is
+still running. Complete platform teardown first
+([../teardown.md](../teardown.md)). For an approved final project deletion:
+
+1. Preserve/export required audit evidence and state.
+2. Set `protect_bootstrap_vms = false` and apply.
+3. Empty or preserve the state buckets according to retention policy.
+4. Set `project_deletion_policy = "DELETE"` and apply that policy change.
+5. Run the reviewed destroy from the remote backend.
+
+Project deletion is asynchronous and has organization-level consequences.
+`terraform destroy` is intentionally blocked by the default protections.

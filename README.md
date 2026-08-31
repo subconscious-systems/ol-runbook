@@ -23,21 +23,25 @@ Implementation artifacts (platform Terraform, gateway Helm chart, worker deploym
 | Doc                                                                                  | Description                                                            |
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | [supported-agent-apis.md](supported-agent-apis.md)                                   | OpenAI / Anthropic / Codex / Claude Code API contract                  |
-| [coding-agents/](coding-agents/)                                                     | Point Cursor, Claude Code, Codex, Copilot, OpenCode, Pi at the gateway (`mbta` CLI) |
+| [coding-agents/](coding-agents/)                                                     | Point Cursor, Claude Code, Codex, Copilot, OpenCode, Pi at the gateway with `subconscious-cli` (`subc`) |
 | [api-gateway/aws/README.md](api-gateway/aws/README.md)                               | AWS architecture, dual Distr apps, system diagram, prerequisites       |
 | [api-gateway/aws/instructions.md](api-gateway/aws/instructions.md)                   | End-to-end FDE + customer admin setup checklist                        |
-| [api-gateway/aws/eks-upgrade.md](api-gateway/aws/eks-upgrade.md)                     | Staged EKS 1.31→1.32 operation, health gates, soak, and rollback       |
-| [api-gateway/aws/cost-estimate.md](api-gateway/aws/cost-estimate.md)                 | Monthly AWS gateway estimate without GPU workers                       |
+| [api-gateway/aws/eks-upgrade.md](api-gateway/aws/eks-upgrade.md)                     | Staged EKS 1.34→1.35 operation, health gates, soak, and rollback       |
+| [api-gateway/aws/cost-estimate.md](api-gateway/aws/cost-estimate.md)                 | Monthly AWS EKS 1.35 gateway estimate without GPU workers              |
 | [api-gateway/aws/bootstrap/](api-gateway/aws/bootstrap/)                             | Day-0 Docker agent EC2 bootstrap (canonical)                           |
 | [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md)             | AWS Secrets Manager + ESO cluster secrets                              |
 | [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md)             | Rotate csrf / encryption, RDS/Valkey, org and worker keys              |
-| [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md)             | Common hiccups, rollback notes                                         |
+| [api-gateway/aws/rollback.md](api-gateway/aws/rollback.md)                           | Release rollback for gateway, infra, and credentials                   |
+| [api-gateway/aws/teardown.md](api-gateway/aws/teardown.md)                           | Destroy the AWS platform stack                                         |
+| [api-gateway/aws/troubleshooting.md](api-gateway/aws/troubleshooting.md)             | Common hiccups                                                         |
 | [api-gateway/aws/sample-gateway-infra.env](api-gateway/aws/sample-gateway-infra.env) | Example Assisted Self-Managed AWS infra env                            |
 | [api-gateway/gcp/README.md](api-gateway/gcp/README.md)                               | GCP greenfield production-parity architecture and release gate         |
 | [api-gateway/gcp/instructions.md](api-gateway/gcp/instructions.md)                   | Sandbox-first GCP project, Distr, GKE, and gateway checklist            |
 | [api-gateway/gcp/bootstrap/](api-gateway/gcp/bootstrap/)                             | Keyless private GCE Docker-agent VMs and project foundation             |
 | [api-gateway/gcp/gateway-secrets.md](api-gateway/gcp/gateway-secrets.md)             | GCP Secret Manager, ESO, and Workload Identity Federation               |
 | [api-gateway/gcp/gke-upgrade.md](api-gateway/gcp/gke-upgrade.md)                     | Staged one-minor GKE upgrade procedure                                  |
+| [api-gateway/gcp/rollback.md](api-gateway/gcp/rollback.md)                           | Release rollback for gateway, infra, and credentials                    |
+| [api-gateway/gcp/teardown.md](api-gateway/gcp/teardown.md)                           | Ordered GCP platform teardown                                           |
 | [api-gateway/gcp/cost-estimate.md](api-gateway/gcp/cost-estimate.md)                 | GCP planning estimate with live-pricing verification gate               |
 | [api-gateway/sso-okta.md](api-gateway/sso-okta.md)                                   | Dashboard OIDC SSO with Okta                                           |
 | [api-gateway/sso-entra.md](api-gateway/sso-entra.md)                                 | Dashboard OIDC SSO with Microsoft Entra ID                             |

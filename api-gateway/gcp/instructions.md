@@ -5,9 +5,12 @@ Hub secrets and the infra deployment, connect the Docker agent, create and
 connect the gateway Kubernetes deployment, then trigger a second infra deploy
 with gateway auto-deploy enabled.
 
-Architecture: [README.md](README.md). Bootstrap details:
-[bootstrap/](bootstrap/). Secrets: [gateway-secrets.md](gateway-secrets.md).
-Troubleshooting: [troubleshooting.md](troubleshooting.md).
+Architecture: [README.md](README.md). Bootstrap: [bootstrap/](bootstrap/).
+Secrets: [gateway-secrets.md](gateway-secrets.md). Datadog:
+[datadog-operations.md](datadog-operations.md). Troubleshooting:
+[troubleshooting.md](troubleshooting.md). Rollback:
+[rollback.md](rollback.md). Teardown:
+[teardown.md](teardown.md).
 
 The Google-specific differences are project creation, user + ADC login, a
 private IAP/OS Login host, automatic first-state migration to GCS, shared Cloud
@@ -43,6 +46,12 @@ Also choose:
 - one canonical, non-overlapping RFC1918 `/16` for the platform;
 - one separate canonical RFC1918 `/24` for the bootstrap host;
 - organization or folder, billing account, budget, and operator principals.
+
+Keep deployment names at most 32 characters. Greenfield uses the same string
+for the Hub Kubernetes target, namespace, and Helm release
+(`GATEWAY_DISTR_DEPLOYMENT_NAME`). If the Hub target is later renamed, set
+`GATEWAY_DISTR_PORTAL_NAME` to that Hub name and leave the cluster identity
+unchanged. See [FAQ.md](../../FAQ.md).
 
 Verify N4A quota and capacity in `us-east1-b` and `us-east1-c` before starting.
 
@@ -92,7 +101,14 @@ Do not add Google access keys or a service-account JSON file to Hub.
   project, DNS, CIDR, routes, and optional Datadog/dashboard settings.
 - Keep `GATEWAY_AUTO_DEPLOY=false` for the first deployment.
 - Keep `DISTR_DRY_RUN=0` for the normal installation.
+- Leave `GATEWAY_LOG_LEVEL=WARN` unless request-completion logs are required.
+- Leave `DATADOG_APM_ENABLED` and `DATADOG_LLM_OBS_ENABLED` false unless both
+  features are intentionally enabled.
 - Copy the Docker target connect URL.
+
+Compare the sample with the selected release's own environment template. Every
+required field must be recognized by that release; unknown fields or a stub
+message are a hard stop.
 
 ### 7. Admin: Connect the Distr Docker agent
 
@@ -112,8 +128,10 @@ Do not continue until the Docker target is healthy and GKE exists.
 ### 8. Admin: Create the api-gateway Helm deployment
 
 - Create the `api-gateway` Helm deployment in Hub.
-- Deployment and target name = `GATEWAY_DISTR_DEPLOYMENT_NAME`.
-- Namespace and Helm release = that same name.
+- Deployment target name = `GATEWAY_DISTR_PORTAL_NAME` when set; otherwise use
+  `GATEWAY_DISTR_DEPLOYMENT_NAME`.
+- Namespace and Helm release = `GATEWAY_DISTR_DEPLOYMENT_NAME`, even if the Hub
+  target is later renamed.
 - Leave Helm values empty; the infra runner generates them.
 - Deploy and copy the Hub `kubectl apply -n … -f "https://…"` command.
 
@@ -180,3 +198,17 @@ The Hub and agent steps are deliberately the same. GCP adds only:
 
 Gateway deployment, secrets, version selection, and the two Hub deployment
 cycles otherwise follow the AWS procedure.
+
+## Handoff
+
+Record:
+
+- project IDs/numbers, region/zones, CIDRs, DNS zone/hostname/static IP;
+- state buckets/prefixes and owners;
+- pinned Distr Application versions and image digests;
+- GKE version/release channel, node pool, Cloud SQL and Redis names;
+- WIF principals, service accounts, and IAM reviewers;
+- Datadog integration/account IDs, env tags, dashboards, and monitor state;
+- smoke/soak evidence, rotation owners, upgrade window, rollback owners;
+- explicit statement that AWS migration and GPU provisioning were not part of
+  this deployment.

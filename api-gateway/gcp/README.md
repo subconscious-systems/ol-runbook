@@ -8,9 +8,11 @@ deployment cycles around connecting the Kubernetes agent.
 
 Step-by-step setup: [instructions.md](instructions.md). Bootstrap:
 [bootstrap/](bootstrap/). Secrets: [gateway-secrets.md](gateway-secrets.md).
-Operations: [datadog-operations.md](datadog-operations.md),
-[gke-upgrade.md](gke-upgrade.md), and
-[rollback-teardown.md](rollback-teardown.md).
+Rotation: [secret-rotation.md](secret-rotation.md). Operations:
+[datadog-operations.md](datadog-operations.md),
+[gke-upgrade.md](gke-upgrade.md),
+[rollback.md](rollback.md), and
+[teardown.md](teardown.md).
 
 ## Architecture overview
 
@@ -41,14 +43,15 @@ customer-facing deployment cycle.
 | --- | --- |
 | Project | One dedicated production project plus an existing shared Cloud DNS project |
 | Region | `us-east1` |
-| Kubernetes | Regional GKE Standard; two `n4a-standard-4` ARM64 nodes initially, autoscaling 2–4 |
-| Control plane | Private nodes; IAM-protected DNS endpoint; IP endpoints disabled |
-| Network | Custom VPC, Private Google Access, Pod/Service ranges, Cloud NAT |
-| PostgreSQL | Cloud SQL PostgreSQL 16, regional HA, private IP, backups and PITR |
-| Cache | Memorystore Redis 7, `STANDARD_HA`, AUTH and TLS |
-| Ingress | GCE Ingress, reserved global IP, managed certificate, HTTPS redirect, 900-second timeout |
-| Secrets | Secret Manager to External Secrets Operator through Workload Identity |
-| Bootstrap | Private `e2-standard-2` VM, IAP + OS Login, attached service account, no public IP or key file |
+| Kubernetes | GKE Standard regional cluster; N4A node pool in `us-east1-b`/`us-east1-c`; two `n4a-standard-4` ARM64 nodes initially, autoscaling 2–4 |
+| Control plane | Private nodes; DNS-based endpoint enabled; IP endpoints disabled; IAM permission `container.clusters.connect` required |
+| Network | Custom VPC, private Google access, separate Pod/Service ranges, Cloud NAT |
+| PostgreSQL | Cloud SQL PostgreSQL 16, Enterprise, regional HA, private IP only, automated backups and PITR |
+| Cache | Memorystore for Redis 7, `STANDARD_HA`, private service access, AUTH enabled, server-authenticated TLS |
+| Ingress | GCE Ingress, reserved global static IP, `ManagedCertificate`, `FrontendConfig` HTTP→HTTPS redirect, public `BackendConfig` (`timeoutSec: 900`, HTTP `/readyz` on 31080, 270s connection draining) |
+| Secrets | Secret Manager → External Secrets Operator (ESO) using Workload Identity Federation for GKE |
+| Bootstrap | Private `e2-standard-2` GCE VM, attached service account, Cloud NAT, IAP + OS Login; no service-account key or public IP |
+| Observability | Datadog GCP STS integration, GKE Agent, managed gateway assets, and direct Cloud SQL PostgreSQL DBM |
 
 Before installation, verify N4A quota and capacity in `us-east1-b` and
 `us-east1-c`. The gateway can become healthy without GPU capacity; inference
@@ -68,6 +71,62 @@ Hub secrets, deployment naming, Docker/Kubernetes agent connection, gateway
 version selection, generated Helm values, and the second infra auto-deploy
 match AWS.
 
+```mermaid
+flowchart LR
+  subgraph Hub["Distr Hub"]
+    Infra["api-gateway-infra<br/>Docker Application"]
+    Gateway["api-gateway<br/>Helm Application"]
+  end
+
+  subgraph Project["Customer GCP environment project"]
+    VM["Private GCE bootstrap VM<br/>Docker agent + runner"]
+    NAT["Cloud NAT"]
+    GKE["Regional GKE Standard<br/>ARM private nodes"]
+    SM["Secret Manager"]
+    ESO["ESO + WIF"]
+    SQL["Cloud SQL PG16<br/>regional HA"]
+    Redis["Memorystore Redis 7<br/>Standard HA + AUTH/TLS"]
+    LB["Global static IP<br/>GCE HTTPS Ingress"]
+  end
+
+  Infra -->|"poll + image pull"| VM
+  VM -->|"Google APIs / Terraform"| NAT
+  VM -->|"IAM-protected DNS endpoint"| GKE
+  SM --> ESO --> GKE
+  GKE --> SQL
+  GKE --> Redis
+  Gateway -->|"poll + Helm"| GKE
+  LB --> GKE
+```
+
+## Request and control paths
+
+Clients resolve `DOMAIN_NAME` in Cloud DNS and reach the reserved global IP.
+HTTP redirects to HTTPS. The GCE Ingress uses a Google-managed certificate and
+a 900-second backend timeout so long streaming/inference requests are not cut
+off at the default backend timeout.
+
+Gateway pods reach Cloud SQL and Redis over private addresses only. Redis uses
+port 6378/TLS with AUTH. Cloud SQL requires encrypted PostgreSQL connections.
+The generated URLs live in Secret Manager, not in Terraform tfvars, this
+repository, or Distr Helm values.
+
+Operators reach the bootstrap VM through IAP/OS Login. The VM and automation
+reach the GKE API through its DNS endpoint. IP-based control-plane endpoints
+remain disabled; authorization is identity-based through IAM and Kubernetes
+RBAC.
+
+## Production naming
+
+Keep each Distr deployment name at most 32 characters:
+
+- infra `DEPLOY_NAME` = GKE cluster name and secret-bundle name component;
+- gateway `GATEWAY_DISTR_DEPLOYMENT_NAME` = Kubernetes namespace = Helm release;
+- optional `GATEWAY_DISTR_PORTAL_NAME` when the Hub Kubernetes target was renamed;
+- the state bucket and prefix belong only to the production project;
+- `DATADOG_ENV` uniquely identifies the production deployment;
+- public hostname and global static IP name are unique.
+
 ## Prerequisites
 
 - Rights to create a project under the selected organization/folder, attach
@@ -85,5 +144,10 @@ match AWS.
 2. [bootstrap/](bootstrap/) — project and private Docker-agent VM
 3. [sample-gateway-infra.env](sample-gateway-infra.env) — Hub environment
 4. [gateway-secrets.md](gateway-secrets.md) — Secret Manager, ESO, and WIF
-5. [troubleshooting.md](troubleshooting.md) — common failures
-6. [rollback-teardown.md](rollback-teardown.md) — rollback and ordered teardown
+5. [secret-rotation.md](secret-rotation.md) — crypto, database, Redis, and API keys
+6. [datadog-operations.md](datadog-operations.md) — STS, Agent, DBM, dashboards
+7. [gke-upgrade.md](gke-upgrade.md) — one-minor staged operation
+8. [troubleshooting.md](troubleshooting.md) — common GCP failure modes
+9. [rollback.md](rollback.md) — release rollback
+10. [teardown.md](teardown.md) — ordered platform teardown
+11. [cost-estimate.md](cost-estimate.md) — planning estimate and live-pricing gate

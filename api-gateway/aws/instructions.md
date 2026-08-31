@@ -2,7 +2,7 @@
 
 End-to-end Assisted Self-Managed setup on AWS. Roles are labeled so one person can play both **FDE** (Subconscious Forward Deployed Engineer) and **Admin** (customer initial admin) during a demo.
 
-Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md). Datadog: [datadog-operations.md](datadog-operations.md).
+Architecture: [README.md](README.md). Naming: [FAQ.md](../../FAQ.md). Secrets: [gateway-secrets.md](gateway-secrets.md). Rotation: [secret-rotation.md](secret-rotation.md). Rollback: [rollback.md](rollback.md). Teardown: [teardown.md](teardown.md). EKS upgrades: [eks-upgrade.md](eks-upgrade.md). Bootstrap scripts: [bootstrap/](bootstrap/). Troubleshooting: [troubleshooting.md](troubleshooting.md). Datadog: [datadog-operations.md](datadog-operations.md).
 
 Expect two FDE pairing / debug gates: (1) first Docker agent + infra runner
 bring-up with gateway auto-deploy disabled, (2) second infra deploy / intentional
@@ -26,14 +26,18 @@ Deployment **targets** are not entitlements. The admin creates those when connec
 
 - [ ] Choose names per [FAQ.md](../../FAQ.md) (≤ 32 characters each):
   - `DEPLOY_NAME`: infra Docker deploy + TF name prefix (example: `acme-api-gateway-infra`)
-  - `GATEWAY_DISTR_DEPLOYMENT_NAME`: gateway Helm deploy = Kubernetes namespace = Helm release (example: `acme-api-gateway`)
+  - `GATEWAY_DISTR_DEPLOYMENT_NAME`: Kubernetes namespace = Helm release (example: `acme-api-gateway`)
+  - `GATEWAY_DISTR_PORTAL_NAME`: optional Hub Kubernetes target name if it differs (leave empty to match `GATEWAY_DISTR_DEPLOYMENT_NAME`)
   - `DOMAIN_NAME`: public hostname (subdomain under your zone)
   - `VPC_CIDR`: non-overlapping `/16`
+- [ ] Optional: record up to three admin browser public IPv4 addresses for a
+  dashboard-only IP lock. Enter them without `/32`, comma-separated, as
+  `DASHBOARD_ALLOWED_IPS`. Leave it empty for public dashboard access.
 - [ ] Public Route 53 zone exists (`DNS_ZONE_NAME`); `DOMAIN_NAME` is free
-- [ ] Datadog API key + application key ready. When database AWS metrics are
-  enabled, the application key needs `aws_configuration_read`,
-  `aws_configuration_edit`, and `aws_configurations_manage`. See
-  [datadog-operations.md](datadog-operations.md) for dashboard and monitor rollout.
+- [ ] Datadog API key + application key ready. See
+  [datadog-operations.md](datadog-operations.md) for connecting AWS in Datadog
+  and dashboard/monitor rollout. Leave `GATEWAY_LOG_LEVEL=WARN`. The sample
+  Datadog path is metrics + error logs; it does not enable OTLP traces.
 - [ ] Create a Distr PAT
 
 Make sure naming conventions follow this pattern:
@@ -41,9 +45,9 @@ Make sure naming conventions follow this pattern:
 | What | Name |
 | --- | --- |
 | Infra Distr Docker deployment (`api-gateway-infra`) | `{readable-slug}-api-gateway-infra` |
-| Gateway Distr Helm deployment (`api-gateway`) | `{readable-slug}-api-gateway` |
-| Kubernetes namespace | `{readable-slug}-api-gateway` |
-| Helm release name | `{readable-slug}-api-gateway` |
+| Gateway cluster identity (`GATEWAY_DISTR_DEPLOYMENT_NAME`) | `{readable-slug}-api-gateway` |
+| Kubernetes namespace | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
+| Helm release name | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
 
 ### 3. Admin: Clone the runbook
 
@@ -83,15 +87,16 @@ See [gateway-secrets.md](gateway-secrets.md) for more details.
 
 - [ ] Create the **api-gateway-infra** Docker deployment in Hub
 - [ ] Paste env from [sample-gateway-infra.env](sample-gateway-infra.env), adapting names/region/domain/CIDR to your settings
+- [ ] If `DASHBOARD_ALLOWED_IPS` is set, confirm each entry is a public egress
+  IPv4 of a browser used for administration, not the bootstrap EC2 address
 - [ ] Save the Docker-agent **connect URL** from Hub for the next step
 
-When `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the Distr runner creates the
-minimal Datadog AWS account integration and IAM trust role automatically if
-they are absent. Do not run Datadog's AWS wizard or deploy its log-forwarder
-CloudFormation stack. Compatible integrations that already exist are validated
-and preserved. Account-global Datadog state always uses the canonical
-`<aws-account-id>-subconscious-tfstate` bucket; `TF_STATE_BUCKET` overrides only
-the deployment-scoped infrastructure state.
+When `DATADOG_ENABLED=true`, CloudWatch RDS, ElastiCache, and ALB widgets
+appear on the managed dashboard. Connect the AWS account in Datadog first
+(Integrations → Amazon Web Services → Set Permissions, Datadog's default
+read-only policy). Enable metric collection for RDS, ElastiCache, and
+Application Load Balancer. Do not create a custom `DatadogApiGatewayIntegrationRole`.
+A leftover Hub field `DATADOG_AWS_DATABASE_METRICS_ENABLED` is ignored.
 
 ### 7. Admin: Connect the Distr Docker agent
 
@@ -113,7 +118,8 @@ target exists.
 ### 8. Admin: Create the api-gateway Helm deployment
 
 - [ ] Create the **api-gateway** Helm deployment object
-- [ ] Deployment / target name = `GATEWAY_DISTR_DEPLOYMENT_NAME`
+- [ ] Deployment / target name = `GATEWAY_DISTR_PORTAL_NAME` if set, otherwise `GATEWAY_DISTR_DEPLOYMENT_NAME`
+- [ ] Namespace and Helm release = `GATEWAY_DISTR_DEPLOYMENT_NAME`
 - [ ] Leave Helm values empty
 - [ ] Deploy and copy the Hub `kubectl apply -n … -f "https://…"` connect command - needed for the next step
 
@@ -128,7 +134,8 @@ cd api-gateway/aws/bootstrap
 
 The first argument is the infra `DEPLOY_NAME`, which is also the EKS cluster
 name. The gateway namespace is parsed separately from the Hub command and must
-equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The script runs `kubectl` over SSM on the
+equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The Hub target name may differ when
+`GATEWAY_DISTR_PORTAL_NAME` is set. The script runs `kubectl` over SSM on the
 bootstrap host and installs `distr-agent` pods **in EKS** (not on the EC2).
 Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
 
@@ -140,6 +147,23 @@ Day-0 EKS API access is CIDR-locked to the bootstrap host EIP.
 The runner regenerates the Helm fragment, ensures SM/ESO secrets, and `PUT`s the gateway deployment with correct values.
 
 **Likely FDE troubleshooting gate.** When healthy, the dashboard should be reachable at `https://<DOMAIN_NAME>/` (redirects to `/dashboard`) or `https://<DOMAIN_NAME>/dashboard`.
+
+With `DASHBOARD_ALLOWED_IPS` set, `/dashboard` and every descendant route return
+403 to all other source addresses. This does not restrict inference (`/v1`),
+health/readiness, or optional public admin (`/admin/v1`) routes. If the admin's
+public IP changes, update the field and trigger the infra deployment again.
+
+To detect the current computer's public IP and print the Hub field:
+
+```bash
+cd api-gateway/aws/bootstrap
+./scripts/add-dashboard-ip.sh
+```
+
+Copy `DASHBOARD_ALLOWED_IPS=...` into the private Distr infra deployment
+environment (merge with any IPs already there, maximum three) and trigger the
+infra Application again. Helm applies the list. Do not kubectl-annotate the
+live Ingress; that steals the field from Helm and breaks the next upgrade.
 
 ### 11. Admin: Dashboard login and invite
 
@@ -231,3 +255,5 @@ Configure GPU workers on the customer’s AWS GPUs:
 → [gpu-deployment/README.md](../../gpu-deployment/README.md)
 
 Gateway deploy is complete; workers are a separate runbook path.
+
+To remove this environment later: [teardown.md](teardown.md).

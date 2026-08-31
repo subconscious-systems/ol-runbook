@@ -10,7 +10,7 @@ This directory is the source of truth for bootstrap **Terraform and scripts**, n
 
 - Runs the Distr Docker agent and the infra Compose / runner image
 - Supplies AWS credentials via the EC2 instance profile (platform Terraform, Secrets Manager, EKS API)
-- Day-0 EKS API access is CIDR-locked to this host’s EIP; `kubectl` for agent install and break-glass runs **on the box** over SSM (not from your laptop)
+- Day-0 EKS API access is CIDR-locked to this host’s EIP; `kubectl` for agent install and cluster debug runs **on the box** over SSM (not from your laptop)
 - The Distr **Kubernetes** agent is **not** installed on this EC2. Hub’s `kubectl apply` command installs `distr-agent` pods into EKS (namespace = `GATEWAY_DISTR_DEPLOYMENT_NAME`). This host only runs that `kubectl` over SSM.
 
 ## Bootstrap-specific prerequisites
@@ -31,9 +31,13 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | `scripts/host-setup.sh` | Canonical host setup (cloud-init + SSM) |
 | `scripts/run-agent.sh` | Ensure host + Distr Docker connect via SSM |
 | `scripts/connect-k8s-agent.sh` | Ensure host + install Distr K8s agent into an explicit EKS cluster via SSM |
-| `scripts/connect.sh` | Break-glass SSM shell on this host (optional kubeconfig refresh) |
+| `scripts/connect.sh` | SSM CLI: `help` / `shell` / `env` / `sql --file` (optional kubeconfig refresh) |
+| `scripts/add-dashboard-ip.sh` | Detect this computer's public IPv4 and print Hub `DASHBOARD_ALLOWED_IPS` |
 | `scripts/rotate-app-secret.sh` | Rotate csrf / encryption via SSM + runner image |
+| `scripts/teardown-platform.sh` | Destroy platform Terraform via SSM + runner image |
 | `scripts/tests/test-rotate-app-secret.sh` | CLI contract unit tests (no AWS) |
+| `scripts/tests/test-connect.sh` | connect.sh CLI contract unit tests (no AWS) |
+| `scripts/tests/test-teardown-platform.sh` | Teardown CLI contract unit tests (no AWS) |
 | `*.tf` | EC2, EIP, SG (egress), IAM instance profile |
 | `policies/platform-apply.json` | Broad platform-apply rights (scope later) |
 | `cloud-init.yaml.tftpl` | First-boot only (embeds `host-setup.sh`) |
@@ -47,20 +51,26 @@ Naming, Hub Secrets, entitlements, and the full ordered checklist live in [../in
 | Re-run `./scripts/run-agent.sh` | Ensures host setup, then re-runs Docker-agent connect. |
 | Re-run `./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME> '<Hub command>'` | Ensures host setup, then re-applies K8s agent manifests to the explicit EKS cluster and Hub-command gateway namespace. |
 | Re-run `./scripts/connect.sh` | Opens a new SSM session (optional kubeconfig refresh). |
+| Re-run `./scripts/add-dashboard-ip.sh` | Re-detects this computer's public IPv4 and prints `DASHBOARD_ALLOWED_IPS` to persist in Hub. |
 | Re-run `./scripts/rotate-app-secret.sh` | Non-interactive SSM rotate of csrf or encryption (see [secret-rotation.md](../secret-rotation.md)). |
+| `./scripts/teardown-platform.sh --yes …` | Destroys the **platform** Terraform stack (not this EC2). See [../teardown.md](../teardown.md). |
 
 Cloud-init is first-boot only. Setup script changes do **not** replace the EC2; push them with `ensure-host` / `bootstrap` / `run-agent` / `connect-k8s-agent`.
 
-## Break-glass debug (human kubectl)
+## Cluster access (`connect.sh`)
 
-EKS API access is CIDR-locked to this host. For power-user debug, open an interactive SSM shell and run `kubectl` / docker logs **on the box**:
+EKS API access is CIDR-locked to this host. Run `kubectl` / docker logs **on the box** over SSM. `./scripts/connect.sh help` lists what must be true (AWS_REGION, SSM plugin for `shell`, `--ns` + `gateway-secrets` for `sql`).
 
 ```bash
-./scripts/connect.sh <DEPLOY_NAME>   # refreshes kubeconfig, then SSM session
-./scripts/connect.sh                 # SSM session only
+./scripts/connect.sh help
+./scripts/connect.sh shell <INFRA_DEPLOY_NAME>    # kubeconfig refresh, then SSM
+./scripts/connect.sh                              # SSM only (INSTANCE_ID or terraform)
+./scripts/connect.sh env <INFRA_DEPLOY_NAME>      # resolve docker-agent without terraform state
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_DISTR_DEPLOYMENT_NAME> --file scripts/sql/usage-lag.sql
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_DISTR_DEPLOYMENT_NAME> --file query.sql
 ```
 
-Requires the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) on your laptop. Distinct from `connect-k8s-agent.sh` (agent install — see [instructions.md](../instructions.md) step 9).
+`./scripts/connect.sh <INFRA_DEPLOY_NAME>` is the same as `shell NAME`. Requires the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `shell` only. Distinct from `connect-k8s-agent.sh` (agent install — see [instructions.md](../instructions.md) step 9). `--ns` is required for `sql`. Procedure: [../troubleshooting.md](../troubleshooting.md#export--webhook-lag-platform-usage-behind-gateway). Cursor skill: [gateway-connect-aws](../../../.cursor/skills/gateway-connect-aws/SKILL.md).
 
 ## Rotate app secrets (csrf / encryption)
 
@@ -72,6 +82,33 @@ Same SSM connection path as `connect.sh`, non-interactive:
 ```
 
 Full procedure: [../secret-rotation.md](../secret-rotation.md).
+
+## Platform teardown
+
+Undeploy the gateway Helm app in Hub first. Take an RDS snapshot in AWS if you
+need the data. Then:
+
+```bash
+./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
+```
+
+Full procedure: [../teardown.md](../teardown.md). After the platform is gone,
+undeploy the infra Docker app in Hub, then optionally destroy this host.
+
+## Add the current computer to dashboard access
+
+Run this on each computer or network that should administer the dashboard:
+
+```bash
+./scripts/add-dashboard-ip.sh
+# optional: merge with IPs already in Hub
+./scripts/add-dashboard-ip.sh --existing 198.51.100.10,203.0.113.20
+```
+
+The script detects the current public IPv4 and prints `DASHBOARD_ALLOWED_IPS=...`.
+Copy that value into the private Distr infra environment (maximum three
+addresses) and re-run the infra Application so Helm owns the Ingress rules.
+Do not kubectl-annotate the live Ingress.
 
 ## Hub env notes (after bootstrap)
 
@@ -87,10 +124,13 @@ Bootstrap does not write Hub config. When you paste the infra env (see [instruct
 
 Hub Secrets and cluster secret paths: [../gateway-secrets.md](../gateway-secrets.md).
 
-## Destroy
+## Destroy this host
+
+After the platform stack is gone (see [../teardown.md](../teardown.md)):
 
 ```bash
 terraform destroy -auto-approve
 ```
 
-Only destroys this host, not the platform VPC/EKS created by the infra runner. It is recommended to first destroy kubernetes resources via undeployment of the gateway Helm app and then undeploy the infra app. Then terraform destroy the bootstrapped EC2 host and all related resources.
+Only destroys this EC2 host, not VPC/EKS/RDS created by the infra runner. Leave
+this host until platform teardown has finished.

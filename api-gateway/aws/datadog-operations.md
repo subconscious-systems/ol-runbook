@@ -1,7 +1,9 @@
 # Datadog operations (AWS API Gateway)
 
 How to use the managed Datadog assets provisioned by **api-gateway-infra** when
-`DATADOG_ENABLED=true`.
+`DATADOG_ENABLED=true`. The default path is **metrics + Conversations + error
+logs**. Trace Explorer and LLM Observability stay empty unless you set
+`DATADOG_APM_ENABLED=true` (and `DATADOG_LLM_OBS_ENABLED=true` for LLM spans).
 
 Related: [instructions.md](instructions.md) · [troubleshooting.md](troubleshooting.md) ·
 [gateway-secrets.md](gateway-secrets.md) · [FAQ.md](../../FAQ.md) ·
@@ -23,11 +25,8 @@ variables:
 | `$env` | Scope to this deploy (`env:<DATADOG_ENV>`) |
 | `$service` | Gateway / router / adapter service name |
 | `$model` | Logical model filter |
-| `$request_id` | Drill into correlated request logs |
 
-The Overview group shows **Gateway RPS** plus **Requests / minute** and
-**Requests / hour** count widgets so you can read request volume at three time
-scales without rebuilding the query.
+The Overview group keeps **Gateway readiness** as a last-value card. **Active requests** (`gateway.inflight`), **Gateway RPS**, **Requests / minute**, **Requests / hour**, and **5xx error ratio** are time series. The Token usage group has input/output/total tokens per minute plus a 30-day **Tokens per day** bar chart by model.
 
 ## What pages (monitors)
 
@@ -36,22 +35,25 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 
 | Monitor | Symptom | First checks |
 | --- | --- | --- |
-| GatewayErrorBudgetBurnPage | Sustained 5xx burn | Dashboard 5xx ratio, recent error logs, dependency health |
-| GatewayHighErrorRatio | Elevated 5xx | Same; check router/adapter panels |
-| GatewayNotReady | `/readyz` failing | Dependency health widget, Postgres/Valkey/Router readiness |
-| GatewayDependencyDown | Postgres, Valkey, or router probe down | Managed databases group (if enabled), dependency widget |
-| GatewayStreamingTtftP95High | Slow streaming first token | Inference path panels, TTFT SLO (if enabled) |
-| GatewayRequestLatencyP95High | Slow end-to-end requests | Gateway latency group, router/adapter latency |
-| GatewayLimiterRejectionsSustained | Rate limits firing | Tenant signals group, Valkey CloudWatch (if enabled) |
-| GatewayLimiterCheckLatencyHigh | Limiter checks slow (early Valkey warning) | Limiter check latency widget, Valkey CPU/memory (if enabled) |
-| GatewayWorkerPoolEmpty | No workers registered | Router worker pool, model-group sync, worker route health |
-| GatewayRouterWorkerCbOpen | Worker circuit breaker open | Inference path CB state, worker connectivity |
-| GatewayRouterInflightAgeHigh | Stuck router requests | Router inflight age, active requests |
-| GatewayRouterActiveRequestsHigh | Router saturation | Worker pool size, adapter upstream TTFT |
-| GatewayAdapterUpstreamTtftP95High | Slow adapter → worker path | Adapter upstream TTFT, router latency |
-| GatewayMeteringOutboxFailures | Billing pipeline errors | Gateway operations / metering widgets |
-| GatewayTracePersistenceFailures | Trace write failures | Observability drops widget |
+| Too many gateway 5xx responses | More than 30 HTTP 5xx in 30 minutes | Dashboard 5xx count, `gateway.request.completed` logs, router/adapter panels |
+| Gateway readiness probe is failing | `/readyz` failing | Dependency health widget, Postgres/Valkey/Router readiness |
+| A gateway dependency probe is down | Postgres, Valkey, or router probe down | Managed databases group (if enabled), dependency widget |
+| Streaming first token is slow | Streaming TTFT p95 above 30s | Inference path panels, TTFT SLO (if enabled) |
+| Rate-limiter checks are slow | Limiter Valkey checks slow | Limiter check latency widget, Valkey CPU/memory (if enabled) |
+| Rate-limiter Redis script is failing | Limiter backend/script errors | Valkey health, limiter script error logs |
+| No inference workers are registered | No workers registered | Router worker pool, model-group sync, worker route health |
+| A router worker circuit breaker is open | Worker circuit breaker open | Inference path CB state, worker connectivity |
+| Router requests are stuck in flight | Stuck router requests | Router inflight age, active requests |
+| Router worker request count is high | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
+| Adapter wait for first token is slow | Slow adapter to worker path | Adapter upstream TTFT, router latency |
+| Metering outbox is failing | Billing pipeline errors | Gateway operations / metering widgets |
+| Platform usage chart is behind the gateway | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, webhook pending/dead letters |
+| Usage webhooks are not draining / stuck in dead-letter | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
+| Usage events are not reaching the platform | Usage emitted but no delivered webhook for 15m | Webhook worker, Vercel `gateway_webhook.received` |
+| ALB targets are returning 5xx | More than 30 ALB target 5xx in 30 minutes | Gateway 5xx logs, target health, RDS latency |
 | Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
+
+Warn-severity monitors stay in Datadog and do not Slack. `DATADOG_MONITOR_NOTIFICATION` is inserted only on page-severity monitors. Tenant 429s (limiter rejections) and full stream duration (ALB/request p95) are dashboard signals, not pages.
 
 Router and adapter monitors can be disabled with `DATADOG_INCLUDE_ROUTER_MONITORS`
 or `DATADOG_INCLUDE_ADAPTER_MONITORS` when those components are not deployed.
@@ -67,7 +69,7 @@ or `DATADOG_INCLUDE_ADAPTER_MONITORS` when those components are not deployed.
 Recommended rollout:
 
 1. Deploy with `DATADOG_MONITORS_DRAFT=true` (or leave published defaults if you accept starter thresholds).
-2. Baseline 1–2 weeks; tune latency, CB, and limiter thresholds in Datadog.
+2. Baseline 1–2 weeks; tune 5xx count, TTFT, and circuit-breaker thresholds in Datadog.
 3. Publish monitors (`DATADOG_MONITORS_DRAFT=false`).
 4. Enable `DATADOG_SLOS_ENABLED=true` after monitors are stable.
 
@@ -79,7 +81,7 @@ Agent ([gpu-deployment](../../gpu-deployment/README.md)).
 
 Use **gateway-side proxies** on the dashboard:
 
-- **Inference path (router + adapter)** — pool size, circuit breaker, inflight age, adapter upstream TTFT
+- **Inference path (router + adapter)** - pool size, worker in-flight, circuit breaker, inflight age, adapter upstream TTFT. Router load is `worker_requests_active`. Gateway admitted work is Overview **Active requests** (`gateway.inflight`). `http_connections_active` is not scraped (upstream sglang-router leak on cancelled requests).
 - **Gateway latency and streaming** — request duration, TTFT/TPOT
 
 For GPU utilization and node health, use Datadog **Infrastructure → GPU
@@ -88,24 +90,64 @@ profile.
 
 ## Database observability
 
-RDS and Valkey widgets/monitors are **opt-in**. Enable in order:
+RDS, Valkey, and ALB CloudWatch widgets/monitors ship with `DATADOG_ENABLED=true`.
+Connect AWS in Datadog before expecting those series:
+
+1. Open Datadog **Integrations → Amazon Web Services**.
+2. Add or select the gateway AWS account.
+3. **Set Permissions** using Datadog's default read-only AWS policy. Do not
+   create `DatadogApiGatewayIntegrationRole`.
+4. Enable metric collection for `AWS/RDS`, `AWS/ElastiCache`, and
+   `AWS/ApplicationELB` (or leave Datadog's default namespace crawl).
+
+A leftover Hub field `DATADOG_AWS_DATABASE_METRICS_ENABLED` is ignored.
 
 | Phase | Hub field | Result |
 | --- | --- | --- |
-| 1 | `DATADOG_AWS_DATABASE_METRICS_ENABLED=true` | CloudWatch RDS + Valkey metrics, managed database dashboard group |
-| 2 | `DATADOG_POSTGRES_DBM_PREREQUISITES_ENABLED=true` | IAM DB auth, bootstrap Job (RDS reboot in maintenance window) |
-| 3 | `DATADOG_POSTGRES_DBM_ENABLED=true` | PostgreSQL DBM direct check |
-| 4 | — | Valkey stays CloudWatch-only (no direct check) |
-| 5 | `DATADOG_DATABASE_MONITORS_ENABLED=true` | Paging monitors (keep `DATADOG_DATABASE_MONITORS_DRAFT=true` until baselined) |
+| 1 | `DATADOG_ENABLED=true` plus AWS connected in Datadog | CloudWatch RDS + Valkey + ALB metrics, dashboard group, IOPS/queue/latency monitors (draft) |
+| 2 | `DATADOG_POSTGRES_DBM_ENABLED=true` | `datadog` role, `CREATE EXTENSION`, Agent check, query toplists |
+| 3 | `DATADOG_DATABASE_MONITORS_DRAFT=false` | Publish database monitors after a traffic baseline |
 
-Until phase 1, the dashboard shows a note linking here instead of database
-widgets.
+RDS PostgreSQL 11+ already loads `pg_stat_statements`. Phase 2 does not reboot
+RDS, change parameter groups, or set `RDS_APPLY_IMMEDIATELY`. The contract
+forbids raw SQL samples in Datadog DBM. After AWS
+`log_min_duration_statement=2000` and `enabled_cloudwatch_logs_exports=["postgresql"]`
+apply, read slow-statement **text** in CloudWatch Logs. Usage webhooks
+enqueue at insert time (one delivery row). Do not grep `NOT EXISTS` as
+the hot query; that skip-scan copier is gone. Use Datadog DBM for
+normalized query structure, duration, and wait events once phase 2 is on.
 
-## LLM Observability
+If the bootstrap Job is stuck, increment
+`DATADOG_POSTGRES_DBM_BOOTSTRAP_REVISION` and re-apply.
 
-The gateway emits **metadata-only** GenAI spans over OTLP (`gen_ai.operation.name=chat`).
-It does not reconstruct full agent/tool trees (those require client-side Datadog
-Agent Observability SDK instrumentation).
+### IOPS and slow queries
+
+Phase 1 dashboard widgets chart RDS read/write IOPS, disk queue depth, and
+connection count. Phase 1 also creates these monitors in draft:
+
+| Monitor | Signal | Default threshold |
+| --- | --- | --- |
+| DatabaseRdsIopsHigh | Combined read+write IOPS | 2400 (80% of gp3 3000 IOPS baseline) |
+| DatabaseRdsDiskQueueHigh | Disk queue depth | warn 10 / alert 20 |
+
+To list queries by structure (literals stripped) and latency:
+
+1. Set `DATADOG_POSTGRES_DBM_ENABLED=true` and apply.
+2. Open the managed dashboard **PostgreSQL engine** group: **Slowest PostgreSQL
+   queries (normalized)** and **Most frequent PostgreSQL queries (normalized)**.
+3. For the full list, sort, and wait-event breakdown, open Datadog
+   **APM > Database Monitoring > Query Metrics** and filter `env:<DATADOG_ENV>`.
+   The `query` facet is obfuscated SQL (`query_signature` is the stable hash).
+   Do not enable raw statement collection.
+
+Tune IOPS thresholds if you raise gp3 provisioned IOPS above the 3000 baseline.
+
+## LLM Observability (opt-in)
+
+Off unless Hub `DATADOG_APM_ENABLED=true` and `DATADOG_LLM_OBS_ENABLED=true`.
+The gateway then emits **metadata-only** GenAI spans over OTLP
+(`gen_ai.operation.name=chat`). It does not reconstruct full agent/tool trees
+(those require client-side Datadog Agent Observability SDK instrumentation).
 
 Session join keys (also in gateway Conversations UI):
 
@@ -114,11 +156,7 @@ Session join keys (also in gateway Conversations UI):
 | `gen_ai.conversation.id` | Session / conversation id |
 | `_dd.ml_obs.metadata` | JSON: `organization_id`, `coding_agent`, `correlation_source`, `turn_id`, … |
 
-Enable in Helm: `observability.llmObs.enabled=true` and
-`observability.llmObs.datadogOtlpSource=true`.
-
-Use the dashboard **LLM Observability** group for recent LLM spans and
-correlated sessions.
+LLM Observability stays empty on the default path. That is expected.
 
 ## Expert request and trace debugging
 
@@ -147,14 +185,25 @@ environment, and search Logs Explorer:
 source:subconscious-gateway env:<DATADOG_ENV> @request_id:<REQUEST_ID>
 ```
 
-The managed gateway dashboard provides the same filter through
-`$request_id`. Inspect `@outcome`, `@error_type`,
-`@provider_status_code`, `@provider_request_id`, and
+From a 5xx metric or the "Too many gateway 5xx responses" monitor,
+use the metric tags. The managed JSON pipeline copies them onto
+`gateway.request.completed` as log tags (APM is not required):
+
+```text
+source:subconscious-gateway env:<DATADOG_ENV> status_code:503
+```
+
+`@status_code:503` still works. Do not search `@http.status_code`. The log
+message is only `gateway.request.completed`; the status lives on
+`@status_code`, `@outcome`, and `@error_type`.
+
+Search Logs Explorer with `@request_id:<REQUEST_ID>`. Inspect `@outcome`,
+`@error_type`, `@provider_status_code`, `@provider_request_id`, and
 `@provider_error_message`. Keep the request ID in the query when a
 conversation trace contains many requests.
 
-In APM Trace Explorer, trace and span IDs are reserved attributes and do not
-use an `@` prefix:
+APM Trace Explorer is empty unless `DATADOG_APM_ENABLED=true`. When it is on,
+trace and span IDs are reserved attributes and do not use an `@` prefix:
 
 ```text
 trace_id:<32-character-hex-trace-id>
@@ -210,7 +259,7 @@ of treating it as a transient gateway failure.
 
 Check the following before treating missing APM data as a gateway defect:
 
-- OTLP tracing and Datadog log collection are enabled;
+- `DATADOG_APM_ENABLED=true` (OTLP is not part of the Datadog sample path);
 - the Datadog environment and time range match the request;
 - the span is still available under the account's indexing and retention
   policy;
@@ -250,9 +299,12 @@ signals:
 
 | Field | Notes |
 | --- | --- |
+| `GATEWAY_LOG_LEVEL` | Default `WARN`. `INFO` = one `request.completed` line per call |
+| `DATADOG_APM_ENABLED` | Default `false`. Opt in to OTLP traces |
+| `DATADOG_LLM_OBS_ENABLED` | Default `false`. Requires APM |
 | `DATADOG_ENV` | Env facet for titles, monitors, pipelines |
 | `DATADOG_SITE` | e.g. `datadoghq.com`, `us5.datadoghq.com` |
-| `DATADOG_MONITOR_NOTIFICATION` | Inserts into every monitor message |
+| `DATADOG_MONITOR_NOTIFICATION` | Inserts into page-severity monitor messages only |
 | `DATADOG_DASHBOARD_TAGS` | Default `team:api-gateway` |
 | `DATADOG_RESOURCE_TAGS` | Extra monitor tags |
 | `DATADOG_SLOS_ENABLED` | Managed availability + TTFT SLOs |

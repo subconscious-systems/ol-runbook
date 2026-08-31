@@ -51,8 +51,8 @@ or LiteLLM.
 | OpenCode | `x-session-affinity` + `x-session-id` (+ `x-parent-session-id` for parent link). For reliable detection, set `headers["x-subconscious-client"]: "opencode"` in your provider config. |
 | Pi | Requires `compat.sendSessionAffinityHeaders: true` in `models.json` (Pi sends no session headers by default). Use `sessionAffinityFormat: "openai-nosession"` to send `x-session-affinity` without the underscore `session_id` header. For reliable detection, set `headers["x-subconscious-client"]: "pi"` in your provider config. |
 | Portkey / LiteLLM | `x-portkey-trace-id` / `x-litellm-trace-id` / `x-litellm-session-id` |
-| Cursor | Install the hook via [`coding-agents/cursor/`](coding-agents/cursor/). One `POST /v1/agent-hooks` per prompt; the gateway chains the rest of the conversation onto it. |
-| GitHub Copilot (VS Code) | Install the hook via [`coding-agents/copilot/`](coding-agents/copilot/). Same one-call-per-prompt contract as Cursor, plus `x-subconscious-client: copilot` on model requests. |
+| Cursor | Install the hook with `subc cursor install` ([coding-agents/](coding-agents/)). One `POST /v1/agent-hooks` per prompt; the gateway chains the rest of the conversation onto it. |
+| GitHub Copilot (VS Code) | Install the hook with `subc copilot install` ([coding-agents/](coding-agents/)). Same one-call-per-prompt contract as Cursor, plus `x-subconscious-client: copilot` on model requests. |
 
 Traffic without those signals still lands in **Conversations**: the gateway
 chains turns by matching the assistant turn each request's history ends with,
@@ -65,9 +65,8 @@ Cursor and Copilot hooks do not modify model HTTP — neither editor can stamp a
 conversation onto an inference request. Instead each announces a prompt once,
 and the gateway links every later turn of that conversation by matching the
 assistant turn its history ends with. That covers multi-turn tool loops and
-subagents without any further hook events. See
-[`coding-agents/cursor/README.md`](coding-agents/cursor/README.md) and
-[`coding-agents/copilot/README.md`](coding-agents/copilot/README.md).
+subagents without any further hook events. Install with `subc cursor install`
+or `subc copilot install`; see [coding-agents/](coding-agents/).
 
 For correlated traffic, the gateway’s OpenTelemetry / Datadog `trace_id` is the
 conversation UUID as 32 lowercase hex characters (no dashes). Filter on that
@@ -206,9 +205,10 @@ options) are accepted but not forwarded. `prompt_cache_key` is accepted and may
 be used as a Codex session fallback for Conversations correlation; it is not
 forwarded upstream.
 
-Configure Codex in `~/.codex/config.toml` (provider settings must be user-level).
+Prefer `subc codex` ([coding-agents/](coding-agents/)). To configure Codex by
+hand, edit `~/.codex/config.toml` (provider settings must be user-level).
 Codex also needs a model catalog JSON file to suppress the "model metadata not
-found" warning — without it, Codex uses degraded defaults:
+found" warning - without it, Codex uses degraded defaults:
 
 ```toml
 model = "gw-glm-5.2"
@@ -276,9 +276,10 @@ tokenizer when configured, otherwise a local heuristic. It does not run
 inference or create usage events. Claude Code uses this to measure context
 instead of falling back to a sidecar `max_tokens: 1` Messages call.
 
-Point Claude Code (or any Anthropic Messages client) at your gateway origin and
-authenticate with your gateway API key via `x-api-key` (or Bearer). Use model
-names from `GET /v1/models` / the dashboard for your org.
+Prefer `subc claude` ([coding-agents/](coding-agents/)). Point Claude Code (or
+any Anthropic Messages client) at your gateway origin and authenticate with
+your gateway API key via `x-api-key` (or Bearer). Use model names from
+`GET /v1/models` / the dashboard for your org.
 
 ## Timeouts and retries
 

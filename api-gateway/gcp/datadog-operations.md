@@ -3,8 +3,8 @@
 This deployment uses three complementary paths:
 
 1. **Datadog GCP STS integration** for keyless Cloud Monitoring/asset metrics;
-2. **Datadog Agent on GKE** for Kubernetes, logs/APM/OTLP, and gateway
-   OpenMetrics;
+2. **Datadog Agent on GKE** for Kubernetes, warn/error logs, and gateway
+   OpenMetrics (APM / OTLP off unless opted in);
 3. **Cloud SQL PostgreSQL DBM** as a direct private database check.
 
 Datadog API/application keys are masked infra Hub Secrets. They are not GCP
@@ -124,7 +124,8 @@ namespace. Required settings:
 - `env:<DATADOG_ENV>` and consistent `service`/`version` tags;
 - ARM64-compatible Agent images;
 - gateway/router/adapter OpenMetrics checks;
-- APM/OTLP endpoints and metadata-only LLM Observability when enabled;
+- APM/OTLP endpoints and metadata-only LLM Observability only when
+  `DATADOG_APM_ENABLED` / `DATADOG_LLM_OBS_ENABLED` are true;
 - secrets referenced from an operator-managed Kubernetes Secret, not plaintext
   values;
 - tolerations/resources sized for two N4A nodes;
@@ -197,15 +198,21 @@ Search Datadog for:
 [<DATADOG_ENV>][managed] Subconscious API Gateway
 ```
 
-Use `$env`, `$service`, `$model`, and `$request_id` template variables.
+Use `$env`, `$service`, and `$model` template variables.
 `DATADOG_ENV` must uniquely identify this production deployment.
+
+From a 5xx metric or the "Too many gateway 5xx responses" monitor, search the log tag
+`status_code:503` (or `@status_code:503`). Do not search
+`@http.status_code`. The matching line is `gateway.request.completed`.
+See [AWS Datadog operations](../aws/datadog-operations.md) for the
+request-log playbook.
 
 Recommended rollout:
 
 1. `DATADOG_MONITORS_DRAFT=true` and
    `DATADOG_DATABASE_MONITORS_DRAFT=true`;
 2. baseline for one to two weeks;
-3. tune latency, error ratio, limiter, connection saturation, CPU/storage,
+3. tune 5xx count, TTFT, connection saturation, CPU/storage,
    Redis memory/evictions, and DBM thresholds;
 4. set gateway monitors published;
 5. publish database monitors only after DBM/Cloud Monitoring data is stable;
@@ -230,13 +237,16 @@ AWS database assets out of the GCP plan.
 
 ## LLM Observability and tenant debugging
 
-The gateway emits metadata-only GenAI spans when enabled. It does not capture
-full prompts/tool trees unless separately instrumented on the client side.
-Correlate with conversation/session IDs and environment/service tags.
+The default path is metrics + Conversations + error logs. Trace Explorer and
+LLM Observability stay empty unless Hub `DATADOG_APM_ENABLED=true` and
+`DATADOG_LLM_OBS_ENABLED=true`. The gateway then emits metadata-only GenAI
+spans. It does not capture full prompts/tool trees unless separately
+instrumented on the client side. Correlate with conversation/session IDs and
+environment/service tags.
 
 Prometheus metrics intentionally avoid high-cardinality organization IDs. Use
-gateway logs, dashboard Conversations/Usage, limiter events, and LLM metadata
-for tenant-specific debugging.
+gateway logs, dashboard Conversations/Usage, and limiter events for
+tenant-specific debugging. Process logs default to `GATEWAY_LOG_LEVEL=WARN`.
 
 ## Day-2 integration changes
 

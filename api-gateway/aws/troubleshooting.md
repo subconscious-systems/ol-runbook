@@ -2,7 +2,7 @@
 
 Common failure modes for Assisted Self-Managed AWS deploys.
 
-Architecture: [README.md](README.md) · Setup: [instructions.md](instructions.md) · Secrets: [gateway-secrets.md](gateway-secrets.md) · Rotation: [secret-rotation.md](secret-rotation.md) · Bootstrap: [bootstrap/](bootstrap/).
+Architecture: [README.md](README.md) · Setup: [instructions.md](instructions.md) · Secrets: [gateway-secrets.md](gateway-secrets.md) · Rotation: [secret-rotation.md](secret-rotation.md) · Rollback: [rollback.md](rollback.md) · Teardown: [teardown.md](teardown.md) · Bootstrap: [bootstrap/](bootstrap/).
 
 ## Day-0 / Distr
 
@@ -28,14 +28,18 @@ Two different signals:
 
 Missing K8s agent target does **not** hard-fail the runner. Keep
 `GATEWAY_AUTO_DEPLOY=false` until the target exists; if enabled early,
-auto-deploy soft-skips.
+auto-deploy soft-skips. Auto-deploy looks up the target named
+`GATEWAY_DISTR_PORTAL_NAME` (defaults to `GATEWAY_DISTR_DEPLOYMENT_NAME`).
+After a Hub-only rename, set `GATEWAY_DISTR_PORTAL_NAME` rather than changing
+the cluster identity. Logs: `no Distr deployment target named …`.
 
 #### Debug on the bootstrap EC2
 
 ```bash
 cd api-gateway/aws/bootstrap
-./scripts/connect.sh <DEPLOY_NAME>   # SSM shell + kubeconfig refresh
-# or: ./scripts/connect.sh           # SSM shell only
+./scripts/connect.sh help
+./scripts/connect.sh shell <DEPLOY_NAME>   # SSM shell + kubeconfig refresh
+# or: ./scripts/connect.sh                  # SSM shell only
 ```
 
 On the box:
@@ -54,20 +58,18 @@ kubectl -n <GATEWAY_DISTR_DEPLOYMENT_NAME> logs deploy/<name> --tail=200
 
 Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.
 
-### Datadog AWS integration bootstrap failed
+### Datadog AWS CloudWatch metrics missing
 
-With `DATADOG_AWS_DATABASE_METRICS_ENABLED=true`, the runner automatically
-creates the account integration and IAM role in separate account-global state.
-A `403` from the Datadog API means the application key is missing one of
-`aws_configuration_read`, `aws_configuration_edit`, or
-`aws_configurations_manage`. Duplicate or incompatible customer-managed
-integrations fail closed instead of being modified. Do not work around this by
-enabling the Datadog log forwarder; database metrics do not require it.
+When `DATADOG_ENABLED=true`, RDS, ElastiCache, and ALB widgets expect Datadog's
+normal AWS integration. Connect the AWS account in Datadog (Integrations →
+Amazon Web Services → Set Permissions) with Datadog's default read-only
+policy, then enable metric collection for `AWS/RDS`, `AWS/ElastiCache`, and
+`AWS/ApplicationELB`. Do not create `DatadogApiGatewayIntegrationRole`. The
+infra runner does not manage that integration. A leftover Hub field
+`DATADOG_AWS_DATABASE_METRICS_ENABLED` is ignored.
 
-If the runner reports that the Datadog configuration ID or ownership marker
-does not match account state, verify that the deployment still uses credentials
-for the original Datadog organization. The runner intentionally refuses to
-rewrite account-global state or IAM trust with another organization's keys.
+Empty charts after a new connect are usually CloudWatch delay. Do not work
+around missing metrics by enabling the Datadog log forwarder.
 
 ### Why can’t I just kubectl from my laptop?
 
@@ -94,7 +96,9 @@ Day-0 EKS API is CIDR-locked to the bootstrap host EIP. Use `./scripts/connect.s
 
 ### Naming limits
 
-Keep Distr deployment names **32 characters or fewer**. Release name, namespace, and K8s target must equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. See [FAQ.md](../../FAQ.md).
+Keep Distr deployment names **32 characters or fewer**. Namespace and Helm
+release must equal `GATEWAY_DISTR_DEPLOYMENT_NAME`. The Hub Kubernetes target
+may use `GATEWAY_DISTR_PORTAL_NAME` when it differs. See [FAQ.md](../../FAQ.md).
 
 ## Secrets / bootstrap
 
@@ -103,31 +107,25 @@ Keep Distr deployment names **32 characters or fewer**. Release name, namespace,
 - Identity-bootstrap Job password is **not** rotated on re-run. Break-glass: `ops-cli identity bootstrap` from a gateway pod when needed.
 - Forbidden: AWS keys in Hub; Datadog keys in gateway Helm secrets; vendor publish token as customer `DISTR_TOKEN`.
 
-## Database / release rollback
+## Export / webhook lag (platform usage behind gateway)
 
-Prefer **roll-forward** for schema when the running app can tolerate the current schema.
-
-### Schema revert
-
-Use only for a bad reversible migration that is already applied and unsafe to leave in place.
-
-- Scale down or stop new-schema consumers first.
-- Confirm the `.down.sql` is present in the running gateway image.
+Laptop `kubectl` / `psql` fail because the EKS API and RDS are private (CIDR-locked to the bootstrap EC2). Do not `get-secret-value` into the terminal. Do not run `bootstrap.sh` against prod. Gateway pods are distroless — do not `kubectl exec` expecting a shell.
 
 ```bash
-kubectl -n "$NAMESPACE" exec deploy/"$RELEASE"-gateway -- \
-  ops-cli migrate-revert --target 1
+cd api-gateway/aws/bootstrap
+./scripts/connect.sh help
+./scripts/connect.sh env <INFRA_DEPLOY_NAME>
+./scripts/connect.sh shell <INFRA_DEPLOY_NAME>
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> --file scripts/sql/usage-lag.sql
+./scripts/connect.sh sql <INFRA_DEPLOY_NAME> --ns <GATEWAY_NS> --file query.sql
 ```
 
-Then restart/roll pods as needed and re-check dashboard login, `/readyz`, and authenticated inference.
+`--ns` is required for `sql` (do not guess the gateway namespace from the infra name). On the box after `shell`: `sudo -i` then `export HOME=/root KUBECONFIG=/root/.kube/config`. `sql` uses a one-shot client Job because SSM is not a TTY and the host has no `psql`.
 
-### Helm rollback (distinct from DB revert)
+`scripts/sql/usage-lag.sql` reports `max(gateway_usage_events.received_at)` and delivery status counts (see the file header). Pending, failed, or dead_letter rows point at the webhook worker or `/api/gateway-events`. Usage insert enqueues one delivery; do not grep `NOT EXISTS` as the hot query (that skip-scan copier is gone). Rotate the RDS password if a connection URL or `SecretString` was printed.
 
-Do not use Helm rollback. It breaks the Distr kubernets agent. Use the Distr Hub to rollback the gateway Helm app desired version. This is why you must revert the DB first (where down migrations are present with the new version) and then push update the application.
+## Database / release rollback
 
-Work with your FDE in the event of a rollback with a DB migration. They may elect to push a hot-fix instead.
-
-### RDS / bootstrap destroy notes
-
-- Platform RDS day-0 defaults typically include backup retention, deletion protection, and a final snapshot on destroy.
-- `terraform destroy` in [bootstrap/](bootstrap/) only destroys the Docker-agent EC2 host, **not** the platform VPC/EKS/RDS created by the infra runner.
+Migrations are additive and forward-compatible; the schema is never reverted.
+Gateway version rollback is [rollback.md](rollback.md). Platform teardown is
+[teardown.md](teardown.md).

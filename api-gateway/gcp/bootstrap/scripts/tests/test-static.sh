@@ -15,6 +15,7 @@ REMOTE_SCRIPT_FILES=(
   "${SCRIPTS_DIR}/rotate-app-secret.sh"
   "${SCRIPTS_DIR}/run-agent.sh"
   "${SCRIPTS_DIR}/smoke-checks.sh"
+  "${SCRIPTS_DIR}/teardown-platform.sh"
 )
 
 for script in "${SCRIPTS_DIR}"/*.sh "${TEST_DIR}"/*.sh; do
@@ -54,7 +55,8 @@ for script in \
   "${SCRIPTS_DIR}/rotate-app-secret.sh" \
   "${SCRIPTS_DIR}/run-agent.sh" \
   "${SCRIPTS_DIR}/setup-gcloud.sh" \
-  "${SCRIPTS_DIR}/smoke-checks.sh"; do
+  "${SCRIPTS_DIR}/smoke-checks.sh" \
+  "${SCRIPTS_DIR}/teardown-platform.sh"; do
   bash "${script}" --help >/dev/null 2>&1
 done
 
@@ -73,8 +75,8 @@ required_env_lines=(
   "GCP_DELETION_PROTECTION=true"
   "GCP_EXTERNAL_DNS_ENABLED=false"
   "DATADOG_GCP_CLOUD_METRICS_ENABLED=true"
-  "DATADOG_DATABASE_MONITORS_ENABLED=false"
   "GATEWAY_AUTO_DEPLOY=false"
+  "GATEWAY_DISTR_PORTAL_NAME="
   "GATEWAY_CHART_VERSION=latest"
   "DISTR_DRY_RUN=0"
 )
@@ -141,6 +143,8 @@ if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_environment_label}" \
   printf 'ERROR: legacy environment terminology remains in the production-only GCP runbook\n' >&2
   exit 1
 fi
+grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
+  "${SCRIPTS_DIR}/teardown-platform.sh"
 
 if grep -Eq '(BEGIN (RSA|OPENSSH|PRIVATE) KEY|\"type\"[[:space:]]*:[[:space:]]*\"service_account\")' \
   "${GCP_DIR}"/*.md "${GCP_DIR}"/*.env "${BOOTSTRAP_DIR}"/*.tf; then
