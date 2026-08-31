@@ -3,16 +3,13 @@
 # Models: zai-org/GLM-5.2-FP8 + SubconsciousDev/glm-5.2-fp8-dflash-v2
 # GPU: b200 | GPUs/node: 4 (tp=4)
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model glm-5.2
-# Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY, HF_TOKEN (authenticated downloads),
-# DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (private sm_100 fork image)
+# Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY, HF_TOKEN (authenticated downloads)
 # Chart version: 0.13.0+ (multi-model download + dedicated Hugging Face secret)
 # Host bootstrap: ./dependencies.sh
 
 images:
   distrPullSecret:
     enabled: true
-  pullSecrets:
-    - worker-registry
 
 # The Distr release has a model-neutral image pin. Clear it for this profile so
 # Helm selects the GLM-compatible Blackwell fork below.
@@ -39,8 +36,8 @@ worker:
   service:
     type: NodePort
   image:
-    repository: subconsciouslabs/sglang-baseten
-    tag: sm_100-v0.12
+    repository: registry.distr.sh/subconscious/timrun
+    tag: sm_100-v1
     pullPolicy: IfNotPresent
     prePull:
       enabled: true
@@ -160,14 +157,9 @@ secrets:
   workerSecretName: worker-secrets
   datadogSecretName: datadog-secret
   modelDownloadSecretName: model-download-secrets
-  registrySecretName: worker-registry
   worker:
     SGLANG_WORKER_API_KEY: "{{.Secrets.WORKER_API_KEY}}"
   datadog:
     DD_API_KEY: "{{.Secrets.DD_API_KEY}}"
   modelDownload:
     HF_TOKEN: "{{.Secrets.HF_TOKEN}}"
-  registry:
-    server: https://index.docker.io/v1/
-    username: "{{.Secrets.DOCKERHUB_USERNAME}}"
-    password: "{{.Secrets.DOCKERHUB_TOKEN}}"

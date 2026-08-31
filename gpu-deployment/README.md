@@ -64,8 +64,6 @@ kubectl get namespace sglang
    | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | All worker profiles and dashboard worker endpoints |
    | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | All published profiles; Datadog Agent GPU health |
    | `HF_TOKEN` | Hugging Face read token | GLM profiles; authenticates both the main GLM and DFLASH downloads |
-   | `DOCKERHUB_USERNAME` | Docker Hub account allowed to pull `subconsciouslabs/sglang-baseten` | GLM profiles only |
-   | `DOCKERHUB_TOKEN` | Docker Hub read-only access token for that account | GLM profiles only |
 
    The main `zai-org/GLM-5.2-FP8` repository is public and does not itself
    require a token. The GLM profiles still require `HF_TOKEN` as their
@@ -108,7 +106,9 @@ and Apply. The application version supplies the immutable worker digest, and
 the profile pre-pulls it before Recreate replaces healthy workers. Do not edit
 `releaseImages`, manually pull with `crictl`, or recreate the GPU host. The GLM
 profiles intentionally clear the model-neutral release pin and select the
-private Blackwell fork required by their DFLASH and Subconscious flags.
+Blackwell fork in `registry.distr.sh` required by their DFLASH and Subconscious
+flags. The Distr-injected image pull secret authenticates that pull; no
+separate registry credentials are required.
 
 After Apply succeeds, confirm the Agent and workers:
 
@@ -131,7 +131,7 @@ A PAT-driven flow is possible and should run on the GPU node after Step 1,
 because that node owns the local k3s kubeconfig and must install the Distr
 Kubernetes agent. A Distr PAT alone is not enough input: automation would also
 need the entitled application/profile choice, deployment name, worker API key,
-Datadog key, and—for GLM—the Hugging Face and Docker Hub credentials. Until a
+Datadog key, and—for GLM—the Hugging Face token. Until a
 reviewed command exists, do not give a PAT to `setup.sh` or place it on a command
 line.
 
