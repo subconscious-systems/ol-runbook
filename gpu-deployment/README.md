@@ -1,8 +1,9 @@
 # GPU deployment
 
 Install path for SGLang workers on a customer GPU host. Profiles, host bootstrap,
-and AWS/GCP worker-domain routing automation live in this directory. Clone this
-repo on a local device to run the shared cloud setup wizard.
+and AWS/GCP worker-domain routing automation live in this directory. Run host
+preparation and the Distr Kubernetes connect command on the GPU node. Clone
+this repo on an operator device to run the shared cloud routing wizard.
 
 ## Prerequisites
 
@@ -10,13 +11,26 @@ repo on a local device to run the shared cloud setup wizard.
 |---|---|
 | GPU host | AWS EC2 or GCP Compute Engine, Ubuntu/Debian, with the GPU count required by the selected profile |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
-| [Distr](https://app.distr.sh) account | Will need to setup deployment |
-| SGLang chart **0.10.0+** | Pins the reviewed worker image and pre-pulls it before worker replacement |
+| [Distr](https://app.distr.sh) account | Must be entitled to the SGLang application |
+| SGLang chart | **0.10.0+** for Qwen profiles; **0.13.0+** for GLM-5.2 FP8 + DFLASH |
+| Model storage | Enough persistent space under `/models/hf` for every model downloaded by the selected profile |
 
 The gateway [EKS upgrade](../api-gateway/aws/eks-upgrade.md) does not alter these
 separate k3s worker clusters. After every EKS hop, however, the operator must
 smoke the gateway-to-worker route (`/health`) and authenticated inference before
 declaring the gateway upgrade healthy.
+
+## Select a profile
+
+| Model | Profile | Supported topology |
+|---|---|---|
+| Qwen3.6-27B-FP8 | `profiles/qwen36-27b-*.yaml` | L4 (2/4/8 GPUs); L40S, A100-80GB, H100-80GB, H200, or B200 (1/2/4/8 GPUs) |
+| Qwen3-8B-FP8 | `profiles/qwen3-8b-l4-1gpu.yaml` | One L4 GPU |
+| GLM-5.2-FP8 + DFLASH | `profiles/glm-5.2-b200-{4,8}gpu.yaml` | Four or eight B200 GPUs |
+
+Select a profile that exactly matches the GPU type and count on one node. The
+legacy `qwen36-27b.yaml` and `qwen3-8b.yaml` examples remain for existing
+deployments; use the explicitly named profile for new installs.
 
 ## Step 1 — GPU Host Preparation
 
@@ -27,6 +41,7 @@ curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/mai
 chmod +x ~/dependencies.sh
 ~/dependencies.sh
 ```
+
 May reboot for NVIDIA drivers. Run script again after reboot. Script should print "install finished". Then verify:
 
 ```bash
@@ -40,27 +55,60 @@ kubectl get namespace sglang
 ## Step 2 — Distr Setup
 
 1. Log into [Distr](https://app.distr.sh/) and open **Secrets**.
-2. Create these Hub Secrets (keep `WORKER_API_KEY` — you need it again in step 4):
+2. Create the Hub Secrets required by the selected profile. Keep
+   `WORKER_API_KEY` in the customer password manager—you need the same value in
+   step 4.
+
    | Secret name | Create the value | Used by |
    |---|---|---|
-   | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | Worker pods + dashboard worker pool |
-   | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | Datadog Agent on the GPU host (GPU Health) |
-3. Navigate to **Deployments** → **New Deployment**.
-4. Select the SGLang / gpu-deployment application and choose app version **0.10.0 or newer**.
-5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
-6. Open [profiles](profiles/), pick the model, and paste the **entire** profile into **App Config → Helm Values** (full replace). Make sure to change DataDog URL to your correct region.
-7. **Customize Helm options** — set the operation timeout to 120m.
-8. Click **Create deployment**.
-9. On the GPU host, run the connect command Distr provides. It should look like:
+   | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | All worker profiles and dashboard worker endpoints |
+   | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | All published profiles; Datadog Agent GPU health |
+   | `HF_TOKEN` | Hugging Face read token | GLM profiles; authenticates both the main GLM and DFLASH downloads |
 
-```bash
-kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
-```
+   The main `zai-org/GLM-5.2-FP8` repository is public and does not itself
+   require a token. The GLM profiles still require `HF_TOKEN` as their
+   authenticated download contract and pass it to both model-download init
+   containers. Never place any resolved secret directly in Helm values.
+
+3. Navigate to **Deployments** → **New Deployment**.
+4. Select the SGLang / gpu-deployment application. Use **0.10.0 or newer** for
+   Qwen, or **0.13.0 or newer** for GLM-5.2 FP8 + DFLASH.
+5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
+6. Open [profiles](profiles/), pick the model and exact GPU topology, and paste
+   the **entire** profile into **App Config → Helm Values** (full replace).
+   Change `datadog.site` if the customer does not use `datadoghq.com`.
+7. **Customize Helm options** — set the operation timeout to 120m.
+8. Create/save the deployment and its namespace-scoped Kubernetes target.
+9. On the GPU host, run the one-time connect command Distr provides. Treat its
+   URL as a password; do not paste it into chat, a ticket, or shell history. It
+   should look like:
+
+   ```bash
+   kubectl apply -n sglang -f "https://app.distr.sh/api/v1/connect?..."
+   ```
+
+10. Wait for the target to report connected, then return to the deployment and
+    click **Apply**. Watch the Distr deployment until Helm succeeds.
+
+Helm Apply downloads model weights before starting the worker:
+
+- Qwen profiles create one model-download init container.
+- GLM profiles create two serial init containers: the main
+  `zai-org/GLM-5.2-FP8` weights under `/models/hf/GLM-5.2-FP8`, then
+  `SubconsciousDev/glm-5.2-fp8-dflash-v2` under
+  `/models/hf/glm-5.2-fp8-dflash-v2`.
+- Downloads persist on the host-mounted `/models/hf` volume. A later Apply
+  skips a model whose config and weight shards are already complete.
+- The worker does not start unless every model download succeeds.
 
 For updates, select the newer application version on the existing deployment
 and Apply. The application version supplies the immutable worker digest, and
-the profile pre-pulls it before Recreate replaces healthy workers. Do not add a
-`releaseImages` override, manually pull with `crictl`, or recreate the GPU host.
+the profile pre-pulls it before Recreate replaces healthy workers. Do not edit
+`releaseImages`, manually pull with `crictl`, or recreate the GPU host. The GLM
+profiles intentionally clear the model-neutral release pin and select the
+Blackwell fork in `registry.distr.sh` required by their DFLASH and Subconscious
+flags. The Distr-injected image pull secret authenticates that pull; no
+separate registry credentials are required.
 
 After Apply succeeds, confirm the Agent and workers:
 
@@ -71,6 +119,21 @@ kubectl -n sglang get pods -l app.kubernetes.io/name=datadog
 ```
 
 GPU Health appears in Datadog under **Infrastructure → GPU Monitoring** once the Agent is Running (metrics such as `gpu.utilization`).
+
+### Current automation boundary
+
+There is no PAT-only GPU bootstrap command today. `gpu-deployment/setup.sh`
+configures AWS or GCP worker domains; it does not create Distr resources or run
+Apply. The target, deployment, profile selection, secrets, connect command, and
+Apply remain the explicit steps above.
+
+A PAT-driven flow is possible and should run on the GPU node after Step 1,
+because that node owns the local k3s kubeconfig and must install the Distr
+Kubernetes agent. A Distr PAT alone is not enough input: automation would also
+need the entitled application/profile choice, deployment name, worker API key,
+Datadog key, and—for GLM—the Hugging Face token. Until a
+reviewed command exists, do not give a PAT to `setup.sh` or place it on a command
+line.
 
 ---
 
@@ -83,8 +146,10 @@ Before running it, authenticate the AWS CLI (`aws login`) with permission to man
 ./gpu-deployment/setup.sh aws
 ```
 
-The wizard lets you select the EKS cluster, GPU instance, Route 53 zone, model,
-and worker domain.
+The wizard lets you select the EKS cluster, GPU instance, Route 53 zone,
+8B/27B worker layout, and worker domain. GLM uses one worker on NodePort 30001
+and currently requires the manual Terraform path documented in
+[`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
 It then:
 
 - discovers both VPCs, subnets, security groups, existing peering, and ACM cert;
@@ -129,6 +194,10 @@ Choose one mode:
   confirmation that `worker.auth.enabled=true` and `SGLANG_WORKER_API_KEY` is
   populated before it will plan.
 
+The GCP wizard currently offers the 8B and 27B worker layouts. For GLM, use the
+manual configuration in [`terraform/gcp-workers/README.md`](terraform/gcp-workers/README.md)
+with one worker on NodePort 30001.
+
 After apply, add the printed worker-domain suffix to the gateway's
 `routeAllowedHostSuffixes` and add each endpoint to the dashboard with the same
 `WORKER_API_KEY` stored in Distr.
@@ -151,6 +220,12 @@ Example
 8b-b | https://8b-b.<worker-domain> | <WORKER_API_KEY>
 8b-c | https://8b-c.<worker-domain> | <WORKER_API_KEY>
 8b-d | https://8b-d.<worker-domain> | <WORKER_API_KEY>
+```
+
+**GLM-5.2** (`glm-5.2`, one worker for either B200 profile):
+
+```text
+glm-52 | https://glm-52.<worker-domain> | <WORKER_API_KEY>
 ```
 
 Add `<worker-domain>` (for example `workers.example.com`) to the gateway
