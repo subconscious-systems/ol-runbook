@@ -470,9 +470,17 @@ EOF
   cat <<'EOF'
 Find these in Google Cloud Console > IAM & Admin > Manage Resources. Select the
 customer organization or folder and copy its numeric ID, not its display name.
+
+Choose where the new production project belongs:
+  1) organization — directly at the customer organization root;
+  2) folder       — inside an existing GCP folder used by the customer.
+
+If the customer gave you a folder for production workloads, choose folder.
+Otherwise choose organization. Ask the customer's GCP administrator instead of
+guessing when both are visible.
 EOF
   install_prompt_choice parent_type \
-    'Place the new project directly under an organization or a folder' \
+    'Production project parent' \
     'organization|folder'
   ORGANIZATION_ID=""
   FOLDER_ID=""
@@ -973,19 +981,36 @@ install_prompt_choice() {
   local label="$2"
   local choices="$3"
   local current="${!variable_name:-}"
-  local value choice
+  local value choice index default_index=""
+  local choice_values=()
+  IFS='|' read -r -a choice_values <<<"${choices}"
+  for index in "${!choice_values[@]}"; do
+    printf '  %d) %s\n' "$((index + 1))" "${choice_values[index]}"
+    if [[ "${choice_values[index]}" == "${current}" ]]; then
+      default_index="$((index + 1))"
+    fi
+  done
   while true; do
-    printf '%s [%s%s]: ' "${label}" "${choices}" \
-      "${current:+, default ${current}}"
+    if [[ -n "${default_index}" ]]; then
+      printf '%s — select 1-%s [default %s: %s]: ' "${label}" \
+        "${#choice_values[@]}" "${default_index}" "${current}"
+    else
+      printf '%s — select 1-%s: ' "${label}" "${#choice_values[@]}"
+    fi
     read -r value
     value="${value:-${current}}"
+    if [[ "${value}" =~ ^[0-9]+$ ]] \
+      && [[ "${value}" -ge 1 ]] \
+      && [[ "${value}" -le "${#choice_values[@]}" ]]; then
+      value="${choice_values[value - 1]}"
+    fi
     for choice in ${choices//|/ }; do
       if [[ "${value}" == "${choice}" ]]; then
         printf -v "${variable_name}" '%s' "${value}"
         return 0
       fi
     done
-    printf 'Choose one of: %s.\n' "${choices}"
+    printf 'Select a listed number or type one of: %s.\n' "${choices}"
   done
 }
 

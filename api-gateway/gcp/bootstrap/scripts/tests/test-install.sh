@@ -141,6 +141,18 @@ assert_rc "multiple operator principals" 0 install_validate_operator_principals 
   'group:platform@example.com, user:installer@example.com'
 assert_rc "bare operator email rejected" 2 install_validate_operator_principals \
   'installer@example.com'
+parent_type=organization
+install_prompt_choice parent_type 'Production project parent' \
+  'organization|folder' <<<'2' >/dev/null
+assert_eq "numbered parent choice selects folder" "${parent_type}" 'folder'
+parent_type=organization
+install_prompt_choice parent_type 'Production project parent' \
+  'organization|folder' <<<'' >/dev/null
+assert_eq "blank parent choice keeps default" "${parent_type}" 'organization'
+parent_type=
+install_prompt_choice parent_type 'Production project parent' \
+  'organization|folder' <<<'folder' >/dev/null
+assert_eq "typed parent choice remains supported" "${parent_type}" 'folder'
 candidate_billing_accounts=$'111111-AAAAAA-222222\tPrimary billing\n333333-BBBBBB-444444\tProduction billing'
 BILLING_ACCOUNT_ID=
 install_prompt_candidate BILLING_ACCOUNT_ID 'Required billing account' \
