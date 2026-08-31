@@ -2,21 +2,17 @@
 #
 # Host commands (run from this directory):
 #   ./install.sh
-#   ./weights.sh glm-5.2-b200-4gpu.yaml
+#   ./weights.sh glm-5.2-nvfp4-b200-4gpu.yaml
 #
-# Models: zai-org/GLM-5.2-FP8 + SubconsciousDev/glm-5.2-fp8-dflash-v2
-# GPU: b200 | GPUs/node: 4 (tp=4)
+# Model: nvidia/GLM-5.2-NVFP4 | GPU: b200 | GPUs/node: 4 (tp=4)
+# Preloaded host weights: /mnt/glm-5.2-nvfp4
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model glm-5.2
 # Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY
-# Download weights first with: ./weights.sh glm-5.2-b200-4gpu.yaml
-# Host bootstrap: ./install.sh
 
 images:
   distrPullSecret:
     enabled: true
 
-# The Distr release has a model-neutral image pin. Clear it for this profile so
-# Helm selects the GLM-compatible Blackwell fork below.
 releaseImages:
   worker:
     repository: ""
@@ -26,7 +22,7 @@ datadog:
   enabled: true
   worker:
     env: sglang
-    service: sglang-worker-glm-5.2-b200-4gpu
+    service: sglang-worker-glm-5.2-nvfp4-b200-4gpu
   datadog:
     apiKeyExistingSecret: datadog-secret
     site: datadoghq.com
@@ -41,18 +37,18 @@ worker:
     type: NodePort
   image:
     repository: registry.distr.sh/subconscious/timrun
-    tag: sm_100-v1
+    tag: sm_100-v0
     pullPolicy: IfNotPresent
     prePull:
       enabled: true
   servedModelName: glm-5.2
-  modelPath: /models/hf/GLM-5.2-FP8
+  modelPath: /mnt/glm-5.2-nvfp4
   contextLength: ""
   gpu:
     enabled: true
     count: 4
   discoveryLabels:
-    subconscious.dev/worker-pool: glm-5.2-b200-4gpu
+    subconscious.dev/worker-pool: glm-5.2-nvfp4-b200-4gpu
   spreadAcrossNodes: false
   strategy:
     type: Recreate
@@ -60,8 +56,8 @@ worker:
   sglang:
     enableMetrics: true
     enableMfuMetrics: true
-    memFractionStatic: "0.80"
-    maxRunningRequests: "64"
+    memFractionStatic: "0.90"
+    maxRunningRequests: "32"
     maxTotalTokens: ""
     chunkedPrefillSize: ""
     extraArgs: >-
@@ -69,51 +65,32 @@ worker:
       --chat-template /sgl-workspace/sglang/deploy/chat_templates/glm5.2.jinja
       --tool-call-parser glm47
       --subconscious-x-mode
-      --enable-hierarchical-cache
-      --hicache-ratio 3
-      --hicache-io-backend direct
-      --hicache-mem-layout page_first_direct
-      --hicache-write-policy write_back
-      --subconscious-x-st-buffer-size 10
-      --subconscious-x-min-span-length 2
-      --speculative-algorithm DFLASH
-      --speculative-draft-model-path /models/hf/glm-5.2-fp8-dflash-v2
-      --speculative-num-draft-tokens 12
-      --speculative-draft-kv-cache-dtype bfloat16
-      --speculative-draft-attention-backend fa4
-      --subconscious-leaf-only
-      --stream-response-default-include-usage
+      --subconscious-x-st-buffer-size 5
+      --subconscious-x-min-span-length 3
+      --speculative-algorithm EAGLE
+      --speculative-num-steps 1
+      --speculative-eagle-topk 1
+      --speculative-num-draft-tokens 2
+      --flashinfer-allreduce-fusion-backend trtllm
       --trust-remote-code
       --enable-cache-report
-      --cuda-graph-max-bs 64
-      --cuda-graph-backend-prefill disabled
-      --reasoning-parser glm45
+      --cuda-graph-max-bs 128
+      --stream-response-default-include-usage
   modelDownload:
     enabled: false
-    models:
-      - hfRepo: zai-org/GLM-5.2-FP8
-        targetPath: /models/hf/GLM-5.2-FP8
-      - hfRepo: SubconsciousDev/glm-5.2-fp8-dflash-v2
-        targetPath: /models/hf/glm-5.2-fp8-dflash-v2
+    hfRepo: nvidia/GLM-5.2-NVFP4
+    targetPath: /mnt/glm-5.2-nvfp4
   extraEnv:
+    - name: CUDA_VISIBLE_DEVICES
+      value: "0,1,2,3"
     - name: SGLANG_CACHE_DIR
       value: /opt/sgl-warm-cache/sglang
     - name: SGLANG_DG_CACHE_DIR
       value: /opt/sgl-warm-cache/deep_gemm
     - name: FLASHINFER_WORKSPACE_BASE
       value: /opt/sgl-warm-cache/flashinfer
-    - name: FLASH_ATTENTION_CUTE_DSL_CACHE_ENABLED
-      value: "1"
-    - name: FLASH_ATTENTION_CUTE_DSL_CACHE_DIR
-      value: /opt/sgl-warm-cache/fa4
-    - name: TRITON_CACHE_DIR
-      value: /opt/sgl-warm-cache/triton
-    - name: TORCHINDUCTOR_CACHE_DIR
-      value: /opt/sgl-warm-cache/torch-inductor
-    - name: TVM_FFI_CACHE_DIR
-      value: /opt/sgl-warm-cache/tvm-ffi
     - name: HF_HOME
-      value: /models/hf/.cache/huggingface
+      value: /mnt/.cache/huggingface
     - name: PYTHONUNBUFFERED
       value: "1"
     - name: SGLANG_PP_SPIKE_MODE
@@ -125,10 +102,10 @@ worker:
   resources:
     requests:
       cpu: "32"
-      memory: "681575Mi"
+      memory: "256Gi"
     limits:
       cpu: "32"
-      memory: "681575Mi"
+      memory: "256Gi"
   nodeSelector:
     kubernetes.io/os: linux
     kubernetes.io/arch: amd64
@@ -141,9 +118,9 @@ worker:
       enabled: false
     hostPath:
       enabled: true
-      path: /models/hf
-      mountPath: /models/hf
-      type: DirectoryOrCreate
+      path: /mnt
+      mountPath: /mnt
+      type: Directory
       readOnly: true
 
 models:

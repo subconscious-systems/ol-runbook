@@ -1,9 +1,10 @@
 # GPU deployment
 
-Install path for SGLang workers on a customer GPU host. Profiles, host bootstrap,
-and AWS/GCP worker-domain routing automation live in this directory. Run host
-preparation and the Distr Kubernetes connect command on the GPU node. Clone
-this repo on an operator device to run the shared cloud routing wizard.
+Install path for SGLang workers on a customer GPU host. Start in
+[`profiles/`](profiles/): every YAML includes its exact host-install and weight-
+download commands. Run host preparation, weight downloads, and the Distr
+Kubernetes connect command on the GPU node. Clone this repo on an operator
+device to run the shared cloud routing wizard.
 
 ## Prerequisites
 
@@ -12,8 +13,8 @@ this repo on an operator device to run the shared cloud routing wizard.
 | GPU host | AWS EC2 or GCP Compute Engine, Ubuntu/Debian, with the GPU count required by the selected profile |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Must be entitled to the SGLang application |
-| SGLang chart | **0.10.0+** for Qwen profiles; **0.13.0+** for GLM-5.2 FP8 + DFLASH |
-| Model storage | Enough persistent space under `/models/hf` for every model downloaded by the selected profile |
+| SGLang chart | **0.10.0+** for Qwen profiles; **0.13.0+** for GLM-5.2 profiles |
+| Model storage | Enough persistent space at the host path declared by the selected profile (`/models/hf` for Qwen/GLM FP8, `/mnt` for GLM NVFP4) |
 
 The gateway [EKS upgrade](../api-gateway/aws/eks-upgrade.md) does not alter these
 separate k3s worker clusters. After every EKS hop, however, the operator must
@@ -27,6 +28,7 @@ declaring the gateway upgrade healthy.
 | Qwen3.6-27B-FP8 | `profiles/qwen36-27b-*.yaml` | L4 (2/4/8 GPUs); L40S, A100-80GB, H100-80GB, H200, or B200 (1/2/4/8 GPUs) |
 | Qwen3-8B-FP8 | `profiles/qwen3-8b-l4-1gpu.yaml` | One L4 GPU |
 | GLM-5.2-FP8 + DFLASH | `profiles/glm-5.2-b200-{4,8}gpu.yaml` | Four or eight B200 GPUs |
+| GLM-5.2-NVFP4 | `profiles/glm-5.2-nvfp4-b200-4gpu.yaml` | Four B200 GPUs (`CUDA_VISIBLE_DEVICES=0,1,2,3`) |
 
 Select a profile that exactly matches the GPU type and count on one node. The
 legacy `qwen36-27b.yaml` and `qwen3-8b.yaml` examples remain for existing
@@ -34,15 +36,18 @@ deployments; use the explicitly named profile for new installs.
 
 ## Step 1 — GPU Host Preparation
 
-Download with **`curl`** onto GPU host and run.
+Clone the runbook on the GPU host, enter the profiles directory, and run the
+installer located beside the YAML files:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/subconscious-systems/ol-runbook/main/gpu-deployment/dependencies.sh -o ~/dependencies.sh
-chmod +x ~/dependencies.sh
-~/dependencies.sh
+git clone https://github.com/subconscious-systems/ol-runbook.git
+cd ol-runbook/gpu-deployment/profiles
+./install.sh
 ```
 
-May reboot for NVIDIA drivers. Run script again after reboot. Script should print "install finished". Then verify:
+It may reboot for NVIDIA drivers. Return to the same directory and run
+`./install.sh` again after reboot. The script should print `Install finished.`
+Then verify:
 
 ```bash
 nvidia-smi
@@ -50,25 +55,46 @@ kubectl get nodes
 kubectl get namespace sglang
 ```
 
+## Step 2 — Download model weights
+
+From `gpu-deployment/profiles`, run `weights.sh` with the exact YAML selected
+above. Each YAML repeats its own command in the header.
+
+```bash
+./weights.sh glm-5.2-nvfp4-b200-4gpu.yaml
+```
+
+The script prompts without echoing for a Hugging Face token, then asks for the
+download root. Accept its default unless you are also updating every model and
+host-mount path in the YAML. For FP8 + DFLASH it downloads the main GLM weights
+and the DFLASH repository serially; NVFP4 downloads only NVFP4. Rerunning the
+command resumes or verifies the same target directories through the Hugging
+Face CLI.
+
+Confirm the profile's `worker.modelPath` exists before continuing. For the
+four-GPU NVFP4 profile:
+
+```bash
+test -f /mnt/glm-5.2-nvfp4/config.json
+find /mnt/glm-5.2-nvfp4 -maxdepth 1 -name '*.safetensors' | head
+```
+
 ---
 
-## Step 2 — Distr Setup
+## Step 3 — Distr Setup
 
 1. Log into [Distr](https://app.distr.sh/) and open **Secrets**.
 2. Create the Hub Secrets required by the selected profile. Keep
    `WORKER_API_KEY` in the customer password manager—you need the same value in
-   step 4.
+   dashboard setup.
 
    | Secret name | Create the value | Used by |
    |---|---|---|
    | `WORKER_API_KEY` | Gateway dashboard → model group → worker API key | All worker profiles and dashboard worker endpoints |
    | `DD_API_KEY` | Datadog → Organization Settings → API Keys → New Key | All published profiles; Datadog Agent GPU health |
-   | `HF_TOKEN` | Hugging Face read token | GLM profiles; authenticates both the main GLM and DFLASH downloads |
 
-   The main `zai-org/GLM-5.2-FP8` repository is public and does not itself
-   require a token. The GLM profiles still require `HF_TOKEN` as their
-   authenticated download contract and pass it to both model-download init
-   containers. Never place any resolved secret directly in Helm values.
+   Hugging Face tokens are entered only into `weights.sh` on the GPU host. Do
+   not add `HF_TOKEN` to Distr or place a resolved token in Helm values.
 
 3. Navigate to **Deployments** → **New Deployment**.
 4. Select the SGLang / gpu-deployment application. Use **0.10.0 or newer** for
@@ -90,16 +116,10 @@ kubectl get namespace sglang
 10. Wait for the target to report connected, then return to the deployment and
     click **Apply**. Watch the Distr deployment until Helm succeeds.
 
-Helm Apply downloads model weights before starting the worker:
-
-- Qwen profiles create one model-download init container.
-- GLM profiles create two serial init containers: the main
-  `zai-org/GLM-5.2-FP8` weights under `/models/hf/GLM-5.2-FP8`, then
-  `SubconsciousDev/glm-5.2-fp8-dflash-v2` under
-  `/models/hf/glm-5.2-fp8-dflash-v2`.
-- Downloads persist on the host-mounted `/models/hf` volume. A later Apply
-  skips a model whose config and weight shards are already complete.
-- The worker does not start unless every model download succeeds.
+Helm Apply does not download model weights. Profiles mount their host weight
+volume read-only and start the worker against the paths populated in Step 2.
+If a checkpoint is missing or incomplete, fix it with `weights.sh` and Apply
+again.
 
 For updates, select the newer application version on the existing deployment
 and Apply. The application version supplies the immutable worker digest, and
@@ -127,7 +147,7 @@ configures AWS or GCP worker domains; it does not create Distr resources or run
 Apply. The target, deployment, profile selection, secrets, connect command, and
 Apply remain the explicit steps above.
 
-A PAT-driven flow is possible and should run on the GPU node after Step 1,
+A PAT-driven flow is possible and should run on the GPU node after Step 2,
 because that node owns the local k3s kubeconfig and must install the Distr
 Kubernetes agent. A Distr PAT alone is not enough input: automation would also
 need the entitled application/profile choice, deployment name, worker API key,
@@ -137,7 +157,7 @@ line.
 
 ---
 
-## Step 3 — Worker URL with AWS
+## Step 4 — Worker URL with AWS
 
 The interactive setup handles AWS discovery, Terraform configuration, and the plan.  
 Before running it, authenticate the AWS CLI (`aws login`) with permission to manage EC2 networking, ELBv2, ACM, and Route 53.
@@ -171,7 +191,7 @@ gateway:
 Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
 
-## Step 3 — Worker URL with GCP
+## Step 4 — Worker URL with GCP
 
 The GCP wizard creates the corresponding Certificate Manager, Cloud DNS,
 regional HTTPS load-balancer, backend, health-check, and firewall resources.
@@ -207,7 +227,7 @@ Architecture, permissions, manual setup, and verification are in
 
 ---
 
-## Step 4 — Adding to Dashboard
+## Step 5 — Adding to Dashboard
 
 Create a new Model Group, same `WORKER_API_KEY` from Distr secrets for all.
 
