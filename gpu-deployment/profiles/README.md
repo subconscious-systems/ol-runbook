@@ -18,6 +18,8 @@ script does not replace RPM-family GPU drivers. It preserves active
 On enforcing SELinux hosts it labels the supported model directories for
 container access. The NVFP4 profile mounts only `/mnt/glm-5.2-nvfp4`, not the
 entire `/mnt` filesystem.
+Rocky/RHEL 8 cgroup v1 hosts receive the kubelet compatibility setting needed
+by current k3s releases; future images should use cgroup v2.
 It may request a reboot for Debian/Ubuntu driver installation; rerun it
 afterward.
 
