@@ -124,8 +124,6 @@ assert_rc "valid GCP project ID" 0 install_validate_gcp_project_id \
   'subconscious-gateway-prod' project
 assert_rc "uppercase GCP project rejected" 2 install_validate_gcp_project_id \
   'Subconscious-Gateway-Prod' project
-assert_rc "positive budget" 0 install_validate_positive_integer 1200 budget
-assert_rc "zero budget rejected" 2 install_validate_positive_integer 0 budget
 assert_rc "production bootstrap zone" 0 install_validate_bootstrap_zone us-east1-b
 assert_rc "wrong bootstrap region rejected" 2 install_validate_bootstrap_zone us-west1-b
 assert_rc "operator user" 0 install_validate_operator_principals \
@@ -134,31 +132,6 @@ assert_rc "multiple operator principals" 0 install_validate_operator_principals 
   'group:platform@example.com, user:installer@example.com'
 assert_rc "bare operator email rejected" 2 install_validate_operator_principals \
   'installer@example.com'
-candidate_billing_accounts=$'111111-AAAAAA-222222\tPrimary billing\n333333-BBBBBB-444444\tProduction billing'
-BILLING_ACCOUNT_ID=
-install_prompt_candidate BILLING_ACCOUNT_ID 'Required billing account' \
-  "${candidate_billing_accounts}" install_validate_billing_account_id \
-  <<<'2' >/dev/null
-assert_eq "billing account selectable by number" "${BILLING_ACCOUNT_ID}" \
-  '333333-BBBBBB-444444'
-candidate_projects=$'customer-quota-admin\tQuota administration\ncustomer-shared-dns\tShared DNS'
-QUOTA_PROJECT_ID=
-install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
-  <<<'1' >/dev/null
-assert_eq "quota project selectable by number" "${QUOTA_PROJECT_ID}" \
-  'customer-quota-admin'
-QUOTA_PROJECT_ID=old-value
-install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
-  <<<'s' >/dev/null
-assert_eq "optional candidate can be skipped" "${QUOTA_PROJECT_ID}" ''
-QUOTA_PROJECT_ID=customer-quota-admin
-install_prompt_optional_candidate QUOTA_PROJECT_ID 'Optional quota project' \
-  "${candidate_projects}" install_validate_gcp_project_id 'quota project ID' \
-  <<<'' >/dev/null
-assert_eq "optional candidate keeps step 2 selection" "${QUOTA_PROJECT_ID}" \
-  'customer-quota-admin'
 # shellcheck disable=SC2329 # Invoked by install_load_existing_project_context.
 gcloud() {
   case "$*" in
@@ -189,21 +162,15 @@ assert_rc "production-only tfvars accepted" 1 \
   install_tfvars_is_legacy "${TMP}/production.tfvars"
 
 echo "== Guided production foundation file =="
-export BILLING_ACCOUNT_ID=016933-06250C-0D5324
-export QUOTA_PROJECT_ID=customer-quota-admin
 export FOUNDATION_PROJECT_ID=subconscious-gateway-prod
 export FOUNDATION_DNS_PROJECT_ID=customer-shared-dns
-export MONTHLY_BUDGET_AMOUNT_USD=1200
 export BOOTSTRAP_ZONE=us-east1-b
 export BOOTSTRAP_SUBNET_CIDR=10.40.0.0/24
 export OPERATOR_PRINCIPALS='group:platform@example.com,user:installer@example.com'
 install_render_bootstrap_tfvars "${TMP}/guided.tfvars"
 for expected in \
-  'billing_account_id = "016933-06250C-0D5324"' \
-  'quota_project_id   = "customer-quota-admin"' \
   'project_id = "subconscious-gateway-prod"' \
   'dns_project_id = "customer-shared-dns"' \
-  'monthly_budget_amount_usd = 1200' \
   'region                = "us-east1"' \
   'bootstrap_zone        = "us-east1-b"' \
   'bootstrap_subnet_cidr = "10.40.0.0/24"' \
@@ -216,7 +183,9 @@ for expected in \
     fail "generated foundation missing ${expected}"
   fi
 done
-for removed_field in organization_id folder_id project_name project_deletion_policy; do
+for removed_field in organization_id folder_id project_name \
+  project_deletion_policy billing_account_id quota_project_id \
+  monthly_budget_amount_usd; do
   if grep -Eq "^[[:space:]]*${removed_field}[[:space:]]*=" \
     "${TMP}/guided.tfvars"; then
     fail "generated foundation still contains ${removed_field}"
@@ -239,6 +208,47 @@ if grep -qiE '(password|api[_ -]?key|targetSecret|private[_ -]?key)' \
   fail "generated foundation file contains a secret field"
 else
   ok "generated foundation file contains identifiers only"
+fi
+
+original_bootstrap_dir="${BOOTSTRAP_DIR}"
+same_project_dir="${TMP}/same-project"
+mkdir -p "${same_project_dir}"
+cp "${TMP}/guided.tfvars" "${same_project_dir}/terraform.tfvars"
+sed -i.bak \
+  's/dns_project_id = "customer-shared-dns"/dns_project_id = "subconscious-gateway-prod"/' \
+  "${same_project_dir}/terraform.tfvars"
+BOOTSTRAP_DIR="${same_project_dir}"
+assert_rc "deployment project may also own DNS zone" 0 install_validate_tfvars
+BOOTSTRAP_DIR="${original_bootstrap_dir}"
+
+legacy_state_dir="${TMP}/legacy-state"
+mkdir -p "${legacy_state_dir}"
+printf 'old state\n' >"${legacy_state_dir}/terraform.tfstate"
+printf 'old backup\n' >"${legacy_state_dir}/terraform.tfstate.backup"
+printf 'old plan\n' >"${legacy_state_dir}/.bootstrap.tfplan"
+BOOTSTRAP_DIR="${legacy_state_dir}"
+original_tmpdir="${TMPDIR:-}"
+TMPDIR="${TMP}"
+# shellcheck disable=SC2329 # Invoked indirectly by state-isolation helper.
+terraform() {
+  printf '%s\n' 'google_project.environment["retired"]'
+}
+install_archive_legacy_local_state >/dev/null
+unset -f terraform
+BOOTSTRAP_DIR="${original_bootstrap_dir}"
+TMPDIR="${original_tmpdir}"
+legacy_state_archive="$(
+  find "${TMP}" -maxdepth 1 -type d -name 'orangeline-legacy-state.*' \
+    | head -n 1
+)"
+if [[ -n "${legacy_state_archive}" \
+  && -f "${legacy_state_archive}/terraform.tfstate" \
+  && -f "${legacy_state_archive}/terraform.tfstate.backup" \
+  && -f "${legacy_state_archive}/.bootstrap.tfplan" \
+  && ! -e "${legacy_state_dir}/terraform.tfstate" ]]; then
+  ok "legacy local state is archived without an active destructive plan"
+else
+  fail "legacy local state was not isolated safely"
 fi
 
 echo "== Generated Hub environment =="

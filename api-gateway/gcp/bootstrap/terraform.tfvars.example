@@ -1,13 +1,6 @@
 # Copy to terraform.tfvars and replace every example value.
 # terraform.tfvars is ignored by git.
 
-# Billing account already attached to the selected existing project.
-billing_account_id = "000000-000000-000000"
-
-# Existing project used to bill client-based API quota. Usually the same as
-# project_id; use another only when customer policy requires it.
-quota_project_id = "example-platform-admin"
-
 # Existing production project selected for this installation. Terraform never
 # creates, imports, relabels, moves, or deletes the project itself.
 project_id = "example-gateway-prod"
@@ -15,10 +8,6 @@ project_id = "example-gateway-prod"
 # Existing project that owns the public zone used by DOMAIN_NAME. The bootstrap
 # plan grants only roles/dns.admin to the keyless platform service account here.
 dns_project_id = "example-shared-dns"
-
-# Alerts are sent to default billing-account/project recipients. These are not
-# hard caps; replace with approved Calculator-based whole-dollar amounts.
-monthly_budget_amount_usd = 1200
 
 # Locked region. The bootstrap VM can use any supported us-east1 zone.
 region                = "us-east1"

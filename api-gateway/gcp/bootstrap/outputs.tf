@@ -58,11 +58,6 @@ output "recommended_backend_bucket" {
   value       = google_storage_bucket.terraform_state.name
 }
 
-output "budget_name" {
-  description = "Cloud Billing budget resource name."
-  value       = google_billing_budget.environment.name
-}
-
 output "iap_ssh_command" {
   description = "Keyless IAP/OS Login command."
   value       = "gcloud compute ssh ${google_compute_instance.bootstrap.name} --project ${google_compute_instance.bootstrap.project} --zone ${google_compute_instance.bootstrap.zone} --tunnel-through-iap"

@@ -87,6 +87,26 @@ bootstrap_ssh() {
     "$@"
 }
 
+bootstrap_wait_host_ready() {
+  local attempts_remaining=60
+
+  printf '[bootstrap] waiting for OS Login and first-boot host setup\n'
+  while [[ "${attempts_remaining}" -gt 0 ]]; do
+    if bootstrap_ssh \
+      --command='sudo test -f /opt/api-gateway-infra/bootstrap-ready' \
+      >/dev/null 2>&1; then
+      return 0
+    fi
+    attempts_remaining=$((attempts_remaining - 1))
+    sleep 5
+  done
+
+  printf 'ERROR: OS Login or first-boot host setup did not become ready within 5 minutes\n' >&2
+  printf 'Inspect with: gcloud compute ssh %s --project=%s --zone=%s --tunnel-through-iap\n' \
+    "${VM_NAME}" "${PROJECT_ID}" "${ZONE}" >&2
+  return 1
+}
+
 bootstrap_ensure_host() {
   local setup_path="${1:-${BOOTSTRAP_SCRIPT_DIR}/host-setup.sh}"
 

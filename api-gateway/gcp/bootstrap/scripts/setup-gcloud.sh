@@ -10,9 +10,10 @@ usage() {
 usage: setup-gcloud.sh [--quota-project EXISTING_PROJECT_ID] [--skip-login]
 
 Authenticates the local human user and Application Default Credentials (ADC).
-No service-account key is created. The optional quota project must already
-exist and must grant the user permission to enable and consume the foundation
-control-plane APIs.
+No service-account key is created. When supplied, the quota project must
+already exist and must grant the user permission to enable and consume the
+foundation control-plane APIs. The guided installer uses the selected
+deployment project.
 EOF
 }
 
@@ -67,7 +68,6 @@ gcloud auth application-default print-access-token >/dev/null
 
 if [[ -n "${PROJECT_ID}" ]]; then
   gcloud services enable \
-    billingbudgets.googleapis.com \
     cloudbilling.googleapis.com \
     cloudresourcemanager.googleapis.com \
     iam.googleapis.com \

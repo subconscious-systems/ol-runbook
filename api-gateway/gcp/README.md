@@ -41,7 +41,7 @@ customer-facing deployment cycle.
 
 | Layer | Required configuration |
 | --- | --- |
-| Project | One dedicated production project plus an existing shared Cloud DNS project |
+| Project | One existing production project; its DNS zone may be local or in a shared DNS project |
 | Region | `us-east1` |
 | Kubernetes | GKE Standard regional cluster; N4A node pool in `us-east1-b`/`us-east1-c`; two `n4a-standard-4` ARM64 nodes initially, autoscaling 2–4 |
 | Control plane | Private nodes; DNS-based endpoint enabled; IP endpoints disabled; IAM permission `container.clusters.connect` required |
@@ -131,8 +131,9 @@ Keep each Distr deployment name at most 32 characters:
 ## Prerequisites
 
 - Rights in an existing billing-enabled production project to enable services,
-  administer the budget, set IAM, and update the selected Cloud DNS zone.
-- One existing production project ID, an existing DNS project/zone, and non-overlapping
+  set IAM, and update the selected Cloud DNS zone.
+- One existing production project ID, an existing DNS project/zone (which may
+  be the same project), and non-overlapping
   RFC1918 `/24` bootstrap and `/16` platform ranges.
 - Distr customer PAT plus Application and artifact entitlements.
 - Terraform 1.11.4+, gcloud, GKE auth plugin, jq, and curl.

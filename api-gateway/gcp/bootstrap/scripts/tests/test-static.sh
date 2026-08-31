@@ -101,8 +101,10 @@ for secret_ref in \
   }
 done
 
-grep -Fq 'billing_account = var.billing_account_id' \
-  "${BOOTSTRAP_DIR}/billing.tf"
+[[ ! -e "${BOOTSTRAP_DIR}/billing.tf" ]] || {
+  printf 'ERROR: bootstrap must not manage a Cloud Billing budget\n' >&2
+  exit 1
+}
 grep -Fq 'data "google_project" "environment"' \
   "${BOOTSTRAP_DIR}/projects.tf"
 grep -Fq 'from = google_project.environment' \
@@ -126,17 +128,45 @@ grep -Fq 'bootstrap_subnet_cidr must be a canonical RFC1918 /24' \
   "${BOOTSTRAP_DIR}/variables.tf"
 grep -Eq '^[[:space:]]*project_id[[:space:]]*=[[:space:]]*var\.project_id$' \
   "${BOOTSTRAP_DIR}/projects.tf"
+grep -Fq 'billing_project       = var.project_id' \
+  "${BOOTSTRAP_DIR}/providers.tf"
+grep -Fq 'user_project_override = true' "${BOOTSTRAP_DIR}/providers.tf"
+if rg -n 'quota_project_id' \
+  "${BOOTSTRAP_DIR}/variables.tf" "${BOOTSTRAP_DIR}/providers.tf" \
+  "${BOOTSTRAP_DIR}/terraform.tfvars.example"; then
+  printf 'ERROR: separate quota-project configuration remains\n' >&2
+  exit 1
+fi
+if rg -n 'install_prompt_optional_candidate' "${SCRIPTS_DIR}/install.sh"; then
+  printf 'ERROR: separate quota-project prompt remains\n' >&2
+  exit 1
+fi
 # shellcheck disable=SC2016 # Match literal shell code in the implementation.
 grep -Fq 'terraform -chdir="${TF_DIR}" apply -input=false "${PLAN_FILE}"' \
   "${SCRIPTS_DIR}/bootstrap.sh"
+grep -Fq 'bootstrap refuses a plan containing resource deletions' \
+  "${SCRIPTS_DIR}/bootstrap.sh"
+grep -Fq 'install_archive_legacy_local_state' "${SCRIPTS_DIR}/install.sh"
+grep -Fq 'bootstrap_wait_host_ready' "${SCRIPTS_DIR}/preflight.sh"
+grep -Fq 'first-boot host setup did not become ready within 5 minutes' \
+  "${SCRIPTS_DIR}/lib.sh"
 for api in \
-  billingbudgets.googleapis.com \
   cloudbilling.googleapis.com \
   cloudresourcemanager.googleapis.com \
   iam.googleapis.com \
   serviceusage.googleapis.com; do
   grep -Fq "${api}" "${SCRIPTS_DIR}/setup-gcloud.sh"
 done
+if rg -n -i 'billingbudgets|monthly_budget|google_billing_budget' \
+  "${BOOTSTRAP_DIR}" --glob '*.tf' --glob 'terraform.tfvars.example'; then
+  printf 'ERROR: billing budget configuration remains in the bootstrap\n' >&2
+  exit 1
+fi
+if rg -n -i 'billingbudgets' \
+  "${SCRIPTS_DIR}/setup-gcloud.sh" "${SCRIPTS_DIR}/preflight.sh"; then
+  printf 'ERROR: billing budget API remains in the bootstrap scripts\n' >&2
+  exit 1
+fi
 grep -Fq '"orgpolicy.googleapis.com"' "${BOOTSTRAP_DIR}/locals.tf"
 grep -Fq '"roles/orgpolicy.policyViewer"' "${BOOTSTRAP_DIR}/locals.tf"
 grep -Fq 'C0147pk0i' "${GCP_DIR}/datadog-operations.md"
@@ -154,6 +184,7 @@ grep -Fq 'IFS= read -r CONNECT_URL' "${SCRIPTS_DIR}/run-agent.sh"
 grep -Fq 'IFS= read -r HUB_LINE' "${SCRIPTS_DIR}/connect-k8s-agent.sh"
 grep -Fq 'run-agent.sh" --stdin' "${SCRIPTS_DIR}/install.sh"
 grep -Fq 'connect-k8s-agent.sh" --stdin' "${SCRIPTS_DIR}/install.sh"
+# shellcheck disable=SC2016 # Match literal shell code in the implementation.
 grep -Fq '"${SCRIPT_DIR}/migrate-state.sh" --yes' \
   "${SCRIPTS_DIR}/bootstrap.sh"
 git -C "${RUNBOOK_DIR}" check-ignore -q \
@@ -178,6 +209,7 @@ if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_example_brand}" -- \
   printf 'ERROR: legacy customer example remains in the GCP installation surface\n' >&2
   exit 1
 fi
+# shellcheck disable=SC2016 # Match literal shell code in the implementation.
 grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
   "${SCRIPTS_DIR}/teardown-platform.sh"
 

@@ -1,27 +1,3 @@
-variable "billing_account_id" {
-  type        = string
-  description = "Billing account already attached to the selected project, used for budget alerts."
-
-  validation {
-    condition     = can(regex("^[0-9A-F]{6}-[0-9A-F]{6}-[0-9A-F]{6}$", upper(var.billing_account_id)))
-    error_message = "billing_account_id must look like 000000-000000-000000."
-  }
-}
-
-variable "quota_project_id" {
-  type        = string
-  description = "Existing project used for client-based API quota during foundation administration."
-  default     = ""
-
-  validation {
-    condition = (
-      var.quota_project_id == "" ||
-      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.quota_project_id))
-    )
-    error_message = "quota_project_id must be empty or a valid Google Cloud project ID."
-  }
-}
-
 variable "project_id" {
   type        = string
   description = "Existing Google Cloud project where the production gateway is deployed."
@@ -39,17 +15,6 @@ variable "dns_project_id" {
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.dns_project_id))
     error_message = "dns_project_id must be a valid 6-30 character Google Cloud project ID."
-  }
-}
-
-variable "monthly_budget_amount_usd" {
-  type        = number
-  description = "Production monthly budget amount in USD; alerts are not hard spend caps."
-  default     = 1200
-
-  validation {
-    condition     = var.monthly_budget_amount_usd > 0 && floor(var.monthly_budget_amount_usd) == var.monthly_budget_amount_usd
-    error_message = "monthly_budget_amount_usd must be a positive whole-dollar amount."
   }
 }
 

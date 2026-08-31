@@ -66,8 +66,8 @@ deployment stage.
 
 The human foundation identity must be able to read the selected existing
 project and its attached billing account, enable required services, administer
-the project budget, and set the documented IAM bindings. Confirm the project is
-ACTIVE and billing is enabled.
+the documented IAM bindings, and create the foundation resources. Confirm the
+project is ACTIVE and billing is enabled.
 
 ```bash
 gcloud billing accounts get-iam-policy <BILLING_ACCOUNT_ID>

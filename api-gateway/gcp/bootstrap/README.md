@@ -30,14 +30,14 @@ Branch changes do not replace an ignored local `terraform.tfvars`. If the CLI
 finds the retired multi-environment schema, it requires an explicit `replace`
 confirmation and moves the old values to a private temporary archive. The CLI
 then discovers accessible GCP resources, lets the operator select numbered
-existing production-project, quota-project, and DNS-project candidates, reads
-the production project's attached billing account, and generates a fresh
-production-only file. A text editor is only an optional final review. Delete
-the temporary archive after verifying the generated file.
+existing production-project and DNS-project candidates, reads the production
+project's attached billing account, and generates a fresh production-only
+file. ADC quota uses that same selected project automatically. A text editor is
+only an optional final review. Delete the temporary archive after verifying the
+generated file.
 
-ADC quota defaults to the selected existing production project. The operator
-can select another existing project or enter its ID manually only when customer
-policy requires separation. The CLI does not create GCP projects.
+ADC quota uses the selected existing production project automatically. There
+is no second project selection, and the CLI does not create GCP projects.
 
 ## What the one bootstrap command does
 
@@ -64,7 +64,7 @@ Re-running step 3 offers to reuse an already-valid production file:
 1. initializes and validates Terraform;
 2. displays the bootstrap plan for the selected existing project;
 3. asks for that project ID as confirmation;
-4. applies APIs, budget, state bucket, private network/NAT,
+4. applies APIs, state bucket, private network/NAT,
    service account/IAM, IAP firewall, and private VM;
 5. migrates the first local state into the versioned GCS bucket;
 6. verifies billing, APIs, private access, Shielded VM, OS Login, NAT, and the

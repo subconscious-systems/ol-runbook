@@ -6,8 +6,8 @@
 > [Google Cloud Pricing Calculator](https://cloud.google.com/products/calculator)
 > with the actual project inputs and obtain a Datadog quote before committing.
 
-Use approximately **$1,000 per month** for the always-on production deployment
-as an initial budget. This is not a quote.
+The current planning baseline is approximately **$1,000 per month** for the
+always-on production deployment. This is not a quote.
 
 Estimate checked August 3, 2026 for `us-east1`. It excludes GPUs, inference
 workers, AWS migration, Distr subscription, support plans, taxes, negotiated
@@ -61,8 +61,8 @@ The single-project production baseline is therefore approximately
 
 `n4a-standard-4` is ARM64/Google Axion and was approximately $0.154/hour in
 `us-east1` at the check date. Capacity is not guaranteed merely because the
-SKU is priced. Verify two-zone capacity and quota. Do not budget Spot for the
-production baseline.
+SKU is priced. Verify two-zone capacity and quota. Do not use Spot for the
+production baseline estimate.
 
 Committed-use discounts can reduce compute cost but introduce term/usage risk.
 Apply them only after measured steady-state demand.

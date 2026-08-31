@@ -63,6 +63,20 @@ terraform -chdir="${TF_DIR}" fmt -check -recursive
 terraform -chdir="${TF_DIR}" validate
 terraform -chdir="${TF_DIR}" plan -input=false -var-file="${VAR_FILE}" -out="${PLAN_FILE}"
 
+DESTRUCTIVE_ADDRESSES="$(terraform -chdir="${TF_DIR}" show -json "${PLAN_FILE}" \
+  | jq -r '
+      .resource_changes[]?
+      | select(.change.actions | index("delete"))
+      | .address
+    ')"
+if [[ -n "${DESTRUCTIVE_ADDRESSES}" ]]; then
+  printf 'ERROR: bootstrap refuses a plan containing resource deletions:\n%s\n' \
+    "${DESTRUCTIVE_ADDRESSES}" >&2
+  printf 'Resolve or isolate the previous Terraform state before applying.\n' >&2
+  rm -f "${PLAN_FILE}"
+  exit 1
+fi
+
 PROJECT_ID="$(terraform -chdir="${TF_DIR}" show -json "${PLAN_FILE}" | jq -er '
   .planned_values.outputs.project_id.value
 ')"

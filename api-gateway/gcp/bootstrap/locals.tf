@@ -1,7 +1,6 @@
 locals {
   required_apis = toset([
     "artifactregistry.googleapis.com",
-    "billingbudgets.googleapis.com",
     "certificatemanager.googleapis.com",
     "cloudasset.googleapis.com",
     "cloudbilling.googleapis.com",
@@ -84,12 +83,5 @@ locals {
     for principal in var.operator_principals : principal => {
       principal = principal
     }
-  }
-}
-
-check "external_dns_project" {
-  assert {
-    condition     = var.dns_project_id != var.project_id
-    error_message = "dns_project_id must name the existing shared DNS project, not the gateway project."
   }
 }

@@ -54,10 +54,10 @@ credentials. The detailed checklist below is the reference behind each prompt.
 In the foundation step, the CLI presents numbered existing production and DNS
 projects visible to the authenticated Google account. Each choice shows the
 human display name and exact saved ID. It reads the selected production
-project's attached billing account automatically. ADC quota defaults to that
-same existing project; another existing project can be selected when policy
-requires separation. Terraform creates resources inside the selected project
-but never creates, imports, moves, relabels, or deletes the project itself.
+project's attached billing account automatically. ADC quota uses that same
+existing project automatically. Terraform creates resources inside the
+selected project but never creates, imports, moves, relabels, or deletes the
+project itself.
 
 ## Detailed checklist
 
@@ -85,11 +85,12 @@ Choose names of at most 32 characters:
 
 Also choose:
 
-- one existing shared Cloud DNS project and managed zone for `DOMAIN_NAME`;
+- one existing Cloud DNS managed zone for `DOMAIN_NAME`, either in the
+  production project or a shared DNS project;
 - one canonical, non-overlapping RFC1918 `/16` for the platform;
 - one separate canonical RFC1918 `/24` for the bootstrap host;
-- budget and operator principals; billing must already be enabled on the
-  selected production project.
+- operator principals; billing must already be enabled on the selected
+  production project.
 
 Keep deployment names at most 32 characters. Greenfield uses the same string
 for the Hub Kubernetes target, namespace, and Helm release
@@ -114,11 +115,11 @@ cd api-gateway/gcp/bootstrap
 ```
 
 The guided foundation step requires an existing ACTIVE project with billing
-enabled, an existing public-DNS project, a budget alert amount, a
-non-overlapping private `/24`, and at least one operator user or Google Group.
-ADC quota defaults to the selected production project; region, VM sizing, and
-VM deletion protection are fixed to production-safe values. Projects and DNS
-zones are visible under **IAM & Admin > Manage Resources** and
+enabled, an existing public-DNS project, a non-overlapping private `/24`, and
+at least one operator user or Google Group.
+ADC quota uses the selected production project; region, VM sizing, and VM
+deletion protection are fixed to production-safe values. Projects and DNS zones
+are visible under **IAM & Admin > Manage Resources** and
 **Network services > Cloud DNS**. The installer shows matching accessible
 resources and allows selection by number.
 

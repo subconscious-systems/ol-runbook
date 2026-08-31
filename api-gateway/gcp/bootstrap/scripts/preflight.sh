@@ -21,7 +21,6 @@ bootstrap_print_target
 
 REQUIRED_APIS=(
   artifactregistry.googleapis.com
-  billingbudgets.googleapis.com
   certificatemanager.googleapis.com
   cloudasset.googleapis.com
   cloudbilling.googleapis.com
@@ -140,6 +139,6 @@ if [[ "${FAILURES}" -ne 0 ]]; then
 fi
 
 bootstrap_wait_vm
-bootstrap_ssh --command='sudo test -f /opt/api-gateway-infra/bootstrap-ready'
+bootstrap_wait_host_ready
 
 printf '[preflight] OK: billing, APIs, DNS IAM, private Shielded VM, OS Login, NAT, keyless SA, and host readiness\n'
