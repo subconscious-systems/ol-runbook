@@ -198,7 +198,7 @@ Search Datadog for:
 [<DATADOG_ENV>][managed] Subconscious API Gateway
 ```
 
-Use `$env`, `$service`, `$model`, and `$request_id` template variables.
+Use `$env`, `$service`, and `$model` template variables.
 Production and sandbox must have different `DATADOG_ENV` values.
 
 From a 5xx metric or the "Too many gateway 5xx responses" monitor, search the log tag

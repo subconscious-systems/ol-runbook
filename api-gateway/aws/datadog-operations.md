@@ -25,7 +25,6 @@ variables:
 | `$env` | Scope to this deploy (`env:<DATADOG_ENV>`) |
 | `$service` | Gateway / router / adapter service name |
 | `$model` | Logical model filter |
-| `$request_id` | Drill into correlated request logs |
 
 The Overview group keeps **Gateway readiness** as a last-value card. **Active requests** (`gateway.inflight`), **Gateway RPS**, **Requests / minute**, **Requests / hour**, and **5xx error ratio** are time series. The Token usage group has input/output/total tokens per minute plus a 30-day **Tokens per day** bar chart by model.
 
@@ -157,8 +156,7 @@ Session join keys (also in gateway Conversations UI):
 | `gen_ai.conversation.id` | Session / conversation id |
 | `_dd.ml_obs.metadata` | JSON: `organization_id`, `coding_agent`, `correlation_source`, `turn_id`, … |
 
-Dashboard LLM / Recent traces widgets stay empty on the default path. That is
-expected.
+LLM Observability stays empty on the default path. That is expected.
 
 ## Expert request and trace debugging
 
@@ -199,9 +197,8 @@ source:subconscious-gateway env:<DATADOG_ENV> status_code:503
 message is only `gateway.request.completed`; the status lives on
 `@status_code`, `@outcome`, and `@error_type`.
 
-The managed gateway dashboard provides the same filter through
-`$request_id`. Inspect `@outcome`, `@error_type`,
-`@provider_status_code`, `@provider_request_id`, and
+Search Logs Explorer with `@request_id:<REQUEST_ID>`. Inspect `@outcome`,
+`@error_type`, `@provider_status_code`, `@provider_request_id`, and
 `@provider_error_message`. Keep the request ID in the query when a
 conversation trace contains many requests.
 
