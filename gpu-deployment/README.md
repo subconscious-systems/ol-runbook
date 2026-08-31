@@ -1,13 +1,14 @@
 # GPU deployment
 
 Install path for SGLang workers on a customer GPU host. Profiles, host bootstrap,
-and private AWS routing automation live in this directory. Suggest cloning this repo on a local device to run AWS setup.
+and AWS/GCP worker-domain routing automation live in this directory. Clone this
+repo on a local device to run the shared cloud setup wizard.
 
 ## Prerequisites
 
 | Requirement | Notes |
 |---|---|
-| GPU EC2 instance | Ubuntu/Debian, 4× GPU for profiles below |
+| GPU host | AWS EC2 or GCP Compute Engine, Ubuntu/Debian, with the GPU count required by the selected profile |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Will need to setup deployment |
 | SGLang chart **0.10.0+** | Pins the reviewed worker image and pre-pulls it before worker replacement |
@@ -79,10 +80,11 @@ The interactive setup handles AWS discovery, Terraform configuration, and the pl
 Before running it, authenticate the AWS CLI (`aws login`) with permission to manage EC2 networking, ELBv2, ACM, and Route 53.
 
 ```bash
-./gpu-deployment/terraform/aws-private-workers/setup.sh
+./gpu-deployment/setup.sh aws
 ```
 
-The wizard lets youselect the EKS cluster, GPU instance, Route 53 zone, model, and worker domain.  
+The wizard lets you select the EKS cluster, GPU instance, Route 53 zone, model,
+and worker domain.
 It then:
 
 - discovers both VPCs, subnets, security groups, existing peering, and ACM cert;
@@ -103,6 +105,36 @@ gateway:
 
 Manual setup, existing-resource adoption, and troubleshooting details are in
 [`terraform/aws-private-workers/README.md`](terraform/aws-private-workers/README.md).
+
+## Step 3 — Worker URL with GCP
+
+The GCP wizard creates the corresponding Certificate Manager, Cloud DNS,
+regional HTTPS load-balancer, backend, health-check, and firewall resources.
+It supports either private same-region GKE-to-worker routing or a public HTTPS
+frontend protected by the existing worker bearer key.
+
+Before running it, authenticate the Google Cloud CLI with access to the worker,
+gateway (internal mode), and DNS projects:
+
+```bash
+gcloud auth login
+./gpu-deployment/setup.sh gcp
+```
+
+Choose one mode:
+
+- `internal`: private load-balancer IP, plus VPC Network Peering when the
+  gateway and worker use different VPCs;
+- `public-api-key`: public load-balancer IP. The wizard requires explicit
+  confirmation that `worker.auth.enabled=true` and `SGLANG_WORKER_API_KEY` is
+  populated before it will plan.
+
+After apply, add the printed worker-domain suffix to the gateway's
+`routeAllowedHostSuffixes` and add each endpoint to the dashboard with the same
+`WORKER_API_KEY` stored in Distr.
+
+Architecture, permissions, manual setup, and verification are in
+[`terraform/gcp-workers/README.md`](terraform/gcp-workers/README.md).
 
 ---
 
