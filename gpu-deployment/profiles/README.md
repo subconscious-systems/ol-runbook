@@ -11,7 +11,15 @@ cd <profile>
 ```
 
 `install.sh` prepares NVIDIA drivers, Docker, k3s, kubectl, and the NVIDIA
-device plugin. It may request a reboot; rerun it afterward.
+device plugin on Debian/Ubuntu and Rocky/RHEL-family hosts. Rocky/RHEL requires
+a working host driver before installation (`nvidia-smi` must succeed); the
+script does not replace RPM-family GPU drivers. It preserves active
+`firewalld`, adding the k3s network rules and profile NodePorts `30001-30006`.
+On enforcing SELinux hosts it labels the supported model directories for
+container access. The NVFP4 profile mounts only `/mnt/glm-5.2-nvfp4`, not the
+entire `/mnt` filesystem.
+It may request a reboot for Debian/Ubuntu driver installation; rerun it
+afterward.
 
 Each profile directory contains its own `values.yaml` and `weights.sh`. The
 script declares only that profile's repositories and target paths, securely

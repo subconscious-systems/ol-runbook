@@ -10,7 +10,7 @@ device to run the shared cloud routing wizard.
 
 | Requirement | Notes |
 |---|---|
-| GPU host | AWS EC2 or GCP Compute Engine, Ubuntu/Debian, with the GPU count required by the selected profile |
+| GPU host | AWS EC2 or GCP Compute Engine running Ubuntu/Debian or Rocky/RHEL 8.4+, with the GPU count required by the selected profile |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Must be entitled to the SGLang application |
 | SGLang chart | **0.10.0+** for Qwen profiles; **0.13.0+** for GLM-5.2 profiles |
@@ -51,10 +51,16 @@ cd ol-runbook/gpu-deployment/profiles
 ./install.sh
 ```
 
-The bundled installer supports Debian and Ubuntu only. It exits before making
-changes on Rocky Linux, RHEL, CentOS, or Fedora. On those hosts, install and
-validate Docker, k3s, kubectl, the NVIDIA Container Toolkit, RuntimeClass, and
-device plugin through the host's supported provisioning path before continuing.
+The bundled installer supports Debian/Ubuntu (`apt`) and Rocky/RHEL-family
+hosts (`dnf`). On Rocky/RHEL, the NVIDIA host driver must already work:
+`nvidia-smi` must succeed before the script installs the container toolkit and
+k3s. When `firewalld` is active, the installer keeps it enabled and adds the
+official k3s API, pod, and service-network rules plus TCP NodePorts
+`30001-30006`. Override the last range with `K3S_FIREWALL_NODEPORTS` if the
+selected profile uses different ports. On enforcing SELinux hosts, it also
+persists `container_file_t` labels for `/models/hf` and
+`/mnt/glm-5.2-nvfp4`; override the colon-separated paths with
+`MODEL_STORAGE_PATHS` when using custom model locations.
 
 It may reboot for NVIDIA drivers. Return to the same directory and run
 `./install.sh` again after reboot. The script should print `Install finished.`
