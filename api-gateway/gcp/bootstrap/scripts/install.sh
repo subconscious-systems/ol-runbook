@@ -432,7 +432,6 @@ install_render_bootstrap_tfvars() {
   } >"${temporary_file}"
   mv "${temporary_file}" "${output_file}"
   chmod 0600 "${output_file}"
-  terraform fmt "${output_file}" >/dev/null
 }
 
 install_collect_bootstrap_tfvars() {
@@ -1231,14 +1230,15 @@ install_step_3() {
     install_collect_bootstrap_tfvars
   fi
 
+  terraform fmt "${BOOTSTRAP_DIR}/terraform.tfvars" >/dev/null
   install_validate_tfvars
   review_generated=false
   install_prompt_bool review_generated \
     'Optionally open the completed terraform.tfvars for review'
   if [[ "${review_generated}" == "true" ]]; then
     install_review_tfvars
-    install_validate_tfvars
     terraform fmt "${BOOTSTRAP_DIR}/terraform.tfvars" >/dev/null
+    install_validate_tfvars
   fi
   cat <<EOF
 
