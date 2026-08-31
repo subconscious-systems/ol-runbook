@@ -201,7 +201,7 @@ Search Datadog for:
 Use `$env`, `$service`, `$model`, and `$request_id` template variables.
 Production and sandbox must have different `DATADOG_ENV` values.
 
-From a 5xx metric or error-ratio monitor, search the log tag
+From a 5xx metric or the "Too many gateway 5xx responses" monitor, search the log tag
 `status_code:503` (or `@status_code:503`). Do not search
 `@http.status_code`. The matching line is `gateway.request.completed`.
 See [AWS Datadog operations](../aws/datadog-operations.md) for the
@@ -212,7 +212,7 @@ Recommended rollout:
 1. `DATADOG_MONITORS_DRAFT=true` and
    `DATADOG_DATABASE_MONITORS_DRAFT=true`;
 2. baseline for one to two weeks;
-3. tune latency, error ratio, limiter, connection saturation, CPU/storage,
+3. tune 5xx count, TTFT, connection saturation, CPU/storage,
    Redis memory/evictions, and DBM thresholds;
 4. set gateway monitors published;
 5. publish database monitors only after DBM/Cloud Monitoring data is stable;

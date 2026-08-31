@@ -36,24 +36,25 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 
 | Monitor | Symptom | First checks |
 | --- | --- | --- |
-| GatewayErrorBudgetBurnPage | Sustained 5xx burn | Dashboard 5xx ratio, recent error logs, dependency health |
-| GatewayHighErrorRatio | Elevated 5xx | Same; check router/adapter panels |
-| GatewayNotReady | `/readyz` failing | Dependency health widget, Postgres/Valkey/Router readiness |
-| GatewayDependencyDown | Postgres, Valkey, or router probe down | Managed databases group (if enabled), dependency widget |
-| GatewayStreamingTtftP95High | Slow streaming first token | Inference path panels, TTFT SLO (if enabled) |
-| GatewayRequestLatencyP95High | Slow end-to-end requests | Gateway latency group, router/adapter latency |
-| GatewayLimiterRejectionsSustained | Rate limits firing | Tenant signals group, Valkey CloudWatch (if enabled) |
-| GatewayLimiterCheckLatencyHigh | Limiter checks slow (early Valkey warning) | Limiter check latency widget, Valkey CPU/memory (if enabled) |
-| GatewayWorkerPoolEmpty | No workers registered | Router worker pool, model-group sync, worker route health |
-| GatewayRouterWorkerCbOpen | Worker circuit breaker open | Inference path CB state, worker connectivity |
-| GatewayRouterInflightAgeHigh | Stuck router requests | Router inflight age, active requests |
-| GatewayRouterActiveRequestsHigh | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
-| GatewayAdapterUpstreamTtftP95High | Slow adapter → worker path | Adapter upstream TTFT, router latency |
-| GatewayMeteringOutboxFailures | Billing pipeline errors | Gateway operations / metering widgets |
-| GatewayExportUsageLag | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, webhook pending/dead letters |
-| GatewayWebhookPending / DeadLetters | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
-| GatewayWebhookQuietWhileLive | Usage emitted but no delivered webhook for 15m | Webhook worker, Vercel `gateway_webhook.received` |
+| Too many gateway 5xx responses | More than 30 HTTP 5xx in 30 minutes | Dashboard 5xx count, `gateway.request.completed` logs, router/adapter panels |
+| Gateway readiness probe is failing | `/readyz` failing | Dependency health widget, Postgres/Valkey/Router readiness |
+| A gateway dependency probe is down | Postgres, Valkey, or router probe down | Managed databases group (if enabled), dependency widget |
+| Streaming first token is slow | Streaming TTFT p95 above 30s | Inference path panels, TTFT SLO (if enabled) |
+| Rate-limiter checks are slow | Limiter Valkey checks slow | Limiter check latency widget, Valkey CPU/memory (if enabled) |
+| Rate-limiter Redis script is failing | Limiter backend/script errors | Valkey health, limiter script error logs |
+| No inference workers are registered | No workers registered | Router worker pool, model-group sync, worker route health |
+| A router worker circuit breaker is open | Worker circuit breaker open | Inference path CB state, worker connectivity |
+| Router requests are stuck in flight | Stuck router requests | Router inflight age, active requests |
+| Router worker request count is high | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
+| Adapter wait for first token is slow | Slow adapter to worker path | Adapter upstream TTFT, router latency |
+| Metering outbox is failing | Billing pipeline errors | Gateway operations / metering widgets |
+| Platform usage chart is behind the gateway | Platform usage chart stale vs gateway UI | `export_usage_lag_seconds`, webhook pending/dead letters |
+| Usage webhooks are not draining / stuck in dead-letter | Webhook outbox not draining | `gateway.webhook.delivery.batch` logs, webhook URL/secret |
+| Usage events are not reaching the platform | Usage emitted but no delivered webhook for 15m | Webhook worker, Vercel `gateway_webhook.received` |
+| ALB targets are returning 5xx | More than 30 ALB target 5xx in 30 minutes | Gateway 5xx logs, target health, RDS latency |
 | Database monitors (optional) | RDS/Valkey/Postgres DBM | [Database observability](#database-observability) below |
+
+Warn-severity monitors stay in Datadog and do not Slack. `DATADOG_MONITOR_NOTIFICATION` is inserted only on page-severity monitors. Tenant 429s (limiter rejections) and full stream duration (ALB/request p95) are dashboard signals, not pages.
 
 Router and adapter monitors can be disabled with `DATADOG_INCLUDE_ROUTER_MONITORS`
 or `DATADOG_INCLUDE_ADAPTER_MONITORS` when those components are not deployed.
@@ -69,7 +70,7 @@ or `DATADOG_INCLUDE_ADAPTER_MONITORS` when those components are not deployed.
 Recommended rollout:
 
 1. Deploy with `DATADOG_MONITORS_DRAFT=true` (or leave published defaults if you accept starter thresholds).
-2. Baseline 1–2 weeks; tune latency, CB, and limiter thresholds in Datadog.
+2. Baseline 1–2 weeks; tune 5xx count, TTFT, and circuit-breaker thresholds in Datadog.
 3. Publish monitors (`DATADOG_MONITORS_DRAFT=false`).
 4. Enable `DATADOG_SLOS_ENABLED=true` after monitors are stable.
 
@@ -186,7 +187,7 @@ environment, and search Logs Explorer:
 source:subconscious-gateway env:<DATADOG_ENV> @request_id:<REQUEST_ID>
 ```
 
-From a 5xx metric or `GatewayErrorBudgetBurnPage` / `GatewayHighErrorRatio`,
+From a 5xx metric or the "Too many gateway 5xx responses" monitor,
 use the metric tags. The managed JSON pipeline copies them onto
 `gateway.request.completed` as log tags (APM is not required):
 
@@ -306,7 +307,7 @@ signals:
 | `DATADOG_LLM_OBS_ENABLED` | Default `false`. Requires APM |
 | `DATADOG_ENV` | Env facet for titles, monitors, pipelines |
 | `DATADOG_SITE` | e.g. `datadoghq.com`, `us5.datadoghq.com` |
-| `DATADOG_MONITOR_NOTIFICATION` | Inserts into every monitor message |
+| `DATADOG_MONITOR_NOTIFICATION` | Inserts into page-severity monitor messages only |
 | `DATADOG_DASHBOARD_TAGS` | Default `team:api-gateway` |
 | `DATADOG_RESOURCE_TAGS` | Extra monitor tags |
 | `DATADOG_SLOS_ENABLED` | Managed availability + TTFT SLOs |
