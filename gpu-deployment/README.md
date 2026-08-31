@@ -60,7 +60,10 @@ official k3s API, pod, and service-network rules plus TCP NodePorts
 selected profile uses different ports. On enforcing SELinux hosts, it also
 persists `container_file_t` labels for `/models/hf` and
 `/mnt/glm-5.2-nvfp4`; override the colon-separated paths with
-`MODEL_STORAGE_PATHS` when using custom model locations.
+`MODEL_STORAGE_PATHS` when using custom model locations. Rocky/RHEL 8 commonly
+boots with cgroup v1; the installer detects that filesystem and persists the
+kubelet's temporary `failCgroupV1=false` compatibility setting so k3s can start
+without a host reboot. Prefer cgroup v2 for future OS images.
 
 It may reboot for NVIDIA drivers. Return to the same directory and run
 `./install.sh` again after reboot. The script should print `Install finished.`

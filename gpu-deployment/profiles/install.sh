@@ -346,13 +346,24 @@ configure_rpm_firewalld() {
   run_as_root firewall-cmd --reload
 }
 
+configure_k3s_cgroup_compat() {
+  local cgroup_fs
+  cgroup_fs="$(stat -fc %T /sys/fs/cgroup)"
+  [[ "$cgroup_fs" == "tmpfs" ]] || return
+
+  log "cgroup v1 detected; allowing the kubelet compatibility mode"
+  run_as_root mkdir -p /etc/rancher/k3s/config.yaml.d
+  printf '%s\n' \
+    'kubelet-arg:' \
+    '  - fail-cgroupv1=false' |
+    run_as_root tee /etc/rancher/k3s/config.yaml.d/80-cgroup-v1.yaml >/dev/null
+}
+
 ensure_k3s() {
   if have k3s; then
     log "k3s already installed"
-    if have systemctl && ! systemctl is-active --quiet k3s; then
-      log "starting k3s"
-      run_as_root systemctl start k3s
-    fi
+    log "restarting k3s to apply host configuration"
+    run_as_root systemctl restart k3s
     return
   fi
   log "installing k3s"
@@ -530,6 +541,7 @@ configure_rpm_model_selinux
 ensure_nvidia_drivers
 ensure_nvidia_container_toolkit
 configure_rpm_firewalld
+configure_k3s_cgroup_compat
 ensure_k3s
 wait_k3s_api
 ensure_kubectl
