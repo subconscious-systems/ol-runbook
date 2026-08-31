@@ -115,8 +115,8 @@ worker:
       enabled: false
     hostPath:
       enabled: true
-      path: /mnt
-      mountPath: /mnt
+      path: /mnt/glm-5.2-nvfp4
+      mountPath: /mnt/glm-5.2-nvfp4
       type: Directory
       readOnly: true
 

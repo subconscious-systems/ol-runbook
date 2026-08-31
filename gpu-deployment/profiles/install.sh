@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap a GPU host for SGLang workers on Debian or Ubuntu:
+# Bootstrap a GPU host for SGLang workers on Debian, Ubuntu, Rocky, or RHEL:
 #   packages → NVIDIA drivers (if needed) → container toolkit → k3s → kubectl →
 #   NVIDIA RuntimeClass + device plugin.
 #
@@ -15,15 +15,20 @@
 #   K3S_VERSION=                  # empty = get.k3s.io default
 #   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml
 #   GPU_READY_TIMEOUT_SECONDS=180
+#   K3S_FIREWALL_NODEPORTS=30001-30006  # Rocky/RHEL firewalld only
+#   MODEL_STORAGE_PATHS=/models/hf:/mnt/glm-5.2-nvfp4
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKIP_NVIDIA_DRIVERS="${SKIP_NVIDIA_DRIVERS:-false}"
 K3S_VERSION="${K3S_VERSION:-}"
 K3S_KUBECONFIG_SOURCE="${K3S_KUBECONFIG_SOURCE:-/etc/rancher/k3s/k3s.yaml}"
 NVIDIA_DEVICE_PLUGIN_URL="${NVIDIA_DEVICE_PLUGIN_URL:-https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml}"
 GPU_READY_TIMEOUT_SECONDS="${GPU_READY_TIMEOUT_SECONDS:-180}"
 NAMESPACE="${NAMESPACE:-sglang}"
+K3S_FIREWALL_NODEPORTS="${K3S_FIREWALL_NODEPORTS:-30001-30006}"
+K3S_POD_CIDR="${K3S_POD_CIDR:-10.42.0.0/16}"
+K3S_SERVICE_CIDR="${K3S_SERVICE_CIDR:-10.43.0.0/16}"
+MODEL_STORAGE_PATHS="${MODEL_STORAGE_PATHS:-/models/hf:/mnt/glm-5.2-nvfp4}"
 
 log() { printf '[dep] %s\n' "$*"; }
 die() { printf '[dep] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -42,7 +47,7 @@ with ./weights.sh.
 EOF
 }
 
-while (($#)); do
+if (($#)); then
   case "$1" in
     -h|--help)
       usage
@@ -54,17 +59,26 @@ while (($#)); do
       exit 1
       ;;
   esac
-  shift
-done
+fi
 
 if [[ ! -r /etc/os-release ]]; then
-  die "requires Debian/Ubuntu with /etc/os-release"
+  die "requires a supported Linux distribution with /etc/os-release"
 fi
 # shellcheck disable=SC1091
 source /etc/os-release
-if [[ ! "${ID:-}" =~ ^(debian|ubuntu)$ ]] || ! have apt-get; then
-  die "supports Debian/Ubuntu with apt only (found ${PRETTY_NAME:-unknown})"
-fi
+case "${ID:-}" in
+  debian | ubuntu)
+    have apt-get || die "apt-get is required on ${PRETTY_NAME:-Debian/Ubuntu}"
+    PACKAGE_FAMILY=deb
+    ;;
+  rocky | rhel | centos | almalinux)
+    have dnf || die "dnf is required on ${PRETTY_NAME:-Rocky/RHEL}"
+    PACKAGE_FAMILY=rpm
+    ;;
+  *)
+    die "supports Debian, Ubuntu, Rocky, RHEL, CentOS, and AlmaLinux (found ${PRETTY_NAME:-unknown})"
+    ;;
+esac
 
 if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
   SUDO=()
@@ -98,6 +112,7 @@ kubectl_cmd() {
 }
 
 cat <<EOF
+[dep] Host: ${PRETTY_NAME:-unknown} (${PACKAGE_FAMILY})
 [dep] Will ensure:
   1. Base packages (curl, ca-certificates, gnupg, docker, Python venv)
   2. NVIDIA host drivers (if nvidia-smi is missing; may require a reboot)
@@ -110,8 +125,22 @@ EOF
 
 ensure_base_packages() {
   log "installing base packages"
-  run_as_root apt-get update
-  run_as_root apt-get install -y ca-certificates curl gnupg docker.io python3 python3-venv
+  if [[ "$PACKAGE_FAMILY" == "deb" ]]; then
+    run_as_root apt-get update
+    run_as_root apt-get install -y ca-certificates curl gnupg docker.io python3 python3-venv
+  else
+    run_as_root dnf install -y \
+      ca-certificates curl dnf-plugins-core gnupg2 python3-pip \
+      container-selinux policycoreutils-python-utils selinux-policy-targeted
+    have python3 || die "the installed Rocky/RHEL Python packages did not provide python3"
+    if ! have docker; then
+      log "installing Docker CE"
+      run_as_root dnf config-manager --add-repo \
+        https://download.docker.com/linux/centos/docker-ce.repo
+      run_as_root dnf install -y \
+        docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    fi
+  fi
   run_as_root systemctl enable --now docker || true
   if [[ -n "${TARGET_USER}" ]] && id "${TARGET_USER}" >/dev/null 2>&1; then
     if ! id -nG "${TARGET_USER}" | tr ' ' '\n' | grep -qx docker; then
@@ -121,12 +150,43 @@ ensure_base_packages() {
   fi
 }
 
-ensure_default_model_storage() {
-  log "ensuring default model storage at /models/hf"
-  run_as_root install -d -m 0755 /models/hf
-  if [[ -n "${TARGET_USER}" ]] && id "${TARGET_USER}" >/dev/null 2>&1; then
-    run_as_root chown "${TARGET_USER}" /models/hf
-  fi
+ensure_model_storage() {
+  local model_path
+  local -a model_paths
+  IFS=: read -r -a model_paths <<<"$MODEL_STORAGE_PATHS"
+  ((${#model_paths[@]} > 0)) || die "MODEL_STORAGE_PATHS must contain at least one absolute path"
+
+  for model_path in "${model_paths[@]}"; do
+    [[ "$model_path" == /* && "$model_path" != "/" ]] ||
+      die "MODEL_STORAGE_PATHS entries must be absolute non-root paths"
+    log "ensuring model storage at ${model_path}"
+    if [[ ! -d "$model_path" ]]; then
+      run_as_root install -d -m 0755 "$model_path"
+      if [[ -n "${TARGET_USER}" ]] && id "${TARGET_USER}" >/dev/null 2>&1; then
+        run_as_root chown "${TARGET_USER}" "$model_path"
+      fi
+    fi
+  done
+}
+
+configure_rpm_model_selinux() {
+  [[ "$PACKAGE_FAMILY" == "rpm" ]] || return
+  have getenforce || return
+  [[ "$(getenforce)" != "Disabled" ]] || return
+  have semanage || die "semanage is required to label model storage for SELinux"
+  have restorecon || die "restorecon is required to label model storage for SELinux"
+
+  local model_path pattern
+  local -a model_paths
+  IFS=: read -r -a model_paths <<<"$MODEL_STORAGE_PATHS"
+  for model_path in "${model_paths[@]}"; do
+    pattern="${model_path}(/.*)?"
+    log "allowing container read access to ${model_path} under SELinux"
+    if ! run_as_root semanage fcontext -a -t container_file_t "$pattern"; then
+      run_as_root semanage fcontext -m -t container_file_t "$pattern"
+    fi
+    run_as_root restorecon -RF "$model_path"
+  done
 }
 
 CUDA_INSTALLER_URL="${CUDA_INSTALLER_URL:-https://storage.googleapis.com/compute-gpu-installation-us/installer/latest/cuda_installer.pyz}"
@@ -163,6 +223,10 @@ ensure_nvidia_drivers() {
     log "nvidia-smi OK — skipping host driver install"
     nvidia-smi -L || true
     return
+  fi
+
+  if [[ "$PACKAGE_FAMILY" == "rpm" ]]; then
+    die "nvidia-smi is missing or broken; install the NVIDIA host driver through the Rocky/RHEL image or vendor-supported driver path, reboot if required, then rerun ./install.sh"
   fi
 
   if [[ "${ID:-}" == "debian" && "${VERSION_ID%%.*}" == "13" ]]; then
@@ -231,13 +295,21 @@ ensure_nvidia_container_toolkit() {
     log "NVIDIA Container Toolkit already installed"
   else
     log "installing NVIDIA Container Toolkit"
-    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey |
-      run_as_root gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-    curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list |
-      sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' |
-      run_as_root tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
-    run_as_root apt-get update
-    run_as_root apt-get install -y nvidia-container-toolkit
+    if [[ "$PACKAGE_FAMILY" == "deb" ]]; then
+      curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey |
+        run_as_root gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+      curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list |
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' |
+        run_as_root tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
+      run_as_root apt-get update
+      run_as_root apt-get install -y nvidia-container-toolkit
+    else
+      curl -fsSL \
+        https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo |
+        run_as_root tee /etc/yum.repos.d/nvidia-container-toolkit.repo >/dev/null
+      run_as_root dnf clean expire-cache
+      run_as_root dnf install -y nvidia-container-toolkit
+    fi
   fi
 
   if have docker; then
@@ -245,6 +317,33 @@ ensure_nvidia_container_toolkit() {
     run_as_root nvidia-ctk runtime configure --runtime=docker
     run_as_root systemctl restart docker
   fi
+}
+
+configure_rpm_firewalld() {
+  [[ "$PACKAGE_FAMILY" == "rpm" ]] || return
+  have firewall-cmd || return
+  systemctl is-active --quiet firewalld || return
+
+  local first_port last_port
+  if [[ "$K3S_FIREWALL_NODEPORTS" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+    first_port="${BASH_REMATCH[1]}"
+    last_port="${BASH_REMATCH[2]}"
+  elif [[ "$K3S_FIREWALL_NODEPORTS" =~ ^[0-9]+$ ]]; then
+    first_port="$K3S_FIREWALL_NODEPORTS"
+    last_port="$K3S_FIREWALL_NODEPORTS"
+  else
+    die "K3S_FIREWALL_NODEPORTS must be one port or a range such as 30001-30006"
+  fi
+  if (( first_port < 30000 || last_port > 32767 || first_port > last_port )); then
+    die "K3S_FIREWALL_NODEPORTS must stay within the Kubernetes NodePort range 30000-32767"
+  fi
+
+  log "configuring firewalld for k3s and NodePorts ${K3S_FIREWALL_NODEPORTS}"
+  run_as_root firewall-cmd --permanent --add-port=6443/tcp
+  run_as_root firewall-cmd --permanent --zone=trusted --add-source="$K3S_POD_CIDR"
+  run_as_root firewall-cmd --permanent --zone=trusted --add-source="$K3S_SERVICE_CIDR"
+  run_as_root firewall-cmd --permanent --add-port="${K3S_FIREWALL_NODEPORTS}/tcp"
+  run_as_root firewall-cmd --reload
 }
 
 ensure_k3s() {
@@ -257,7 +356,11 @@ ensure_k3s() {
     return
   fi
   log "installing k3s"
-  local env_args=(INSTALL_K3S_EXEC="--write-kubeconfig-mode 644")
+  local k3s_exec="--write-kubeconfig-mode 644"
+  if [[ "$PACKAGE_FAMILY" == "rpm" ]]; then
+    k3s_exec+=" --selinux"
+  fi
+  local env_args=(INSTALL_K3S_EXEC="$k3s_exec")
   if [[ -n "${K3S_VERSION}" ]]; then
     env_args+=(INSTALL_K3S_VERSION="${K3S_VERSION}")
   fi
@@ -422,9 +525,11 @@ ensure_deployment_namespace() {
 }
 
 ensure_base_packages
-ensure_default_model_storage
+ensure_model_storage
+configure_rpm_model_selinux
 ensure_nvidia_drivers
 ensure_nvidia_container_toolkit
+configure_rpm_firewalld
 ensure_k3s
 wait_k3s_api
 ensure_kubectl
