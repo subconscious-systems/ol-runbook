@@ -140,7 +140,7 @@ Keep each Distr deployment name at most 32 characters:
 
 ## Next steps
 
-1. [instructions.md](instructions.md) — AWS-aligned end-to-end checklist
+1. [instructions.md](instructions.md) — one-command guided installer and detailed checklist
 2. [bootstrap/](bootstrap/) — project and private Docker-agent VM
 3. [sample-gateway-infra.env](sample-gateway-infra.env) — Hub environment
 4. [gateway-secrets.md](gateway-secrets.md) — Secret Manager, ESO, and WIF

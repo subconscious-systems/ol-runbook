@@ -16,7 +16,36 @@ The Google-specific differences are project creation, user + ADC login, a
 private IAP/OS Login host, automatic first-state migration to GCS, shared Cloud
 DNS project IAM, and the IAM-protected GKE DNS endpoint.
 
-## Checklist
+## Interactive installer (recommended)
+
+After cloning this runbook, start the production installer with one command:
+
+```bash
+cd ol-runbook/api-gateway/gcp/bootstrap
+./scripts/install.sh
+```
+
+The CLI presents nine numbered steps. It runs tool installation, Google login,
+Terraform bootstrap, agent connection, and optional smoke checks through the
+existing reviewed scripts. At the required Distr Hub actions it prints the
+exact fields to set, pauses, and waits for confirmation. Connect URLs and the
+Hub Kubernetes command are read with terminal echo disabled and are never
+written to disk. The CLI reads the applied bootstrap Terraform outputs and
+creates an ignored `.generated/gateway-infra.env` containing Hub Secret
+references and the production values ready to paste into Distr.
+
+Useful commands:
+
+```bash
+./scripts/install.sh --check          # offline local contract check
+./scripts/install.sh --list-steps     # preview the workflow
+./scripts/install.sh --from-step 5    # resume after completed steps 1-4
+```
+
+The CLI deliberately does not call the Distr API or store cloud/application
+credentials. The detailed checklist below is the reference behind each prompt.
+
+## Detailed checklist
 
 ### 1. FDE: Vendor portal entitlements
 
@@ -97,8 +126,8 @@ Do not add Google access keys or a service-account JSON file to Hub.
 ### 6. Admin: api-gateway-infra Docker deployment
 
 - Create the `api-gateway-infra` Docker deployment in Hub.
-- Paste [sample-gateway-infra.env](sample-gateway-infra.env), adapting names,
-  project, DNS, CIDR, routes, and optional Datadog/dashboard settings.
+- When using the CLI, paste `.generated/gateway-infra.env`. For a manual
+  install, adapt [sample-gateway-infra.env](sample-gateway-infra.env).
 - Keep `GATEWAY_AUTO_DEPLOY=false` for the first deployment.
 - Keep `DISTR_DRY_RUN=0` for the normal installation.
 - Leave `GATEWAY_LOG_LEVEL=WARN` unless request-completion logs are required.

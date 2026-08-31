@@ -7,6 +7,21 @@ and no long-lived cloud access key is stored in Distr Hub.
 
 End-to-end source of truth: [../instructions.md](../instructions.md).
 
+## Recommended install command
+
+```bash
+./scripts/install.sh
+```
+
+This interactive CLI walks through the complete production install, delegates
+to the scripts documented below, and pauses for the required Distr Hub actions.
+Use `--list-steps` to preview it, `--check` for an offline contract check, or
+`--from-step N` to resume without repeating completed cloud operations. It does
+not persist connect URLs or resolved secrets. It generates the ignored
+`../.generated/gateway-infra.env` from Terraform outputs and prompted production
+values so the Hub environment can be pasted without manually reconciling the
+sample.
+
 ## What the one bootstrap command does
 
 ```bash
@@ -63,6 +78,7 @@ VM only executes kubectl through IAP using the GKE DNS endpoint.
 
 | Path | Role |
 | --- | --- |
+| `scripts/install.sh` | Guided end-to-end production install and resume checkpoints |
 | `scripts/install-gcloud.sh` | Install/check local gcloud and the GKE auth plugin |
 | `scripts/bootstrap.sh` | One-command project/VM bootstrap, state migration, preflight, and host repair |
 | `scripts/setup-gcloud.sh` | Human user and ADC login |

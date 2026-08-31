@@ -48,6 +48,7 @@ for script in \
   "${SCRIPTS_DIR}/bootstrap.sh" \
   "${SCRIPTS_DIR}/connect.sh" \
   "${SCRIPTS_DIR}/connect-k8s-agent.sh" \
+  "${SCRIPTS_DIR}/install.sh" \
   "${SCRIPTS_DIR}/install-gcloud.sh" \
   "${SCRIPTS_DIR}/migrate-state.sh" \
   "${SCRIPTS_DIR}/preflight.sh" \
@@ -136,6 +137,8 @@ grep -Fq 'CONNECT_URL="$1"' "${SCRIPTS_DIR}/run-agent.sh"
 grep -Fq 'HUB_LINE="$2"' "${SCRIPTS_DIR}/connect-k8s-agent.sh"
 grep -Fq '"${SCRIPT_DIR}/migrate-state.sh" --yes' \
   "${SCRIPTS_DIR}/bootstrap.sh"
+git -C "${RUNBOOK_DIR}" check-ignore -q \
+  api-gateway/gcp/.generated/gateway-infra.env
 
 legacy_environment_label='sand''box'
 if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_environment_label}" \
