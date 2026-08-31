@@ -13,14 +13,18 @@ End-to-end source of truth: [../instructions.md](../instructions.md).
 ./scripts/install.sh
 ```
 
-This interactive CLI walks through the complete production install, delegates
-to the scripts documented below, and pauses for the required Distr Hub actions.
+This interactive CLI walks through the complete production install, explains
+where every Google ID, Hub Secret, provider value, and agent command comes from,
+delegates to the scripts documented below, and pauses for the required Distr
+Hub actions. All customer-specific Distr environment variables and Secret
+references are collected in one dedicated step.
 Use `--list-steps` to preview it, `--check` for an offline contract check, or
 `--from-step N` to resume without repeating completed cloud operations. It does
 not persist connect URLs or resolved secrets. It generates the ignored
-`../.generated/gateway-infra.env` from Terraform outputs and prompted production
-values so the Hub environment can be pasted without manually reconciling the
-sample.
+`../.generated/gateway-infra.env` and
+`../.generated/gateway-infra-auto-deploy.env` from the same Terraform outputs
+and prompted production values. The first is pasted for the foundation pass;
+the second is already prepared for the gateway auto-deploy pass.
 
 ## What the one bootstrap command does
 
@@ -63,16 +67,16 @@ for an already-approved non-interactive recovery run.
 These intentionally match the AWS command shape:
 
 ```bash
-./scripts/run-agent.sh \
-  'https://app.distr.sh/api/v1/connect?targetId=…&targetSecret=…'
+./scripts/run-agent.sh
 
-./scripts/connect-k8s-agent.sh \
-  <INFRA_DEPLOY_NAME> \
-  'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
+./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME>
 ```
 
-The Docker agent runs on the VM. The Kubernetes agent runs as pods in GKE; the
-VM only executes kubectl through IAP using the GKE DNS endpoint.
+Each command securely prompts for the corresponding one-time Hub credential
+with terminal echo disabled. The credential travels over stdin/IAP and is not
+placed in shell history, a process argument, or a file. The Docker agent runs
+on the VM. The Kubernetes agent runs as pods in GKE; the VM only executes
+kubectl through IAP using the GKE DNS endpoint.
 
 ## Layout
 

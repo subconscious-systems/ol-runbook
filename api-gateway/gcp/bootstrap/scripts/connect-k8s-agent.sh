@@ -9,13 +9,14 @@ source "${SCRIPT_DIR}/lib.sh"
 usage() {
   cat >&2 <<'EOF'
 usage:
-  ./scripts/connect-k8s-agent.sh \
-    <INFRA_DEPLOY_NAME> \
-    'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
+  ./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME>
+  ./scripts/connect-k8s-agent.sh --stdin <INFRA_DEPLOY_NAME>
 
 The cluster name is derived as <INFRA_DEPLOY_NAME>-gke. Paste the full Hub
 Kubernetes-agent command; its namespace must be the gateway deployment and
-Helm release name.
+Helm release name. The no-option form prompts with echo disabled; --stdin is
+for the guided installer. The legacy two-argument form is accepted but is not
+recommended because targetSecret may appear in process lists.
 EOF
 }
 
@@ -23,13 +24,34 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
   exit 0
 fi
-if [[ $# -ne 2 ]]; then
-  usage
-  exit 2
-fi
-
-INFRA_DEPLOY_NAME="$1"
-HUB_LINE="$2"
+INFRA_DEPLOY_NAME=""
+HUB_LINE=""
+case "$#" in
+  1)
+    INFRA_DEPLOY_NAME="$1"
+    [[ -t 0 ]] || {
+      printf 'ERROR: interactive input requires a terminal; use --stdin\n' >&2
+      exit 2
+    }
+    printf 'Paste the complete Hub kubectl apply command (input hidden): '
+    read -r -s HUB_LINE
+    printf '\n'
+    ;;
+  2)
+    if [[ "$1" == "--stdin" ]]; then
+      INFRA_DEPLOY_NAME="$2"
+      IFS= read -r HUB_LINE
+    else
+      INFRA_DEPLOY_NAME="$1"
+      HUB_LINE="$2"
+      printf 'WARNING: command arguments may expose targetSecret; use the secure prompt\n' >&2
+    fi
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+esac
 
 bootstrap_assert_dns1123 "${INFRA_DEPLOY_NAME}" "INFRA_DEPLOY_NAME"
 CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"
@@ -48,6 +70,11 @@ CONNECT_URL="${BASH_REMATCH[1]}"
 
 if [[ ! "${CONNECT_URL}" =~ ^https://app\.distr\.sh/api/v1/connect\?[^[:space:]]+$ ]]; then
   printf 'ERROR: expected an https://app.distr.sh/api/v1/connect URL\n' >&2
+  exit 2
+fi
+if [[ "${CONNECT_URL}" == *\"* || "${CONNECT_URL}" == *\'* \
+  || "${CONNECT_URL}" == *\\* ]]; then
+  printf 'ERROR: connect URL contains an unsafe quote or backslash\n' >&2
   exit 2
 fi
 
@@ -83,7 +110,9 @@ esac
 
 kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 \
   || kubectl create namespace "${NAMESPACE}"
-kubectl apply -n "${NAMESPACE}" -f "${CONNECT_URL}"
+curl --proto "=https" --tlsv1.2 -fsSL \
+  --config <(printf 'url = "%s"\n' "${CONNECT_URL}") \
+  | kubectl apply -n "${NAMESPACE}" -f -
 kubectl -n "${NAMESPACE}" rollout status deployment/distr-agent --timeout=5m
 kubectl -n "${NAMESPACE}" get pods,deploy
 REMOTE

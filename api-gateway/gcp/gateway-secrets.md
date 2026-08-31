@@ -132,11 +132,16 @@ Create the same masked Hub Secrets used by the AWS workflow:
 
 | Hub secret | Used by |
 | --- | --- |
-| `DISTR_TOKEN` | Infra runner customer PAT |
-| `DD_API_KEY` | Optional Datadog integration |
-| `DD_APP_KEY` | Optional Datadog integration |
-| `GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Optional initial dashboard admin |
-| `GCP_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Optional GCP deployment OIDC client |
+| `DISTR_TOKEN` | Required infra-runner PAT created in the customer Distr account; never use a vendor publish token. |
+| `DD_API_KEY` | Required only when Datadog is enabled; create in the customer's Datadog organization/site. |
+| `DD_APP_KEY` | Required only when Datadog is enabled; dedicated application key with the documented GCP/Terraform permissions. |
+| `<GW>_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Required for day-0 login; unique 20+ character password generated and retained in the customer password manager. |
+| `<GW>_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Required only when OIDC is enabled; client secret copied from the customer's Web OIDC application. |
+| `<GW>_GATEWAY_WEBHOOK_SIGNING_SECRET` | Required only when webhook delivery is enabled; unique 32-byte HMAC secret also configured on the receiver. |
+
+`<GW>` is the gateway deployment name converted to uppercase with hyphens
+replaced by underscores; the guided installer prints every exact name and
+inserts only its Hub Secret reference into the generated environment.
 
 Never place these in Hub:
 

@@ -35,8 +35,11 @@ https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configurat
 Hub Secret (masked):
 
 ```text
-{GATEWAY_DISTR_DEPLOYMENT_NAME}_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET
+<GW>_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET
 ```
+
+`<GW>` is `GATEWAY_DISTR_DEPLOYMENT_NAME` converted to uppercase with hyphens
+replaced by underscores.
 
 Infra Docker env:
 

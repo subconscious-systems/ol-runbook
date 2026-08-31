@@ -22,7 +22,7 @@ Copy-paste (from `api-gateway/gcp/bootstrap`):
 Example:
 
 ```bash
-./scripts/teardown-platform.sh --yes acme-api-gateway-infra acme-api-gateway
+./scripts/teardown-platform.sh --yes example-api-gateway-infra example-api-gateway
 ```
 
 | Arg | Meaning |

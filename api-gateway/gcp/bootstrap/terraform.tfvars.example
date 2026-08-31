@@ -9,15 +9,15 @@ billing_account_id = "000000-000000-000000"
 
 # Optional existing project used to bill client-based API quota while the
 # production project is being created. Leave empty if ADC already has one.
-quota_project_id = "acme-platform-admin"
+quota_project_id = "example-platform-admin"
 
 # One production project per installation.
-project_id   = "acme-gateway-prod"
-project_name = "Acme Gateway Production"
+project_id   = "example-gateway-prod"
+project_name = "Example Gateway Production"
 
 # Existing project that owns the public zone used by DOMAIN_NAME. The bootstrap
 # plan grants only roles/dns.admin to the keyless platform service account here.
-dns_project_id = "acme-shared-dns"
+dns_project_id = "example-shared-dns"
 
 # Alerts are sent to default billing-account/project recipients. These are not
 # hard caps; replace with approved Calculator-based whole-dollar amounts.

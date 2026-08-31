@@ -7,7 +7,7 @@
 #   ./scripts/teardown-platform.sh --yes <INFRA_DEPLOY_NAME> <GATEWAY_DEPLOY_NAME>
 #
 # Example:
-#   ./scripts/teardown-platform.sh --yes acme-api-gateway-infra acme-api-gateway
+#   ./scripts/teardown-platform.sh --yes example-api-gateway-infra example-api-gateway
 #
 # Optional env:
 #   RUNNER_IMAGE   Pin or override the infra runner image (default: discover

@@ -52,13 +52,16 @@ The IdP must release the **email** claim (and preferably `email_verified`).
 
 ## 2. Store the client secret in Distr Hub
 
-Create a Hub Secret (masked), named like:
+Create a Hub Secret (masked). Convert the gateway deployment name to uppercase
+and replace hyphens with underscores before appending the suffix:
 
 ```text
-{GATEWAY_DISTR_DEPLOYMENT_NAME}_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET
+<GW>_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET
 ```
 
-Example: `acme-api-gateway_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET`.
+Example for `GATEWAY_DISTR_DEPLOYMENT_NAME=example-api-gateway`:
+`EXAMPLE_API_GATEWAY_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET`. This produces a Hub
+Secret name that is safe to reference from the Distr environment template.
 
 Reference it from the infra Docker env (see
 [aws/sample-gateway-infra.env](aws/sample-gateway-infra.env) and

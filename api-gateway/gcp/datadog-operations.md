@@ -54,7 +54,7 @@ mutation if the required Datadog identity is absent.
 Create one dedicated integration service account per project, for example:
 
 ```text
-datadog-integration@acme-gateway-prod.iam.gserviceaccount.com
+datadog-integration@example-gateway-prod.iam.gserviceaccount.com
 ```
 
 The released infra Terraform should create the Datadog V2 GCP STS integration,

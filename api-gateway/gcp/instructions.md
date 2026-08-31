@@ -25,14 +25,20 @@ cd ol-runbook/api-gateway/gcp/bootstrap
 ./scripts/install.sh
 ```
 
-The CLI presents nine numbered steps. It runs tool installation, Google login,
+The CLI presents ten numbered steps. It runs tool installation, Google login,
 Terraform bootstrap, agent connection, and optional smoke checks through the
-existing reviewed scripts. At the required Distr Hub actions it prints the
-exact fields to set, pauses, and waits for confirmation. Connect URLs and the
-Hub Kubernetes command are read with terminal echo disabled and are never
-written to disk. The CLI reads the applied bootstrap Terraform outputs and
-creates an ignored `.generated/gateway-infra.env` containing Hub Secret
-references and the production values ready to paste into Distr.
+existing reviewed scripts. Before each prompt it explains where to obtain the
+value and whether it is an identifier or a secret. At the required Distr Hub
+actions it prints the exact Secret names and fields to set, then pauses for
+confirmation. Connect URLs and the Hub Kubernetes command are read with
+terminal echo disabled, sent over stdin, and never put in shell history,
+process arguments, or files. The CLI reads the applied bootstrap Terraform
+outputs and uses one dedicated configuration step to create two ignored,
+mode-0600 environments: `.generated/gateway-infra.env` for the first pass and
+`.generated/gateway-infra-auto-deploy.env` for the second pass. They contain
+Hub Secret references and production values ready to paste into Distr. The
+second differs only by enabling gateway auto-deploy. Resolved PATs, passwords,
+and API keys never enter either file.
 
 Useful commands:
 
@@ -109,25 +115,37 @@ host. Re-running it is idempotent. The VM has no public IP; access uses IAP and
 OS Login. Authentication uses a human Google identity and Application Default
 Credentials; it never creates or downloads a service-account key.
 
-### 5. Admin: Distr Hub Secrets
+### 5. Admin: Configure all Distr variables and Hub Secrets
+
+The guided installer performs all customer-specific Distr environment setup in
+this one step. It prompts for deployment names, DNS, CIDR, provider suffixes,
+gateway version, Datadog, dashboard identity, optional OIDC, and optional
+webhook delivery. It then renders both rollout environments from the same
+validated inputs. Later steps apply the prepared files; they do not invent new
+environment values.
 
 Create the same Hub Secrets used by the AWS install:
 
 | Hub secret key | Notes |
 | --- | --- |
-| `DISTR_TOKEN` | Customer PAT |
-| `DD_API_KEY` | Required when Datadog is enabled |
-| `DD_APP_KEY` | Required when Datadog is enabled |
-| `GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Optional initial admin; 12+ characters |
-| `GCP_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Optional when OIDC is enabled |
+| `DISTR_TOKEN` | Required. Customer PAT from the customer Distr account—not a vendor publish token. |
+| `DD_API_KEY` | Required only when Datadog is enabled; create in that customer's Datadog organization/site. |
+| `DD_APP_KEY` | Required only when Datadog is enabled; use a dedicated application key with the permissions in [datadog-operations.md](datadog-operations.md). |
+| `<GW>_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD` | Required for day-0. Generate 20+ random characters in the customer password manager. `<GW>` is the uppercase/underscore gateway deployment name printed by the CLI. |
+| `<GW>_GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET` | Required only when OIDC is enabled; copy from the Okta/Entra Web OIDC application. |
+| `<GW>_GATEWAY_WEBHOOK_SIGNING_SECRET` | Required only when webhook delivery is enabled; generate a unique 32-byte HMAC secret and set the same value on the approved receiver. |
 
-Do not add Google access keys or a service-account JSON file to Hub.
+Paste resolved values only into Hub's masked Secret value fields. The generated
+environment contains references to those Secret names. Do not add Google access
+keys, ADC, or a service-account JSON file to Hub.
 
 ### 6. Admin: api-gateway-infra Docker deployment
 
 - Create the `api-gateway-infra` Docker deployment in Hub.
-- When using the CLI, paste `.generated/gateway-infra.env`. For a manual
-  install, adapt [sample-gateway-infra.env](sample-gateway-infra.env).
+- Paste `.generated/gateway-infra.env` for the first pass. The installer has
+  already prepared `.generated/gateway-infra-auto-deploy.env` for the second
+  pass. For a manual install, adapt
+  [sample-gateway-infra.env](sample-gateway-infra.env).
 - Keep `GATEWAY_AUTO_DEPLOY=false` for the first deployment.
 - Keep `DISTR_DRY_RUN=0` for the normal installation.
 - Leave `GATEWAY_LOG_LEVEL=WARN` unless request-completion logs are required.
@@ -143,8 +161,7 @@ message are a hard stop.
 
 ```bash
 cd api-gateway/gcp/bootstrap
-./scripts/run-agent.sh \
-  'https://app.distr.sh/api/v1/connect?targetId=…&targetSecret=…'
+./scripts/run-agent.sh
 ```
 
 Trigger the first infra deployment. As on AWS, the runner creates the complete
@@ -168,19 +185,20 @@ Do not continue until the Docker target is healthy and GKE exists.
 
 ```bash
 cd api-gateway/gcp/bootstrap
-./scripts/connect-k8s-agent.sh \
-  <INFRA_DEPLOY_NAME> \
-  'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
+./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME>
 ```
 
-The script runs kubectl on the private bootstrap VM through IAP and uses only
-the GKE DNS endpoint. Agent pods run in GKE, not on the VM.
+Both scripts prompt with terminal echo disabled so the `targetSecret` does not
+enter shell history or a process argument. The Kubernetes script runs kubectl
+on the private bootstrap VM through IAP and uses only the GKE DNS endpoint.
+Agent pods run in GKE, not on the VM.
 
 ### 10. Admin: Second infra deploy (gateway auto-deploy)
 
-- Set `GATEWAY_AUTO_DEPLOY=true`.
-- Select `GATEWAY_CHART_VERSION=latest`, `nochange`, or an approved version
-  name using the same rules as AWS.
+- Replace the infra deployment Environment with the complete
+  `.generated/gateway-infra-auto-deploy.env` prepared in step 5.
+- Confirm its only rollout change is `GATEWAY_AUTO_DEPLOY=true` and its
+  `GATEWAY_CHART_VERSION` is the version selected in that configuration step.
 - Trigger the second `api-gateway-infra` deployment.
 
 The runner reapplies Terraform idempotently, regenerates Helm values, ensures

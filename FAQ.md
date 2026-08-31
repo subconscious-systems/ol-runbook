@@ -29,7 +29,7 @@ Use a short readable slug and keep the Distr deployment names consistent:
 | Helm release name | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
 | Hub Kubernetes target (optional `GATEWAY_DISTR_PORTAL_NAME`) | same as cluster identity unless the Hub target was renamed |
 
-Example: slug `acme` → infra `acme-api-gateway-infra`, gateway/namespace/release `acme-api-gateway`.
+Example: slug `example` → infra `example-api-gateway-infra`, gateway/namespace/release `example-api-gateway`.
 
 It is rare to need more than one deployment of the infra package or the api-gateway chart. If you do, use a different readable slug for each stack. The same rule applies to the public hostname where the api-gateway dashboard is hosted (`DOMAIN_NAME`): each deploy needs its own unique hostname.
 

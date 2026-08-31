@@ -89,7 +89,11 @@ for line in "${required_env_lines[@]}"; do
   }
 done
 
-for secret_ref in DISTR_TOKEN DD_API_KEY DD_APP_KEY GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD; do
+for secret_ref in \
+  DISTR_TOKEN \
+  DD_API_KEY \
+  DD_APP_KEY \
+  EXAMPLE_PROD_GATEWAY_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD; do
   grep -Fq "{{.Secrets.${secret_ref}}}" "${SAMPLE_ENV}" || {
     printf 'ERROR: GCP sample does not match the AWS Hub secret contract: %s\n' \
       "${secret_ref}" >&2
@@ -131,19 +135,34 @@ grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
   "${SCRIPTS_DIR}/connect.sh"
 grep -Fq 'CLUSTER_NAME=%q' \
   "${SCRIPTS_DIR}/rotate-app-secret.sh"
-# AWS-aligned day-0 CLI: URL as the Docker-agent argument and full Hub command
-# as the second Kubernetes-agent argument.
-grep -Fq 'CONNECT_URL="$1"' "${SCRIPTS_DIR}/run-agent.sh"
-grep -Fq 'HUB_LINE="$2"' "${SCRIPTS_DIR}/connect-k8s-agent.sh"
+# The guided path reads one-time targetSecret material over stdin so it does
+# not appear in shell history or child-process arguments.
+grep -Fq 'IFS= read -r CONNECT_URL' "${SCRIPTS_DIR}/run-agent.sh"
+grep -Fq 'IFS= read -r HUB_LINE' "${SCRIPTS_DIR}/connect-k8s-agent.sh"
+grep -Fq 'run-agent.sh" --stdin' "${SCRIPTS_DIR}/install.sh"
+grep -Fq 'connect-k8s-agent.sh" --stdin' "${SCRIPTS_DIR}/install.sh"
 grep -Fq '"${SCRIPT_DIR}/migrate-state.sh" --yes' \
   "${SCRIPTS_DIR}/bootstrap.sh"
 git -C "${RUNBOOK_DIR}" check-ignore -q \
   api-gateway/gcp/.generated/gateway-infra.env
+git -C "${RUNBOOK_DIR}" check-ignore -q \
+  api-gateway/gcp/.generated/gateway-infra-auto-deploy.env
+grep -Fq 'GENERATED_AUTO_DEPLOY_ENV=' "${SCRIPTS_DIR}/install.sh"
+grep -Fq 'GATEWAY_AUTO_DEPLOY=true' "${SCRIPTS_DIR}/install.sh"
 
 legacy_environment_label='sand''box'
 if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_environment_label}" \
   -- api-gateway/gcp; then
   printf 'ERROR: legacy environment terminology remains in the production-only GCP runbook\n' >&2
+  exit 1
+fi
+legacy_example_brand='ac''me'
+if git -C "${RUNBOOK_DIR}" grep -qi "${legacy_example_brand}" -- \
+  api-gateway/gcp \
+  api-gateway/sso-okta.md \
+  api-gateway/sso-entra.md \
+  FAQ.md; then
+  printf 'ERROR: legacy customer example remains in the GCP installation surface\n' >&2
   exit 1
 fi
 grep -Fq 'CLUSTER_NAME="${INFRA_DEPLOY_NAME}-gke"' \
