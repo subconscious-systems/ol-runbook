@@ -1,10 +1,14 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
+# Host commands (run from this directory):
+#   ./install.sh
+#   ./weights.sh qwen36-27b-a100-80gb-8gpu.yaml
+#
 # Model: Qwen/Qwen3.6-27B-FP8 | GPU: a100-80gb | GPUs/node: 8 (tp=8)
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model qwen3.6-27b
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard), DD_API_KEY (Datadog Agent)
 # Chart version: 0.10.0+ (digest-pinned worker image + automatic pre-pull)
-# Host bootstrap: ./dependencies.sh
+# Host bootstrap: ./install.sh
 
 images:
   distrPullSecret:
@@ -60,7 +64,7 @@ worker:
       --trust-remote-code
       --disable-custom-all-reduce
   modelDownload:
-    enabled: true
+    enabled: false
     hfRepo: Qwen/Qwen3.6-27B-FP8
     targetPath: /models/hf/Qwen3.6-27B-FP8
   extraEnv:
@@ -92,6 +96,7 @@ worker:
       path: /models/hf
       mountPath: /models/hf
       type: DirectoryOrCreate
+      readOnly: true
 
 models:
   - slug: 27b

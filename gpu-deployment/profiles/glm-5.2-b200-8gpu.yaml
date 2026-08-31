@@ -1,11 +1,15 @@
 # Distr → Deployment → App Config → Helm Values (full replace).
 #
+# Host commands (run from this directory):
+#   ./install.sh
+#   ./weights.sh glm-5.2-b200-8gpu.yaml
+#
 # Models: zai-org/GLM-5.2-FP8 + SubconsciousDev/glm-5.2-fp8-dflash-v2
 # GPU: b200 | GPUs/node: 8 (tp=8)
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model glm-5.2
-# Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY, HF_TOKEN (authenticated downloads)
-# Chart version: 0.13.0+ (multi-model download + dedicated Hugging Face secret)
-# Host bootstrap: ./dependencies.sh
+# Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY
+# Download weights first with: ./weights.sh glm-5.2-b200-8gpu.yaml
+# Host bootstrap: ./install.sh
 
 images:
   distrPullSecret:
@@ -85,16 +89,12 @@ worker:
       --cuda-graph-backend-prefill disabled
       --reasoning-parser glm45
   modelDownload:
-    enabled: true
-    secretRef: model-download-secrets
+    enabled: false
     models:
       - hfRepo: zai-org/GLM-5.2-FP8
         targetPath: /models/hf/GLM-5.2-FP8
       - hfRepo: SubconsciousDev/glm-5.2-fp8-dflash-v2
         targetPath: /models/hf/glm-5.2-fp8-dflash-v2
-    extraEnv:
-      - name: HF_XET_HIGH_PERFORMANCE
-        value: "1"
   extraEnv:
     - name: SGLANG_CACHE_DIR
       value: /opt/sgl-warm-cache/sglang
@@ -144,6 +144,7 @@ worker:
       path: /models/hf
       mountPath: /models/hf
       type: DirectoryOrCreate
+      readOnly: true
 
 models:
   - slug: glm-52
@@ -156,10 +157,7 @@ secrets:
   create: true
   workerSecretName: worker-secrets
   datadogSecretName: datadog-secret
-  modelDownloadSecretName: model-download-secrets
   worker:
     SGLANG_WORKER_API_KEY: "{{.Secrets.WORKER_API_KEY}}"
   datadog:
     DD_API_KEY: "{{.Secrets.DD_API_KEY}}"
-  modelDownload:
-    HF_TOKEN: "{{.Secrets.HF_TOKEN}}"
