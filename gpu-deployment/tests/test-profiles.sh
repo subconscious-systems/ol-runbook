@@ -24,6 +24,9 @@ grep -Fq 'K3S_VERSION="${K3S_VERSION:-v1.36.0+k3s1}"' "${PROFILE_DIR}/install.sh
 grep -Fq 'INSTALL_K3S_VERSION="${K3S_VERSION}"' "${PROFILE_DIR}/install.sh"
 grep -Fq 'NVIDIA/k8s-device-plugin/v0.19.3/' "${PROFILE_DIR}/install.sh"
 # shellcheck disable=SC2016
+grep -Fq '[[ "$PACKAGE_FAMILY" == "rpm" ]] && have getenforce && [[ "$(getenforce)" == "Enforcing" ]]' "${PROFILE_DIR}/install.sh"
+grep -Fq '"privileged":true' "${PROFILE_DIR}/install.sh"
+# shellcheck disable=SC2016
 grep -Fq 'run_as_root "$K3S_BIN" kubectl get --raw=/readyz' "${PROFILE_DIR}/install.sh"
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"

@@ -63,7 +63,10 @@ persists `container_file_t` labels for `/models/hf` and
 `MODEL_STORAGE_PATHS` when using custom model locations. Rocky/RHEL 8 commonly
 boots with cgroup v1; the installer detects that filesystem and persists the
 kubelet's temporary `failCgroupV1=false` compatibility setting so k3s can start
-without a host reboot. Prefer cgroup v2 for future OS images.
+without a host reboot. Prefer cgroup v2 for future OS images. When SELinux is
+enforcing on an RPM-family host, the installer runs only the NVIDIA device-
+plugin DaemonSet as privileged so it can connect to the k3s kubelet registration
+socket. Worker pods are not made privileged.
 
 The installer pins k3s to `v1.36.0+k3s1` (containerd `v2.2.3-k3s1`) so large
 private-registry image pulls are not subject to the response-header cutoff in

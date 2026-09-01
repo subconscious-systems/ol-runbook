@@ -503,6 +503,18 @@ metadata:
 handler: nvidia
 EOF
 
+  # On enforcing RPM-family SELinux policies, the plugin's container_t domain
+  # cannot connect to the k3s kubelet's container_runtime_t registration
+  # socket. Scope the required host-level access to this infrastructure
+  # DaemonSet; inference workers remain unprivileged.
+  if [[ "$PACKAGE_FAMILY" == "rpm" ]] && have getenforce && [[ "$(getenforce)" == "Enforcing" ]]; then
+    log "allowing the NVIDIA device plugin to register with k3s under enforcing SELinux"
+    kubectl_cmd -n kube-system patch daemonset nvidia-device-plugin-daemonset \
+      --type=json \
+      -p '[{"op":"replace","path":"/spec/template/spec/containers/0/securityContext","value":{"privileged":true}}]' \
+      >/dev/null
+  fi
+
   kubectl_cmd -n kube-system patch daemonset nvidia-device-plugin-daemonset \
     --type=strategic \
     -p '{"spec":{"template":{"spec":{"runtimeClassName":"nvidia","containers":[{"name":"nvidia-device-plugin-ctr","env":[{"name":"NVIDIA_VISIBLE_DEVICES","value":"all"},{"name":"NVIDIA_DRIVER_CAPABILITIES","value":"utility,compute"}]}]}}}}' \
