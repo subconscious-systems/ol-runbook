@@ -95,10 +95,10 @@ worker:
   resources:
     requests:
       cpu: "32"
-      memory: "256Gi"
+      memory: "681575Mi"
     limits:
       cpu: "32"
-      memory: "256Gi"
+      memory: "681575Mi"
   weights:
     hostPath:
       enabled: true
