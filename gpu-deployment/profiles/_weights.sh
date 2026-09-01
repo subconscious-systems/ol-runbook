@@ -8,6 +8,30 @@ log() { printf '[weights] %s\n' "$*"; }
 die() { printf '[weights] ERROR: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+python_is_supported() {
+  "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
+    >/dev/null 2>&1
+}
+
+select_hf_python() {
+  local candidate
+  if [[ -n "${HF_CLI_PYTHON:-}" ]]; then
+    have "$HF_CLI_PYTHON" || die "HF_CLI_PYTHON is not executable: $HF_CLI_PYTHON"
+    python_is_supported "$HF_CLI_PYTHON" ||
+      die "HF_CLI_PYTHON must be Python 3.9 or newer: $HF_CLI_PYTHON"
+    printf '%s\n' "$HF_CLI_PYTHON"
+    return
+  fi
+
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3.9 python3; do
+    if have "$candidate" && python_is_supported "$candidate"; then
+      command -v "$candidate"
+      return
+    fi
+  done
+  die "Python 3.9 or newer is required; rerun the profile installer"
+}
+
 usage() {
   cat <<'EOF'
 Usage: _weights.sh <profile-name> <hf-repo> <target-path> [<hf-repo> <target-path> ...]
@@ -74,10 +98,12 @@ fi
 
 if have hf; then
   HF_CLI_BIN="$(command -v hf)"
+elif [[ -x "$HF_CLI_VENV/bin/hf" ]]; then
+  HF_CLI_BIN="$HF_CLI_VENV/bin/hf"
 else
-  have python3 || die "python3 is required; run the profile installer first"
-  log "installing the Hugging Face CLI in $HF_CLI_VENV"
-  python3 -m venv "$HF_CLI_VENV" ||
+  HF_PYTHON="$(select_hf_python)"
+  log "installing the Hugging Face CLI with $($HF_PYTHON --version 2>&1) in $HF_CLI_VENV"
+  "$HF_PYTHON" -m venv --clear "$HF_CLI_VENV" ||
     die "could not create a Python venv; run the profile installer first"
   "$HF_CLI_VENV/bin/pip" install --upgrade huggingface_hub
   HF_CLI_BIN="$HF_CLI_VENV/bin/hf"

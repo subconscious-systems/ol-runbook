@@ -132,8 +132,10 @@ ensure_base_packages() {
   else
     run_as_root dnf install -y \
       ca-certificates curl dnf-plugins-core gnupg2 python3-pip \
+      python3.11 python3.11-pip \
       container-selinux policycoreutils-python-utils selinux-policy-targeted
     have python3 || die "the installed Rocky/RHEL Python packages did not provide python3"
+    have python3.11 || die "the installed Rocky/RHEL Python packages did not provide python3.11"
     if ! have docker; then
       log "installing Docker CE"
       run_as_root dnf config-manager --add-repo \

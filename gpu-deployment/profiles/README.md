@@ -32,7 +32,8 @@ afterward.
 Each profile directory contains its own `values.yaml` and `weights.sh`. The
 script declares only that profile's repositories and target paths, securely
 prompts for a Hugging Face token and download root, and runs the Hugging Face
-CLI downloads on the host. For example:
+CLI downloads on the host. It selects Python 3.9 or newer, preferring the
+Python 3.11 runtime installed on Rocky/RHEL. For example:
 
 ```bash
 cd glm-5.2-nvfp4-b200-4gpu

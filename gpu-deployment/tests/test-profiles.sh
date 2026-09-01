@@ -10,6 +10,7 @@ bash -n "${PROFILE_DIR}/_weights.sh"
 
 grep -Fq 'rocky | rhel | centos | almalinux)' "${PROFILE_DIR}/install.sh"
 grep -Fq 'stable/rpm/nvidia-container-toolkit.repo' "${PROFILE_DIR}/install.sh"
+grep -Fq 'python3.11 python3.11-pip' "${PROFILE_DIR}/install.sh"
 grep -Fq 'k3s_exec+=" --selinux"' "${PROFILE_DIR}/install.sh"
 grep -Fq 'firewall-cmd --permanent --zone=trusted' "${PROFILE_DIR}/install.sh"
 grep -Fq 'K3S_FIREWALL_NODEPORTS must stay within' "${PROFILE_DIR}/install.sh"
@@ -28,6 +29,12 @@ grep -Fq '[[ "$PACKAGE_FAMILY" == "rpm" ]] && have getenforce && [[ "$(getenforc
 grep -Fq '"privileged":true' "${PROFILE_DIR}/install.sh"
 # shellcheck disable=SC2016
 grep -Fq 'run_as_root "$K3S_BIN" kubectl get --raw=/readyz' "${PROFILE_DIR}/install.sh"
+grep -Fq 'python3.13 python3.12 python3.11 python3.10 python3.9 python3' "${PROFILE_DIR}/_weights.sh"
+if grep -Fq 'python3 -m venv --clear' "${PROFILE_DIR}/_weights.sh"; then
+  exit 1
+fi
+# shellcheck disable=SC2016
+grep -Fq '"$HF_PYTHON" -m venv --clear' "${PROFILE_DIR}/_weights.sh"
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"
 test "$(grep -Fc 'path: /mnt/glm-5.2-nvfp4' "$nvfp4_values")" -eq 1
