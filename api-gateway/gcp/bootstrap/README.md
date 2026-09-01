@@ -16,8 +16,11 @@ End-to-end source of truth: [../instructions.md](../instructions.md).
 This interactive CLI walks through the complete production install, explains
 where every Google ID, Hub Secret, provider value, and agent command comes from,
 delegates to the scripts documented below, and pauses for the required Distr
-Hub actions. All customer-specific Distr environment variables and Secret
-references are collected in one dedicated step.
+Hub actions. All customer-specific Distr environment variables are collected
+first. Hub setup then walks the infra Docker application and Secrets. The
+gateway Helm application is created in the Kubernetes-connect step, after the
+first infra deploy succeeds, so the one-time connect command can be pasted
+immediately.
 Use `--list-steps` to preview it, `--check` for an offline contract check, or
 `--from-step N` to resume without repeating completed cloud operations. It does
 not persist connect URLs or resolved secrets. It generates the ignored

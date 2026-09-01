@@ -86,12 +86,15 @@ if [[ "${ASSUME_YES}" -ne 1 ]]; then
     printf 'ERROR: bootstrap requires an interactive terminal or --yes\n' >&2
     exit 1
   }
-  printf 'Type the production project ID (%s) to apply this plan: ' "${PROJECT_ID}"
-  read -r confirmation
-  [[ "${confirmation}" == "${PROJECT_ID}" ]] || {
-    printf '[bootstrap] cancelled\n'
-    exit 1
-  }
+  while true; do
+    printf 'Type the production project ID (%s) to apply this plan: ' "${PROJECT_ID}"
+    read -r confirmation
+    if [[ "${confirmation}" == "${PROJECT_ID}" ]]; then
+      break
+    fi
+    printf 'Project ID did not match. Enter exactly %s to apply, or Ctrl-C to abort.\n' \
+      "${PROJECT_ID}"
+  done
 fi
 
 terraform -chdir="${TF_DIR}" apply -input=false "${PLAN_FILE}"
@@ -102,18 +105,21 @@ fi
 "${SCRIPT_DIR}/preflight.sh"
 "${SCRIPT_DIR}/repair-host.sh"
 
-cat <<'EOF'
+if [[ "${ORANGELINE_GCP_INSTALLER:-}" == "1" ]]; then
+  cat <<'EOF'
 
 == GCP Docker agent host ready ==
 
-Next:
-  1. Create the api-gateway-infra Docker deployment in Distr Hub and paste the
-     GCP environment from ../sample-gateway-infra.env.
-  2. Keep GATEWAY_AUTO_DEPLOY=false for the first infra deployment.
-  3. Copy the Docker target connect URL and run:
-       ./scripts/run-agent.sh 'https://app.distr.sh/api/v1/connect?targetId=…&targetSecret=…'
-  4. After GKE exists, create the gateway Helm deployment and connect its agent:
-       ./scripts/connect-k8s-agent.sh <INFRA_DEPLOY_NAME> \
-         'kubectl apply -n <GATEWAY_DISTR_DEPLOYMENT_NAME> -f "https://app.distr.sh/api/v1/connect?…"'
-  5. Set GATEWAY_AUTO_DEPLOY=true and trigger the second infra deployment.
+Foundation apply, state migration, preflight, and host setup are complete.
+The guided installer continues with Distr configuration next.
 EOF
+else
+  cat <<'EOF'
+
+== GCP Docker agent host ready ==
+
+Continue with the guided installer so Hub setup happens after configuration:
+
+  ./scripts/install.sh --from-step 4
+EOF
+fi

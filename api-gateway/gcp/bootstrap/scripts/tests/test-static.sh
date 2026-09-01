@@ -146,6 +146,12 @@ grep -Fq 'terraform -chdir="${TF_DIR}" apply -input=false "${PLAN_FILE}"' \
   "${SCRIPTS_DIR}/bootstrap.sh"
 grep -Fq 'bootstrap refuses a plan containing resource deletions' \
   "${SCRIPTS_DIR}/bootstrap.sh"
+grep -Fq 'Project ID did not match. Enter exactly %s to apply, or Ctrl-C to abort.\n' \
+  "${SCRIPTS_DIR}/bootstrap.sh"
+if grep -Fq '[bootstrap] cancelled' "${SCRIPTS_DIR}/bootstrap.sh"; then
+  printf 'ERROR: apply confirmation must re-prompt instead of cancelling\n' >&2
+  exit 1
+fi
 grep -Fq 'install_archive_legacy_local_state' "${SCRIPTS_DIR}/install.sh"
 grep -Fq 'bootstrap_wait_host_ready' "${SCRIPTS_DIR}/preflight.sh"
 grep -Fq 'first-boot host setup did not become ready within 5 minutes' \
@@ -187,6 +193,40 @@ grep -Fq 'connect-k8s-agent.sh" --stdin' "${SCRIPTS_DIR}/install.sh"
 # shellcheck disable=SC2016 # Match literal shell code in the implementation.
 grep -Fq '"${SCRIPT_DIR}/migrate-state.sh" --yes' \
   "${SCRIPTS_DIR}/bootstrap.sh"
+grep -Fq 'ORANGELINE_GCP_INSTALLER=1' "${SCRIPTS_DIR}/install.sh"
+grep -Fq 'Hub 1/2: create the api-gateway-infra Docker application' \
+  "${SCRIPTS_DIR}/install.sh"
+grep -Fq 'Hub 2/2: create Hub Secrets' "${SCRIPTS_DIR}/install.sh"
+# Gateway Helm is created in step 6, after the first infra deploy succeeds.
+python3 - "${SCRIPTS_DIR}/install.sh" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text()
+step5 = text.index("install_step_5()")
+step6 = text.index("install_step_6()")
+secrets_done = text.index("Create and save the Hub Secrets above.")
+infra_done = text.index(
+    "Confirm the first infra deployment completed successfully."
+)
+create_helm = text.index("Create an api-gateway Helm deployment using the entitled")
+paste_cmd = text.index("Paste the complete Hub kubectl apply command")
+if not (secrets_done < step5 < infra_done < step6 < create_helm < paste_cmd):
+    raise SystemExit(
+        "gateway Helm app must be created in step 6, then the connect command pasted"
+    )
+if "install_hub_gateway_walkthrough" in text:
+    raise SystemExit("gateway Helm creation must stay inline in step 6")
+if "should already exist from step 4" in text or "should already exist from step 5" in text:
+    raise SystemExit(
+        "Kubernetes connect still assumes the gateway app was created earlier"
+    )
+PY
+if grep -Fq 'paste the' "${SCRIPTS_DIR}/bootstrap.sh" \
+  && grep -Fq 'sample-gateway-infra.env' "${SCRIPTS_DIR}/bootstrap.sh"; then
+  printf 'ERROR: bootstrap must not print Hub setup before installer step 4\n' >&2
+  exit 1
+fi
 git -C "${RUNBOOK_DIR}" check-ignore -q \
   api-gateway/gcp/.generated/gateway-infra.env
 git -C "${RUNBOOK_DIR}" check-ignore -q \

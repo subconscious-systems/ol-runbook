@@ -147,15 +147,39 @@ kubectl -n "${NAMESPACE}" get deployment -o json \
       (.status.availableReplicas // 0) >= (.spec.replicas // 1))'
 
 echo "[smoke] GCE Ingress resources"
-kubectl -n "${NAMESPACE}" get managedcertificates.networking.gke.io -o json \
-  | jq -e '(.items | length > 0)
-      and all(.items[]; .status.certificateStatus == "Active")'
+CERT_JSON="$(kubectl -n "${NAMESPACE}" get managedcertificates.networking.gke.io -o json)"
+jq -e '.items | length > 0' <<<"${CERT_JSON}" >/dev/null \
+  || { echo "ERROR: no ManagedCertificate in ${NAMESPACE}" >&2; exit 1; }
+CERT_NAME="$(jq -r '.items[0].status.certificateName // empty' <<<"${CERT_JSON}")"
+if [[ -z "${CERT_NAME}" ]]; then
+  echo "ERROR: ManagedCertificate has no Compute certificateName yet" >&2
+  exit 1
+fi
+CERT_STATUS="$(gcloud compute ssl-certificates describe "${CERT_NAME}" \
+  --project="${PROJECT_ID}" --format='value(managed.status)')"
+if [[ "${CERT_STATUS}" != "ACTIVE" ]]; then
+  echo "ERROR: Google-managed certificate ${CERT_NAME} is ${CERT_STATUS}" >&2
+  echo "ERROR: the Kubernetes ManagedCertificate CR can stay Provisioning after Compute is Active" >&2
+  exit 1
+fi
 kubectl -n "${NAMESPACE}" get frontendconfigs.networking.gke.io -o json \
   | jq -e '(.items | length > 0)
-      and all(.items[]; .spec.redirectToHttps.enabled == true)'
+      and all(.items[]; .spec.redirectToHttps.enabled == true)' >/dev/null \
+  || { echo "ERROR: FrontendConfig must enable HTTP to HTTPS redirect" >&2; exit 1; }
 kubectl -n "${NAMESPACE}" get backendconfigs.cloud.google.com -o json \
-  | jq -e '(.items | length > 0)
-      and all(.items[]; .spec.timeoutSec == 900)'
+  | jq -e '
+      (.items | length > 0)
+      and any(.items[]; .spec.timeoutSec == 900)
+      and all(.items[];
+        if (.metadata.name | endswith("-gateway-admin-backend")) then
+          .spec.timeoutSec == 30
+        else
+          .spec.timeoutSec == 900
+        end)' >/dev/null \
+  || {
+    echo "ERROR: public BackendConfig must use timeoutSec 900; admin BackendConfig must use 30" >&2
+    exit 1
+  }
 INGRESS_JSON="$(kubectl -n "${NAMESPACE}" get ingress -o json)"
 STATIC_IP_NAME="$(jq -er '.items[0].metadata.annotations["kubernetes.io/ingress.global-static-ip-name"]' <<<"${INGRESS_JSON}")"
 jq -e '.items[0].metadata.annotations["networking.gke.io/managed-certificates"] | length > 0' \
