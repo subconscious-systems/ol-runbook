@@ -65,6 +65,12 @@ boots with cgroup v1; the installer detects that filesystem and persists the
 kubelet's temporary `failCgroupV1=false` compatibility setting so k3s can start
 without a host reboot. Prefer cgroup v2 for future OS images.
 
+The installer pins k3s to `v1.36.0+k3s1` (containerd `v2.2.3-k3s1`) so large
+private-registry image pulls are not subject to the response-header cutoff in
+newer containerd releases. Rerunning it replaces a different installed k3s
+version with the pin. Set `K3S_VERSION` explicitly only when validating a
+replacement version against the Distr worker image.
+
 It may reboot for NVIDIA drivers. Return to the same directory and run
 `./install.sh` again after reboot. The script should print `Install finished.`
 Then verify:
@@ -72,6 +78,7 @@ Then verify:
 ```bash
 nvidia-smi
 kubectl get nodes
+kubectl get nodes -o custom-columns='NAME:.metadata.name,GPUS:.status.allocatable.nvidia\.com/gpu'
 kubectl get namespace sglang
 ```
 
