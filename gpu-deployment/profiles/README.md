@@ -18,8 +18,14 @@ script does not replace RPM-family GPU drivers. It preserves active
 On enforcing SELinux hosts it labels the supported model directories for
 container access. The NVFP4 profile mounts only `/mnt/glm-5.2-nvfp4`, not the
 entire `/mnt` filesystem.
+On enforcing RPM-family SELinux hosts, only the NVIDIA device-plugin DaemonSet
+runs privileged so it can register GPUs with the k3s kubelet; inference workers
+remain unprivileged.
 Rocky/RHEL 8 cgroup v1 hosts receive the kubelet compatibility setting needed
 by current k3s releases; future images should use cgroup v2.
+The script pins k3s to `v1.36.0+k3s1` and replaces a mismatched installed
+version; override `K3S_VERSION` only when validating a newer runtime against
+the Distr registry image.
 It may request a reboot for Debian/Ubuntu driver installation; rerun it
 afterward.
 

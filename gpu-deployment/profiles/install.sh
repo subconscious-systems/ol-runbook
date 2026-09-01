@@ -12,17 +12,18 @@
 # Optional env:
 #   NAMESPACE=sglang              # default; same for all profiles and Distr steps
 #   SKIP_NVIDIA_DRIVERS=false
-#   K3S_VERSION=                  # empty = get.k3s.io default
-#   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml
+#   K3S_VERSION=v1.36.0+k3s1     # pinned: avoids containerd 2.3 registry header timeout
+#   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.19.3/deployments/static/nvidia-device-plugin.yml
 #   GPU_READY_TIMEOUT_SECONDS=180
 #   K3S_FIREWALL_NODEPORTS=30001-30006  # Rocky/RHEL firewalld only
 #   MODEL_STORAGE_PATHS=/models/hf:/mnt/glm-5.2-nvfp4
 set -euo pipefail
 
 SKIP_NVIDIA_DRIVERS="${SKIP_NVIDIA_DRIVERS:-false}"
-K3S_VERSION="${K3S_VERSION:-}"
+K3S_VERSION="${K3S_VERSION:-v1.36.0+k3s1}"
+K3S_BIN="${K3S_BIN:-/usr/local/bin/k3s}"
 K3S_KUBECONFIG_SOURCE="${K3S_KUBECONFIG_SOURCE:-/etc/rancher/k3s/k3s.yaml}"
-NVIDIA_DEVICE_PLUGIN_URL="${NVIDIA_DEVICE_PLUGIN_URL:-https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/deployments/static/nvidia-device-plugin.yml}"
+NVIDIA_DEVICE_PLUGIN_URL="${NVIDIA_DEVICE_PLUGIN_URL:-https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.19.3/deployments/static/nvidia-device-plugin.yml}"
 GPU_READY_TIMEOUT_SECONDS="${GPU_READY_TIMEOUT_SECONDS:-180}"
 NAMESPACE="${NAMESPACE:-sglang}"
 K3S_FIREWALL_NODEPORTS="${K3S_FIREWALL_NODEPORTS:-30001-30006}"
@@ -104,10 +105,10 @@ kubectl_cmd() {
     elif [[ -r "$K3S_KUBECONFIG_SOURCE" ]]; then
       KUBECONFIG="$K3S_KUBECONFIG_SOURCE" kubectl "$@"
     else
-      run_as_root k3s kubectl "$@"
+      run_as_root "$K3S_BIN" kubectl "$@"
     fi
   else
-    run_as_root k3s kubectl "$@"
+    run_as_root "$K3S_BIN" kubectl "$@"
   fi
 }
 
@@ -360,21 +361,29 @@ configure_k3s_cgroup_compat() {
 }
 
 ensure_k3s() {
-  if have k3s; then
-    log "k3s already installed"
+  local installed_version=""
+  if [[ -x "$K3S_BIN" ]]; then
+    installed_version="$("$K3S_BIN" --version | awk 'NR == 1 {print $3}')"
+  fi
+  if [[ -n "$installed_version" && "$installed_version" == "$K3S_VERSION" ]]; then
+    log "k3s ${installed_version} already installed"
     log "restarting k3s to apply host configuration"
     run_as_root systemctl restart k3s
     return
   fi
-  log "installing k3s"
+  if [[ -n "$installed_version" ]]; then
+    log "replacing k3s ${installed_version} with pinned ${K3S_VERSION}"
+  else
+    log "installing pinned k3s ${K3S_VERSION}"
+  fi
   local k3s_exec="--write-kubeconfig-mode 644"
   if [[ "$PACKAGE_FAMILY" == "rpm" ]]; then
     k3s_exec+=" --selinux"
   fi
-  local env_args=(INSTALL_K3S_EXEC="$k3s_exec")
-  if [[ -n "${K3S_VERSION}" ]]; then
-    env_args+=(INSTALL_K3S_VERSION="${K3S_VERSION}")
-  fi
+  local env_args=(
+    INSTALL_K3S_EXEC="$k3s_exec"
+    INSTALL_K3S_VERSION="${K3S_VERSION}"
+  )
   if [[ "${#SUDO[@]}" -gt 0 ]]; then
     curl -sfL https://get.k3s.io | run_as_root env "${env_args[@]}" sh -
   else
@@ -386,7 +395,7 @@ wait_k3s_api() {
   local elapsed=0
   log "waiting for k3s API"
   while (( elapsed < 120 )); do
-    if run_as_root k3s kubectl get --raw=/readyz >/dev/null 2>&1; then
+    if run_as_root "$K3S_BIN" kubectl get --raw=/readyz >/dev/null 2>&1; then
       log "k3s API ready"
       return
     fi
@@ -493,6 +502,18 @@ metadata:
   name: nvidia
 handler: nvidia
 EOF
+
+  # On enforcing RPM-family SELinux policies, the plugin's container_t domain
+  # cannot connect to the k3s kubelet's container_runtime_t registration
+  # socket. Scope the required host-level access to this infrastructure
+  # DaemonSet; inference workers remain unprivileged.
+  if [[ "$PACKAGE_FAMILY" == "rpm" ]] && have getenforce && [[ "$(getenforce)" == "Enforcing" ]]; then
+    log "allowing the NVIDIA device plugin to register with k3s under enforcing SELinux"
+    kubectl_cmd -n kube-system patch daemonset nvidia-device-plugin-daemonset \
+      --type=json \
+      -p '[{"op":"replace","path":"/spec/template/spec/containers/0/securityContext","value":{"privileged":true}}]' \
+      >/dev/null
+  fi
 
   kubectl_cmd -n kube-system patch daemonset nvidia-device-plugin-daemonset \
     --type=strategic \

@@ -17,6 +17,17 @@ grep -Fq 'semanage fcontext -a -t container_file_t' "${PROFILE_DIR}/install.sh"
 grep -Fq 'restorecon -RF' "${PROFILE_DIR}/install.sh"
 grep -Fq 'stat -fc %T /sys/fs/cgroup' "${PROFILE_DIR}/install.sh"
 grep -Fq 'fail-cgroupv1=false' "${PROFILE_DIR}/install.sh"
+# These are literal shell source fragments, not expressions for this test.
+# shellcheck disable=SC2016
+grep -Fq 'K3S_VERSION="${K3S_VERSION:-v1.36.0+k3s1}"' "${PROFILE_DIR}/install.sh"
+# shellcheck disable=SC2016
+grep -Fq 'INSTALL_K3S_VERSION="${K3S_VERSION}"' "${PROFILE_DIR}/install.sh"
+grep -Fq 'NVIDIA/k8s-device-plugin/v0.19.3/' "${PROFILE_DIR}/install.sh"
+# shellcheck disable=SC2016
+grep -Fq '[[ "$PACKAGE_FAMILY" == "rpm" ]] && have getenforce && [[ "$(getenforce)" == "Enforcing" ]]' "${PROFILE_DIR}/install.sh"
+grep -Fq '"privileged":true' "${PROFILE_DIR}/install.sh"
+# shellcheck disable=SC2016
+grep -Fq 'run_as_root "$K3S_BIN" kubectl get --raw=/readyz' "${PROFILE_DIR}/install.sh"
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"
 test "$(grep -Fc 'path: /mnt/glm-5.2-nvfp4' "$nvfp4_values")" -eq 1
@@ -29,7 +40,10 @@ for profile in "${PROFILE_DIR}"/*/values.yaml; do
   grep -q "${profile_name} profile" "${profile_dir}/weights.sh"
   test "$(find "${profile_dir}" -maxdepth 1 -type f | wc -l)" -eq 2
   grep -Fq './weights.sh' "${profile}"
-  ! grep -Eq 'hostModelDownloads|hfRepo|targetPath|modelDownload' "${profile}"
+  if grep -Eq 'hostModelDownloads|hfRepo|targetPath|modelDownload' "${profile}"; then
+    echo "ERROR: ${profile} contains in-cluster model-download configuration" >&2
+    exit 1
+  fi
   grep -q 'readOnly: true' "${profile}"
 done
 
