@@ -28,7 +28,7 @@ declaring the gateway upgrade healthy.
 | Qwen3.6-27B-FP8 | `profiles/qwen36-27b-*/values.yaml` | L4 (2/4/8 GPUs); L40S, A100-80GB, H100-80GB, H200, or B200 (1/2/4/8 GPUs) |
 | Qwen3-8B-FP8 | `profiles/qwen3-8b-l4-1gpu/values.yaml` | One L4 GPU |
 | GLM-5.2-FP8 + DFLASH | `profiles/glm-5.2-b200-{4,8}gpu/values.yaml` | Four or eight B200 GPUs |
-| GLM-5.2-NVFP4 | `profiles/glm-5.2-nvfp4-b200-4gpu/values.yaml` | Four B200 GPUs (`CUDA_VISIBLE_DEVICES=0,1,2,3`) |
+| GLM-5.2-NVFP4 + DFLASH | `profiles/glm-5.2-nvfp4-b200-4gpu/values.yaml` | Four B200 GPUs (`CUDA_VISIBLE_DEVICES=0,1,2,3`) |
 
 Select a profile that exactly matches the GPU type and count on one node. The
 legacy `qwen36-27b/` and `qwen3-8b/` examples remain for existing
@@ -37,8 +37,9 @@ deployments; use the explicitly named profile for new installs.
 The GLM-5.2 NVFP4 profile uses the existing `glm-52` worker route on NodePort
 `30001`, advertises the served model as `glm-5.2`, and pulls
 `registry.distr.sh/subconscious/timrun:sm_100-v0.13`. It mounts the preloaded
-`nvidia/GLM-5.2-NVFP4` weights from `/mnt/glm-5.2-nvfp4`; it does not use the
-FP8 or DFLASH repositories.
+`nvidia/GLM-5.2-NVFP4` weights from `/mnt/glm-5.2-nvfp4` and the DFLASH draft
+from `/mnt/glm-5.2-fp8-dflash-v2`. Its runtime flags mirror the Baseten
+`Braintree-2` configuration, scaled from tensor parallel 8 to 4.
 
 ## Step 1 — GPU Host Preparation
 
@@ -58,8 +59,8 @@ k3s. When `firewalld` is active, the installer keeps it enabled and adds the
 official k3s API, pod, and service-network rules plus TCP NodePorts
 `30001-30006`. Override the last range with `K3S_FIREWALL_NODEPORTS` if the
 selected profile uses different ports. On enforcing SELinux hosts, it also
-persists `container_file_t` labels for `/models/hf` and
-`/mnt/glm-5.2-nvfp4`; override the colon-separated paths with
+persists `container_file_t` labels for `/models/hf` and `/mnt`; override the
+colon-separated paths with
 `MODEL_STORAGE_PATHS` when using custom model locations. Rocky/RHEL 8 commonly
 boots with cgroup v1; the installer detects that filesystem and persists the
 kubelet's temporary `failCgroupV1=false` compatibility setting so k3s can start
@@ -97,8 +98,8 @@ cd glm-5.2-nvfp4-b200-4gpu
 
 The script prompts without echoing for a Hugging Face token, then asks for the
 download root. Accept its default unless you are also updating every model and
-host-mount path in the YAML. For FP8 + DFLASH it downloads the main GLM weights
-and the DFLASH repository serially; NVFP4 downloads only NVFP4. Rerunning the
+host-mount path in the YAML. Both GLM profiles download their main model and
+the DFLASH repository serially. Rerunning the
 command resumes or verifies the same target directories through the Hugging
 Face CLI. Before requesting a token, the downloader verifies Python 3.9+,
 `venv`, and the `hf` command. If needed, it installs the supported Python
@@ -110,6 +111,7 @@ four-GPU NVFP4 profile:
 ```bash
 test -f /mnt/glm-5.2-nvfp4/config.json
 find /mnt/glm-5.2-nvfp4 -maxdepth 1 -name '*.safetensors' | head
+test -f /mnt/glm-5.2-fp8-dflash-v2/config.json
 ```
 
 ---

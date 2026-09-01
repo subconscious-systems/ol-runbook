@@ -16,7 +16,7 @@
 #   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.19.3/deployments/static/nvidia-device-plugin.yml
 #   GPU_READY_TIMEOUT_SECONDS=180
 #   K3S_FIREWALL_NODEPORTS=30001-30006  # Rocky/RHEL firewalld only
-#   MODEL_STORAGE_PATHS=/models/hf:/mnt/glm-5.2-nvfp4
+#   MODEL_STORAGE_PATHS=/models/hf:/mnt
 set -euo pipefail
 
 SKIP_NVIDIA_DRIVERS="${SKIP_NVIDIA_DRIVERS:-false}"
@@ -29,7 +29,7 @@ NAMESPACE="${NAMESPACE:-sglang}"
 K3S_FIREWALL_NODEPORTS="${K3S_FIREWALL_NODEPORTS:-30001-30006}"
 K3S_POD_CIDR="${K3S_POD_CIDR:-10.42.0.0/16}"
 K3S_SERVICE_CIDR="${K3S_SERVICE_CIDR:-10.43.0.0/16}"
-MODEL_STORAGE_PATHS="${MODEL_STORAGE_PATHS:-/models/hf:/mnt/glm-5.2-nvfp4}"
+MODEL_STORAGE_PATHS="${MODEL_STORAGE_PATHS:-/models/hf:/mnt}"
 
 log() { printf '[dep] %s\n' "$*"; }
 die() { printf '[dep] ERROR: %s\n' "$*" >&2; exit 1; }
