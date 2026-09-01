@@ -6,8 +6,9 @@
 #
 # Models: nvidia/GLM-5.2-NVFP4 + SubconsciousDev/glm-5.2-fp8-dflash-v2
 # GPU: b200 | GPUs/node: 4 (tp=4)
-# Preloaded host weights: /mnt/glm-5.2-nvfp4 + /mnt/glm-5.2-fp8-dflash-v2
+# Preloaded host weights: /mnt/model-test/glm-5.2-nvfp4 + /mnt/model-test/glm-5.2-fp8-dflash-v2
 # Route: glm-52 -> NodePort 30001 | served model: glm-5.2
+# Requires SGLang application/chart 0.14.0+ for worker.runtimePreset.
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model glm-5.2
 # Distr Hub Secrets: WORKER_API_KEY, DD_API_KEY
 # Only profile-specific overrides are listed; the chart supplies safe defaults.
@@ -29,6 +30,7 @@ datadog:
     site: us5.datadoghq.com
 
 worker:
+  runtimePreset: glm-5.2-nvfp4-dflash-b200-4gpu
   hostIPC: true
   auth:
     enabled: true
@@ -40,58 +42,12 @@ worker:
     prePull:
       enabled: true
   servedModelName: glm-5.2
-  modelPath: /mnt/glm-5.2-nvfp4
+  modelPath: /mnt/model-test/glm-5.2-nvfp4
   contextLength: ""
   gpu:
     count: 4
   discoveryLabels:
     subconscious.dev/worker-pool: glm-5.2-nvfp4-b200-4gpu
-  sglang:
-    memFractionStatic: "0.82"
-    maxRunningRequests: "96"
-    maxTotalTokens: ""
-    chunkedPrefillSize: ""
-    extraArgs: >-
-      --tp 4
-      --chat-template /sgl-workspace/sglang/deploy/chat_templates/glm5.2.jinja
-      --tool-call-parser glm47
-      --subconscious-x-mode
-      --enable-hierarchical-cache
-      --hicache-ratio 2
-      --hicache-io-backend direct
-      --hicache-mem-layout page_first_direct
-      --hicache-write-policy write_back
-      --subconscious-x-st-buffer-size 5
-      --subconscious-x-min-span-length 3
-      --speculative-algorithm DFLASH
-      --speculative-draft-model-path /mnt/glm-5.2-fp8-dflash-v2
-      --speculative-num-draft-tokens 12
-      --speculative-draft-kv-cache-dtype bfloat16
-      --speculative-draft-attention-backend fa4
-      --subconscious-leaf-only
-      --stream-response-default-include-usage
-      --trust-remote-code
-      --enable-cache-report
-      --cuda-graph-max-bs 96
-  extraEnv:
-    - name: CUDA_VISIBLE_DEVICES
-      value: "0,1,2,3"
-    - name: SGLANG_CACHE_DIR
-      value: /opt/sgl-warm-cache/sglang
-    - name: SGLANG_DG_CACHE_DIR
-      value: /opt/sgl-warm-cache/deep_gemm
-    - name: FLASHINFER_WORKSPACE_BASE
-      value: /opt/sgl-warm-cache/flashinfer
-    - name: HF_HOME
-      value: /tmp/hf
-    - name: PYTHONUNBUFFERED
-      value: "1"
-    - name: SGLANG_PP_SPIKE_MODE
-      value: "on_drop"
-    - name: SGLANG_SUBCONSCIOUS_TRANSPLANT
-      value: "1"
-    - name: SGLANG_SUBCONSCIOUS_BACKTRACK_MAX_LEVELS
-      value: "1"
   resources:
     requests:
       cpu: "32"

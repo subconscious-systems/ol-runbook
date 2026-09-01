@@ -41,9 +41,9 @@ cd glm-5.2-nvfp4-b200-4gpu
 ./weights.sh
 ```
 
-Accept the default download root unless you also update `worker.modelPath`, any
-draft-model path in `worker.sglang.extraArgs`, and `worker.weights.hostPath` in
-the YAML. The script creates each model directory beneath the chosen root. It
+Accept the default download root unless you also update `worker.modelPath`, the
+selected chart runtime preset's draft-model path, and `worker.weights.hostPath`.
+The script creates each model directory beneath the chosen root. It
 passes the token through the `HF_TOKEN` environment variable, never echoes it,
 and never places it in the process command line.
 
@@ -60,9 +60,10 @@ families are:
 
 The NVFP4 profile uses `registry.distr.sh/subconscious/timrun:sm_100-v0.13`,
 serves `glm-5.2`, and exposes the existing `glm-52` route on NodePort `30001`.
-It serves `/mnt/glm-5.2-nvfp4` with the DFLASH draft at
-`/mnt/glm-5.2-fp8-dflash-v2`, following the Baseten `Braintree-2` settings with
-tensor parallelism reduced from 8 to 4.
+It serves `/mnt/model-test/glm-5.2-nvfp4` with the DFLASH draft at
+`/mnt/model-test/glm-5.2-fp8-dflash-v2`. Its concise YAML selects the
+chart-owned `glm-5.2-nvfp4-dflash-b200-4gpu` runtime preset, which follows the
+Baseten `Braintree-2` settings with tensor parallelism reduced from 8 to 4.
 
 The legacy `qwen36-27b/` and `qwen3-8b/` directories remain available for
 existing multi-worker installs. New installs should use topology-specific
