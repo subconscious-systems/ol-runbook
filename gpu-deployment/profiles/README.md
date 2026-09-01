@@ -32,7 +32,9 @@ afterward.
 Each profile directory contains its own `values.yaml` and `weights.sh`. The
 script declares only that profile's repositories and target paths, securely
 prompts for a Hugging Face token and download root, and runs the Hugging Face
-CLI downloads on the host. For example:
+CLI downloads on the host. It verifies Python 3.9+, installs the distro Python
+and venv packages when needed, and verifies the resulting `hf` command before
+requesting a token. For example:
 
 ```bash
 cd glm-5.2-nvfp4-b200-4gpu

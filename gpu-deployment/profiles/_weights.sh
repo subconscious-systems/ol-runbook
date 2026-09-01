@@ -8,6 +8,110 @@ log() { printf '[weights] %s\n' "$*"; }
 die() { printf '[weights] ERROR: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+python_is_supported() {
+  "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' \
+    >/dev/null 2>&1
+}
+
+python_has_venv() {
+  "$1" -c 'import ensurepip, venv' >/dev/null 2>&1
+}
+
+run_as_root() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    "$@"
+  elif have sudo; then
+    sudo "$@"
+  else
+    die "sudo is required to install Python"
+  fi
+}
+
+find_hf_python() {
+  local candidate
+  HF_PYTHON=""
+  if [[ -n "${HF_CLI_PYTHON:-}" ]]; then
+    have "$HF_CLI_PYTHON" || die "HF_CLI_PYTHON is not executable: $HF_CLI_PYTHON"
+    python_is_supported "$HF_CLI_PYTHON" ||
+      die "HF_CLI_PYTHON must be Python 3.9 or newer: $HF_CLI_PYTHON"
+    HF_PYTHON="$(command -v "$HF_CLI_PYTHON")"
+    return
+  fi
+
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3.9 python3; do
+    if have "$candidate" && python_is_supported "$candidate"; then
+      HF_PYTHON="$(command -v "$candidate")"
+      return
+    fi
+  done
+  return 1
+}
+
+install_hf_python() {
+  [[ -r /etc/os-release ]] ||
+    die "cannot install Python automatically without /etc/os-release"
+  # shellcheck disable=SC1091
+  source /etc/os-release
+  case " ${ID:-} ${ID_LIKE:-} " in
+    *" debian "* | *" ubuntu "*)
+      have apt-get || die "apt-get is required to install Python on ${PRETTY_NAME:-this host}"
+      log "installing Python and venv packages with apt"
+      run_as_root apt-get update
+      run_as_root apt-get install -y python3 python3-venv
+      ;;
+    *" rhel "* | *" fedora "* | *" centos "*)
+      have dnf || die "dnf is required to install Python on ${PRETTY_NAME:-this host}"
+      log "installing Python 3.11 and pip packages with dnf"
+      run_as_root dnf install -y python3.11 python3.11-pip
+      ;;
+    *)
+      die "automatic Python installation supports Debian/Ubuntu and Rocky/RHEL-family hosts"
+      ;;
+  esac
+}
+
+ensure_hf_python() {
+  if ! find_hf_python || ! python_has_venv "$HF_PYTHON"; then
+    install_hf_python
+    find_hf_python ||
+      die "Python 3.9 or newer was not available after package installation; set HF_CLI_PYTHON"
+  fi
+  python_has_venv "$HF_PYTHON" ||
+    die "Python venv support is missing for $HF_PYTHON"
+  log "verified $($HF_PYTHON --version 2>&1) with venv support"
+}
+
+hf_cli_works() {
+  [[ -x "$1" ]] && "$1" --version >/dev/null 2>&1
+}
+
+ensure_hf_cli() {
+  local system_hf=""
+  if have hf; then
+    system_hf="$(command -v hf)"
+  fi
+
+  if [[ -n "$system_hf" ]] && hf_cli_works "$system_hf"; then
+    HF_CLI_BIN="$system_hf"
+  elif [[ -x "$HF_CLI_VENV/bin/python" ]] &&
+    python_is_supported "$HF_CLI_VENV/bin/python" &&
+    python_has_venv "$HF_CLI_VENV/bin/python" &&
+    hf_cli_works "$HF_CLI_VENV/bin/hf"; then
+    HF_CLI_BIN="$HF_CLI_VENV/bin/hf"
+    log "verified $("$HF_CLI_VENV/bin/python" --version 2>&1) with venv support"
+  else
+    ensure_hf_python
+    log "installing the Hugging Face CLI in $HF_CLI_VENV"
+    "$HF_PYTHON" -m venv --clear "$HF_CLI_VENV" ||
+      die "could not create the Python venv at $HF_CLI_VENV"
+    "$HF_CLI_VENV/bin/pip" install --upgrade huggingface_hub
+    HF_CLI_BIN="$HF_CLI_VENV/bin/hf"
+    hf_cli_works "$HF_CLI_BIN" ||
+      die "Hugging Face CLI installation did not create a working $HF_CLI_BIN"
+  fi
+  log "verified Hugging Face CLI at $HF_CLI_BIN"
+}
+
 usage() {
   cat <<'EOF'
 Usage: _weights.sh <profile-name> <hf-repo> <target-path> [<hf-repo> <target-path> ...]
@@ -45,6 +149,8 @@ for row in "${DOWNLOAD_ROWS[@]}"; do
 done
 
 [[ -t 0 ]] || die "run this command in an interactive terminal"
+# Fail or repair host prerequisites before asking the operator for a token.
+ensure_hf_cli
 read -r -s -p "Hugging Face token: " HF_TOKEN_INPUT
 printf '\n'
 [[ -n "$HF_TOKEN_INPUT" ]] || die "a Hugging Face token is required"
@@ -71,18 +177,6 @@ if ! mkdir -p "$DOWNLOAD_ROOT"; then
   die "cannot create $DOWNLOAD_ROOT; create it with the correct ownership first"
 fi
 [[ -w "$DOWNLOAD_ROOT" ]] || die "download root is not writable: $DOWNLOAD_ROOT"
-
-if have hf; then
-  HF_CLI_BIN="$(command -v hf)"
-else
-  have python3 || die "python3 is required; run the profile installer first"
-  log "installing the Hugging Face CLI in $HF_CLI_VENV"
-  python3 -m venv "$HF_CLI_VENV" ||
-    die "could not create a Python venv; run the profile installer first"
-  "$HF_CLI_VENV/bin/pip" install --upgrade huggingface_hub
-  HF_CLI_BIN="$HF_CLI_VENV/bin/hf"
-  [[ -x "$HF_CLI_BIN" ]] || die "Hugging Face CLI installation did not create $HF_CLI_BIN"
-fi
 
 export HF_TOKEN="$HF_TOKEN_INPUT"
 for row in "${DOWNLOAD_ROWS[@]}"; do

@@ -10,6 +10,7 @@ bash -n "${PROFILE_DIR}/_weights.sh"
 
 grep -Fq 'rocky | rhel | centos | almalinux)' "${PROFILE_DIR}/install.sh"
 grep -Fq 'stable/rpm/nvidia-container-toolkit.repo' "${PROFILE_DIR}/install.sh"
+grep -Fq 'python3.11 python3.11-pip' "${PROFILE_DIR}/install.sh"
 grep -Fq 'k3s_exec+=" --selinux"' "${PROFILE_DIR}/install.sh"
 grep -Fq 'firewall-cmd --permanent --zone=trusted' "${PROFILE_DIR}/install.sh"
 grep -Fq 'K3S_FIREWALL_NODEPORTS must stay within' "${PROFILE_DIR}/install.sh"
@@ -28,6 +29,16 @@ grep -Fq '[[ "$PACKAGE_FAMILY" == "rpm" ]] && have getenforce && [[ "$(getenforc
 grep -Fq '"privileged":true' "${PROFILE_DIR}/install.sh"
 # shellcheck disable=SC2016
 grep -Fq 'run_as_root "$K3S_BIN" kubectl get --raw=/readyz' "${PROFILE_DIR}/install.sh"
+grep -Fq 'python3.13 python3.12 python3.11 python3.10 python3.9 python3' "${PROFILE_DIR}/_weights.sh"
+grep -Fq 'run_as_root apt-get install -y python3 python3-venv' "${PROFILE_DIR}/_weights.sh"
+grep -Fq 'run_as_root dnf install -y python3.11 python3.11-pip' "${PROFILE_DIR}/_weights.sh"
+# shellcheck disable=SC2016
+grep -Fq 'python_is_supported "$HF_CLI_VENV/bin/python"' "${PROFILE_DIR}/_weights.sh"
+# shellcheck disable=SC2016
+grep -Fq 'python_has_venv "$HF_CLI_VENV/bin/python"' "${PROFILE_DIR}/_weights.sh"
+# shellcheck disable=SC2016
+grep -Fq 'hf_cli_works "$HF_CLI_VENV/bin/hf"' "${PROFILE_DIR}/_weights.sh"
+test "$(grep -nE 'ensure_hf_cli|Hugging Face token:' "${PROFILE_DIR}/_weights.sh" | tail -2 | cut -d: -f2-)" = $'ensure_hf_cli\nread -r -s -p "Hugging Face token: " HF_TOKEN_INPUT'
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"
 test "$(grep -Fc 'path: /mnt/glm-5.2-nvfp4' "$nvfp4_values")" -eq 1
