@@ -426,6 +426,81 @@ else
   ok "installer contains no resolved connect secret"
 fi
 
+echo "== Generated defaults on resume =="
+GENERATED_ENV="${TMP}/resume-defaults.env"
+cat >"${GENERATED_ENV}" <<'EOF'
+DEPLOY_NAME=gcp-gateway-deployment-beta
+GATEWAY_DISTR_DEPLOYMENT_NAME=gcp-gateway-deployment-beta
+DOMAIN_NAME=gcp-gateway-beta.subconscious.dev
+DNS_ZONE_NAME=gcp-gateway-beta
+VPC_CIDR=10.80.0.0/16
+DATADOG_ENABLED=false
+GATEWAY_CHART_VERSION=latest
+GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES=api.baseten.co,subconscious.dev
+DISTR_TOKEN={{.Secrets.DISTR_TOKEN}}
+DD_API_KEY={{.Secrets.DD_API_KEY}}
+EOF
+unset INFRA_DEPLOY_NAME GATEWAY_DEPLOY_NAME DOMAIN_NAME DNS_ZONE_NAME
+unset VPC_CIDR DATADOG_ENABLED GATEWAY_CHART_VERSION GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES
+install_load_generated_defaults >/dev/null
+assert_eq "resume infra name" "${INFRA_DEPLOY_NAME}" "gcp-gateway-deployment-beta"
+assert_eq "resume gateway name" "${GATEWAY_DEPLOY_NAME}" "gcp-gateway-deployment-beta"
+assert_eq "resume hostname" "${DOMAIN_NAME}" "gcp-gateway-beta.subconscious.dev"
+assert_eq "resume DNS zone" "${DNS_ZONE_NAME}" "gcp-gateway-beta"
+assert_eq "resume VPC CIDR" "${VPC_CIDR}" "10.80.0.0/16"
+assert_eq "resume Datadog flag" "${DATADOG_ENABLED}" "false"
+assert_eq "resume chart version" "${GATEWAY_CHART_VERSION}" "latest"
+assert_eq "resume provider suffixes" "${GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES}" \
+  "api.baseten.co,subconscious.dev"
+if [[ "${INFRA_DEPLOY_NAME}" == *'{{.Secrets.'* || "${DOMAIN_NAME}" == *'{{.Secrets.'* ]]; then
+  fail "generated defaults loaded a Hub Secret reference"
+else
+  ok "generated defaults skip Hub Secret references"
+fi
+
+echo "== Skip known later-step prompts =="
+if install_use_known DOMAIN_NAME 'Production gateway hostname' \
+    install_validate_hostname >/dev/null; then
+  ok "known hostname is reused"
+else
+  fail "known hostname was not reused"
+fi
+unset DOMAIN_NAME
+if install_use_known DOMAIN_NAME 'Production gateway hostname' \
+    install_validate_hostname >/dev/null; then
+  fail "missing hostname was treated as known"
+else
+  ok "missing hostname still prompts"
+fi
+DOMAIN_NAME=api.example.com
+prompted_hostname=0
+install_prompt_hostname() { prompted_hostname=1; }
+install_require_hostname DOMAIN_NAME 'Production gateway hostname' >/dev/null
+assert_eq "require hostname skips prompt" "${prompted_hostname}" "0"
+
+echo "== Certificate and instance readiness =="
+assert_rc "active cert is ready" 0 install_ssl_cert_is_ready ACTIVE ACTIVE
+assert_rc "failed-not-visible is not ready" 1 \
+  install_ssl_cert_is_ready PROVISIONING FAILED_NOT_VISIBLE
+assert_rc "provisioning is not ready" 1 \
+  install_ssl_cert_is_ready PROVISIONING ACTIVE
+ready_now() { return 0; }
+never_ready() { return 1; }
+assert_rc "wait succeeds when already ready" 0 \
+  install_wait_for_condition ready 0 0 ready_now
+assert_rc "wait fails when never ready" 1 \
+  install_wait_for_condition never 0 0 never_ready
+assert_rc "listed instance matches" 0 \
+  install_pick_listed_name foo-postgres $'foo-postgres\nfoo-other'
+assert_rc "listed instance mismatch prompts" 1 \
+  install_pick_listed_name foo-postgres $'other-postgres'
+assert_rc "empty instance list prompts" 1 \
+  install_pick_listed_name foo-postgres ''
+
+unset INFRA_DEPLOY_NAME GATEWAY_DEPLOY_NAME DOMAIN_NAME DNS_ZONE_NAME
+unset VPC_CIDR DATADOG_ENABLED GATEWAY_CHART_VERSION GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES
+GENERATED_ENV="${GCP_DIR}/.generated/gateway-infra.env"
+
 echo "== Resume dispatch =="
 DISPATCHED=""
 install_require_terminal() { :; }

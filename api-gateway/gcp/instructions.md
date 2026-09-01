@@ -28,24 +28,30 @@ cd ol-runbook/api-gateway/gcp/bootstrap
 The CLI presents ten numbered steps. It runs tool installation, Google login,
 Terraform bootstrap, agent connection, and optional smoke checks through the
 existing reviewed scripts. Before each prompt it explains where to obtain the
-value and whether it is an identifier or a secret. At the required Distr Hub
-actions it prints the exact Secret names and fields to set, then pauses for
-confirmation. Connect URLs and the Hub Kubernetes command are read with
-terminal echo disabled, sent over stdin, and never put in shell history,
-process arguments, or files. The CLI reads the applied bootstrap Terraform
-outputs and uses one dedicated configuration step to create two ignored,
-mode-0600 environments: `.generated/gateway-infra.env` for the first pass and
-`.generated/gateway-infra-auto-deploy.env` for the second pass. They contain
-Hub Secret references and production values ready to paste into Distr. The
-second differs only by enabling gateway auto-deploy. Resolved PATs, passwords,
-and API keys never enter either file.
+value and whether it is an identifier or a secret. Step 4 first collects every
+customer input and writes the two ignored mode-0600 environments, then walks
+Hub setup in order: the `api-gateway-infra` Docker application and Hub
+Secrets. Create the `api-gateway` Helm application in step 6, after step 5
+connects the Docker agent and the first infra deploy succeeds, then paste its
+Kubernetes connect command in the same step. Connect URLs and the Hub
+Kubernetes command are read with terminal echo disabled, sent over stdin, and
+never put in shell history, process arguments, or files. The generated files
+`.generated/gateway-infra.env` (first pass) and
+`.generated/gateway-infra-auto-deploy.env` (second pass) contain Hub Secret
+references and production values ready to paste into Distr. The second differs
+only by enabling gateway auto-deploy. Resolved PATs, passwords, and API keys
+never enter either file. Later steps reuse identifiers from those generated
+files instead of asking again. Step 7 waits for the Google-managed certificate
+to become Active before opening the dashboard.
 
 Useful commands:
 
 ```bash
 ./scripts/install.sh --check          # offline local contract check
 ./scripts/install.sh --list-steps     # preview the workflow
-./scripts/install.sh --from-step 5    # resume after completed steps 1-4
+./scripts/install.sh --from-step 5    # resume after completed steps 1-4; later
+                                     # steps reuse .generated/gateway-infra.env
+                                     # and wait for the Google-managed certificate
 ```
 
 The CLI deliberately does not call the Distr API or store cloud/application
@@ -132,13 +138,17 @@ file. The VM has no public IP; access uses IAP and OS Login. Authentication uses
 a human Google identity and Application Default Credentials; it never creates
 or downloads a service-account key.
 
-### 5. Admin: Configure all Distr variables and Hub Secrets
+### 5. Admin: Configure Distr inputs, then create the infra app and Secrets
 
 The guided installer performs all customer-specific Distr environment setup in
-this one step. It prompts for deployment names, DNS, CIDR, provider suffixes,
-gateway version, Datadog, dashboard identity, optional OIDC, and optional
-webhook delivery. It then renders both rollout environments from the same
-validated inputs. Later steps apply the prepared files; they do not invent new
+this one step. It first prompts for deployment names, DNS, CIDR, provider
+suffixes, gateway version, Datadog, dashboard identity, optional OIDC, and
+optional webhook delivery, then renders both rollout environments. After those
+inputs are complete it walks Hub in this order: the `api-gateway-infra` Docker
+application, then Hub Secrets. Do not create the `api-gateway` Helm
+application yet. Step 5 connects the Docker agent and waits for the first
+infra deploy to succeed. Step 6 creates the Helm application and immediately
+connects the Kubernetes agent. Those later steps do not invent new
 environment values.
 
 Create the same Hub Secrets used by the AWS install:

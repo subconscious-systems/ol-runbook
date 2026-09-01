@@ -317,8 +317,12 @@ gcloud compute addresses describe "$STATIC_IP_NAME" \
 
 DNS must resolve publicly to the reserved IP and the zone must be delegated.
 Certificate activation can take tens of minutes after correct visibility.
-Avoid repeatedly deleting/recreating it; that restarts provisioning and can hit
-quota.
+The Kubernetes `ManagedCertificate` object can stay `Provisioning` /
+`FailedNotVisible` after `gcloud compute ssl-certificates` already shows
+`ACTIVE`. Trust the Compute certificate for smoke checks; do not delete the
+cert. Avoid repeatedly deleting/recreating it; that restarts provisioning and
+can hit quota. HTTPS can still fail for several minutes after `ACTIVE` while
+the load balancer programs the cert.
 
 ### HTTP does not redirect
 

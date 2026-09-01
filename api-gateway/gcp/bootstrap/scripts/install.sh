@@ -11,6 +11,9 @@ GENERATED_AUTO_DEPLOY_ENV="${GCP_DIR}/.generated/gateway-infra-auto-deploy.env"
 INSTALL_TOTAL_STEPS=10
 INSTALL_MODE="run"
 INSTALL_FROM_STEP=1
+INSTALL_POLL_SECONDS="${INSTALL_POLL_SECONDS:-30}"
+INSTALL_GKE_WAIT_SECONDS="${INSTALL_GKE_WAIT_SECONDS:-3600}"
+INSTALL_CERT_WAIT_SECONDS="${INSTALL_CERT_WAIT_SECONDS:-3600}"
 
 install_usage() {
   cat <<'EOF'
@@ -33,6 +36,7 @@ Options:
 Optional environment defaults:
   INFRA_DEPLOY_NAME, GATEWAY_DEPLOY_NAME, DOMAIN_NAME,
   CLOUDSQL_INSTANCE, REDIS_INSTANCE, DATADOG_ENABLED
+  Later steps also reuse identifiers from .generated/gateway-infra.env.
 EOF
 }
 
@@ -41,9 +45,9 @@ install_list_steps() {
 1   Confirm entitlements, account inputs, naming, quota, and capacity
 2   Install gcloud tools and authenticate the human user plus ADC
 3   Configure and apply the production project/bootstrap foundation
-4   Configure every Distr environment variable and Hub Secret
+4   Collect Distr inputs, then create the infra app and Hub Secrets
 5   Connect the Docker agent and complete the first infra deployment
-6   Create the api-gateway Helm deployment and connect its Kubernetes agent
+6   Create the gateway Helm app and connect the Kubernetes agent
 7   Enable gateway auto-deploy and complete the second infra deployment
 8   Verify dashboard login, provider configuration, and a test chat
 9   Run platform, Secret Manager, ESO, rollout, and endpoint verification
@@ -914,6 +918,283 @@ install_prompt_bool() {
   done
 }
 
+install_use_known() {
+  local variable_name="$1"
+  local label="$2"
+  local validator="$3"
+  shift 3
+  local current="${!variable_name:-}"
+  if [[ -z "${current}" ]]; then
+    return 1
+  fi
+  if "${validator}" "${current}" "$@"; then
+    printf 'Using %s: %s\n' "${label}" "${current}"
+    return 0
+  fi
+  return 1
+}
+
+install_require_deployment_name() {
+  local variable_name="$1"
+  local label="$2"
+  install_use_known "${variable_name}" "${label}" \
+    install_assert_deployment_name "${label}" \
+    || install_prompt_deployment_name "${variable_name}" "${label}"
+}
+
+install_require_hostname() {
+  local variable_name="$1"
+  local label="$2"
+  install_use_known "${variable_name}" "${label}" install_validate_hostname \
+    || install_prompt_hostname "${variable_name}" "${label}"
+}
+
+install_require_dns1123() {
+  local variable_name="$1"
+  local label="$2"
+  install_use_known "${variable_name}" "${label}" \
+    install_assert_dns1123 "${label}" \
+    || install_prompt_dns1123 "${variable_name}" "${label}"
+}
+
+install_pick_listed_name() {
+  local wanted="$1"
+  local listed="$2"
+  [[ -n "${wanted}" && -n "${listed}" ]] || return 1
+  grep -Fxq "${wanted}" <<<"${listed}"
+}
+
+install_resolve_data_instance() {
+  local variable_name="$1"
+  local label="$2"
+  local expected="$3"
+  local listed="$4"
+  local current="${!variable_name:-${expected}}"
+  if install_pick_listed_name "${current}" "${listed}"; then
+    printf -v "${variable_name}" '%s' "${current}"
+    printf 'Using %s: %s\n' "${label}" "${current}"
+    return 0
+  fi
+  if [[ "${current}" != "${expected}" ]] \
+    && install_pick_listed_name "${expected}" "${listed}"; then
+    printf -v "${variable_name}" '%s' "${expected}"
+    printf 'Using %s: %s\n' "${label}" "${expected}"
+    return 0
+  fi
+  printf -v "${variable_name}" '%s' "${current}"
+  install_require_dns1123 "${variable_name}" "${label}"
+}
+
+install_wait_for_condition() {
+  local description="$1"
+  local timeout_seconds="$2"
+  local interval_seconds="$3"
+  local check_fn="$4"
+  local status_fn="${5:-}"
+  local elapsed=0
+
+  if "${check_fn}"; then
+    printf '[install] %s is ready\n' "${description}"
+    return 0
+  fi
+  printf '[install] waiting for %s (timeout %ss, every %ss)\n' \
+    "${description}" "${timeout_seconds}" "${interval_seconds}"
+  while (( elapsed < timeout_seconds )); do
+    if [[ "${interval_seconds}" -gt 0 ]]; then
+      sleep "${interval_seconds}"
+    fi
+    elapsed=$((elapsed + interval_seconds))
+    if [[ "${interval_seconds}" -le 0 ]]; then
+      elapsed="${timeout_seconds}"
+    fi
+    if [[ -n "${status_fn}" ]]; then
+      printf '[install] %s: %s\n' "${description}" "$("${status_fn}")"
+    fi
+    if "${check_fn}"; then
+      printf '[install] %s is ready\n' "${description}"
+      return 0
+    fi
+  done
+  printf '[install] timed out waiting for %s\n' "${description}" >&2
+  return 1
+}
+
+install_gke_is_running() {
+  [[ "${1:-}" == "RUNNING" ]]
+}
+
+install_gke_cluster_status() {
+  local project region
+  project="$(install_bootstrap_output project_id)" || return 1
+  region="$(install_bootstrap_output region)" || return 1
+  gcloud container clusters describe "${INFRA_DEPLOY_NAME}-gke" \
+    --project="${project}" --region="${region}" \
+    --format='value(status)' 2>/dev/null || true
+}
+
+install_gke_running_now() {
+  install_gke_is_running "$(install_gke_cluster_status)"
+}
+
+install_ssl_cert_is_ready() {
+  local status="${1:-}"
+  local domain_status="${2:-}"
+  [[ "${status}" == "ACTIVE" && "${domain_status}" != "FAILED_NOT_VISIBLE" ]]
+}
+
+install_query_ssl_cert_state() {
+  local project="${1:-}"
+  local domain="${2:-${DOMAIN_NAME:-}}"
+  [[ -n "${project}" && -n "${domain}" ]] || return 1
+  gcloud compute ssl-certificates list --project="${project}" --format=json \
+    2>/dev/null \
+    | jq -r --arg domain "${domain}" '
+        .[]
+        | select((.type // "" | ascii_upcase) == "MANAGED")
+        | select((.managed.domains // []) | index($domain) != null)
+        | "\(.managed.status // "")\t\((.managed.domainStatus // {})[$domain] // "")"
+      ' \
+    | head -n 1
+}
+
+install_ssl_cert_state_text() {
+  local project state
+  project="$(install_bootstrap_output project_id)" || {
+    printf 'unknown'
+    return 0
+  }
+  state="$(install_query_ssl_cert_state "${project}" "${DOMAIN_NAME}")" || true
+  if [[ -z "${state}" ]]; then
+    printf 'no managed certificate yet'
+    return 0
+  fi
+  printf '%s domain=%s' "${state%%$'\t'*}" "${state#*$'\t'}"
+}
+
+install_ssl_cert_ready_now() {
+  local project state status domain_status
+  project="$(install_bootstrap_output project_id)" || return 1
+  state="$(install_query_ssl_cert_state "${project}" "${DOMAIN_NAME}")" || return 1
+  [[ -n "${state}" ]] || return 1
+  status="${state%%$'\t'*}"
+  domain_status="${state#*$'\t'}"
+  install_ssl_cert_is_ready "${status}" "${domain_status}"
+}
+
+install_wait_for_gke_cluster() {
+  if install_wait_for_condition \
+    "GKE cluster ${INFRA_DEPLOY_NAME}-gke RUNNING" \
+    "${INSTALL_GKE_WAIT_SECONDS}" \
+    "${INSTALL_POLL_SECONDS}" \
+    install_gke_running_now; then
+    return 0
+  fi
+  install_die \
+    "GKE cluster ${INFRA_DEPLOY_NAME}-gke is not RUNNING; rerun this step after the first infra deploy finishes"
+}
+
+install_wait_for_managed_certificate() {
+  local reply
+  if install_ssl_cert_ready_now; then
+    printf 'Using managed certificate for %s: ACTIVE\n' "${DOMAIN_NAME}"
+    return 0
+  fi
+  printf '[install] current certificate: %s\n' "$(install_ssl_cert_state_text)"
+  while true; do
+    if install_wait_for_condition \
+      "managed certificate for ${DOMAIN_NAME}" \
+      "${INSTALL_CERT_WAIT_SECONDS}" \
+      "${INSTALL_POLL_SECONDS}" \
+      install_ssl_cert_ready_now \
+      install_ssl_cert_state_text; then
+      return 0
+    fi
+    printf 'Certificate is not ACTIVE. Type skip to continue without HTTPS, or wait to keep polling: '
+    read -r reply
+    case "${reply}" in
+      skip)
+        printf '[install] WARNING: HTTPS will fail until the managed certificate is ACTIVE\n'
+        return 1
+        ;;
+      wait|'')
+        ;;
+      *)
+        printf 'Type skip or wait.\n'
+        ;;
+    esac
+  done
+}
+
+install_http_ok() {
+  local url="$1"
+  curl --connect-timeout "${INSTALL_CURL_CONNECT_TIMEOUT:-10}" \
+    --max-time "${INSTALL_CURL_MAX_TIME:-30}" \
+    -fsS -o /dev/null "${url}"
+}
+
+install_public_https_ready() {
+  local domain="${1:-${DOMAIN_NAME:-}}"
+  [[ -n "${domain}" ]] || return 1
+  install_http_ok "https://${domain}/healthz" \
+    || install_http_ok "https://${domain}/dashboard/login"
+}
+
+install_wait_for_public_https() {
+  local reply
+  if install_public_https_ready; then
+    printf 'Using public HTTPS: https://%s\n' "${DOMAIN_NAME}"
+    return 0
+  fi
+  printf '[install] HTTPS is not ready at https://%s; waiting for the managed certificate\n' \
+    "${DOMAIN_NAME}"
+  install_wait_for_managed_certificate || true
+  while ! install_public_https_ready; do
+    printf 'https://%s is not serving HTTPS yet.\n' "${DOMAIN_NAME}"
+    printf "Type 'retry' after the certificate is Active, or Ctrl-C to abort: "
+    read -r reply
+    if [[ "${reply}" == "retry" ]]; then
+      install_wait_for_managed_certificate || true
+    fi
+  done
+}
+
+install_load_generated_defaults() {
+  local env_file="${GENERATED_ENV}"
+  local key value loaded=0
+
+  [[ -f "${env_file}" ]] || return 0
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    case "${line}" in
+      ''|\#*) continue ;;
+      *=*) ;;
+      *) continue ;;
+    esac
+    key="${line%%=*}"
+    value="${line#*=}"
+    [[ -n "${value}" ]] || continue
+    [[ "${value}" == '{{.Secrets.'* ]] && continue
+    case "${key}" in
+      DEPLOY_NAME)
+        INFRA_DEPLOY_NAME="${INFRA_DEPLOY_NAME:-${value}}"
+        loaded=1
+        ;;
+      GATEWAY_DISTR_DEPLOYMENT_NAME)
+        GATEWAY_DEPLOY_NAME="${GATEWAY_DEPLOY_NAME:-${value}}"
+        loaded=1
+        ;;
+      DOMAIN_NAME|DNS_ZONE_NAME|CLOUDSQL_INSTANCE|REDIS_INSTANCE|VPC_CIDR|DATADOG_ENABLED|GATEWAY_CHART_VERSION|GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES)
+        if [[ -z "${!key:-}" ]]; then
+          printf -v "${key}" '%s' "${value}"
+          loaded=1
+        fi
+        ;;
+    esac
+  done <"${env_file}"
+  if [[ "${loaded}" -eq 1 ]]; then
+    printf 'Loaded install defaults from %s\n' "${env_file}"
+  fi
+}
+
 install_bootstrap_output() {
   local output_name="$1"
   local value
@@ -1141,7 +1422,7 @@ It contains identifiers and configuration only. Never put passwords, PATs,
 API keys, ADC, or JSON keys in this file. The installer will now initialize,
 validate, plan, ask for the explicit apply confirmation, and apply Terraform.
 EOF
-  "${SCRIPT_DIR}/bootstrap.sh"
+  ORANGELINE_GCP_INSTALLER=1 "${SCRIPT_DIR}/bootstrap.sh"
 }
 
 install_step_4() {
@@ -1238,94 +1519,66 @@ EOF
   GATEWAY_AUTO_DEPLOY=true
   install_render_gateway_env "${GENERATED_AUTO_DEPLOY_ENV}"
   GATEWAY_AUTO_DEPLOY=false
-  cat <<EOF
-This is the single Distr configuration step. It has now collected and
-validated every customer-specific environment input. The generated files also
-carry the reviewed production defaults for GKE, Cloud SQL, Redis, deletion
-protection, Datadog features, gateway versions, and hosted auth. Do not add
-unlisted variables or hand-edit a resolved secret into either file.
+  install_hub_walkthrough
+}
 
-Create these in the CUSTOMER ORGANIZATION's Distr Hub Secrets screen. Every
-value must be pasted directly into a masked Secret value field. Do not paste a
-resolved value into the deployment environment, this terminal, chat, a ticket,
-or git.
+install_hub_walkthrough() {
+  cat <<EOF
+Inputs are complete. Paste identifiers only; do not paste a resolved secret.
+
+  First-pass environment:
+    ${GENERATED_ENV}
+  Second-pass environment (step 7 only):
+    ${GENERATED_AUTO_DEPLOY_ENV}
+
+Hub 1/2: create the api-gateway-infra Docker application
+--------------------------------------------------------
+Create an api-gateway-infra Docker deployment named ${INFRA_DEPLOY_NAME}.
+Paste the first-pass file, select the approved GCP runner release, keep
+GATEWAY_AUTO_DEPLOY=false and DISTR_DRY_RUN=0, and save. Do not connect the
+Docker target yet.
+EOF
+  install_wait_for_word 'Save the infra Docker deployment.' 'done'
+
+  cat <<EOF
+
+Hub 2/2: create Hub Secrets
+---------------------------
+Create these masked Secrets in the customer organization. Paste resolved
+values only into Hub Secret fields, never into the env file or this terminal.
 
   DISTR_TOKEN (required)
-    Source: sign in as the customer admin and create a customer PAT in Distr
-    account settings. This is not a vendor publish token. Copy it once and
-    paste it into the masked Hub Secret named exactly DISTR_TOKEN.
-
   ${DASHBOARD_BOOTSTRAP_SECRET_NAME} (required for day-0)
-    Source: generate a unique 20+ character random password in the customer's
-    password manager. Paste it into this masked Hub Secret and retain it there
-    for the initial admin login. Never place it directly in the env file.
 EOF
   if [[ "${DATADOG_ENABLED}" == "true" ]]; then
     cat <<EOF
-
   DD_API_KEY and DD_APP_KEY (required because Datadog is enabled)
-    Source: Datadog Organization Settings > API Keys and Application Keys in
-    the SAME Datadog organization/site (${DATADOG_SITE}). Use dedicated
-    install keys. The application key needs the permissions documented in
-    api-gateway/gcp/datadog-operations.md, including GCP configuration read
-    plus the manage permissions used by Terraform. Paste each into its matching
-    masked Hub Secret. These are Datadog keys, never Google credentials.
 EOF
   fi
   if [[ "${DASHBOARD_OIDC_ENABLED}" == "true" ]]; then
     cat <<EOF
-
   ${DASHBOARD_OIDC_SECRET_NAME} (required because OIDC is enabled)
-    Source: the client secret from the Okta/Entra/generic Web OIDC application
-    whose redirect URI is:
-      https://${DOMAIN_NAME}/dashboard/auth/oidc/callback
-    Paste only the secret into this masked Hub Secret. The non-secret issuer
-    and client ID are already in the generated environment. Keep the bootstrap
-    password: the admin must invite users before their first SSO login.
+    Redirect URI: https://${DOMAIN_NAME}/dashboard/auth/oidc/callback
 EOF
   fi
   if [[ -n "${GATEWAY_WEBHOOK_URL}" ]]; then
     cat <<EOF
-
   ${GATEWAY_WEBHOOK_SECRET_NAME} (required because webhooks are enabled)
-    Source: generate a unique 32-byte HMAC secret in the customer password
-    manager. Paste the same value into this masked Hub Secret and the approved
-    receiver's GATEWAY_WEBHOOK_SIGNING_SECRET setting. Never put it directly in
-    the env file.
 EOF
   fi
-  cat <<EOF
+  install_wait_for_word 'Create and save the Hub Secrets above.' 'done'
 
-Then create the deployment in Distr Hub:
-  1. Create an api-gateway-infra Docker deployment named:
-       ${INFRA_DEPLOY_NAME}
-  2. Paste this generated environment into its Environment field:
-       ${GENERATED_ENV}
-     It contains secret REFERENCES only, never the resolved values.
-  3. Select the entitled, approved GCP runner release. Confirm the release's
-     environment template recognizes every generated field.
-  4. Keep GATEWAY_AUTO_DEPLOY=false and DISTR_DRY_RUN=0 for the first pass.
-  5. Keep HOSTED_AUTH_ENABLED=false unless Subconscious supplied an approved
-     hosted-control-plane contract and every corresponding value.
-  6. Save the deployment/target, then use Hub's connect action to copy the
-     one-time Docker target URL. Treat that URL as a password.
+  cat <<'EOF'
 
-The second-pass environment is already prepared at:
-  ${GENERATED_AUTO_DEPLOY_ENV}
-
-It is identical except GATEWAY_AUTO_DEPLOY=true. Do not paste it until step 7,
-after the Kubernetes target is connected.
-
-Never put a Google service-account JSON file or resolved application secret in
-Hub.
+Connect the Docker agent in the next installer step. Create the gateway Helm
+application in step 6 after that first infra deploy succeeds and GKE exists.
 EOF
-  install_wait_for_word 'Create and save the Hub resources above.' 'done'
 }
 
 install_step_5() {
   local docker_connect_url=""
   install_header 5 'Connect Docker and run the first infra deployment'
-  install_prompt_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
+  install_require_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
   install_read_secret docker_connect_url \
     'Paste the Docker target https://app.distr.sh/api/v1/connect URL'
   install_validate_connect_url "${docker_connect_url}"
@@ -1335,7 +1588,11 @@ install_step_5() {
   cat <<'EOF'
 The URL was read with terminal echo disabled, sent over stdin/IAP, and not
 stored in a file or process argument.
-
+EOF
+  if install_gke_running_now; then
+    printf 'Using GKE cluster %s-gke: RUNNING\n' "${INFRA_DEPLOY_NAME}"
+  else
+    cat <<EOF
 In Distr Hub:
   1. Verify the Docker target reports connected/healthy.
   2. Open the api-gateway-infra deployment created in step 4.
@@ -1343,28 +1600,37 @@ In Distr Hub:
   4. Trigger the first deployment and watch its logs.
   5. Do not continue until the run succeeds and the GKE cluster exists.
 EOF
-  install_wait_for_word 'Confirm the first infra deployment completed successfully.' 'done'
+    install_wait_for_word \
+      'Confirm the first infra deployment completed successfully.' 'done'
+    install_wait_for_gke_cluster
+  fi
 }
 
 install_step_6() {
   local hub_command=""
-  install_header 6 'Create the Helm deployment and connect Kubernetes'
-  install_prompt_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
-  install_prompt_deployment_name GATEWAY_DEPLOY_NAME 'Gateway deployment/namespace name'
+  install_header 6 'Create the gateway Helm app and connect Kubernetes'
+  install_require_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
+  install_require_deployment_name GATEWAY_DEPLOY_NAME 'Gateway deployment/namespace name'
   cat <<EOF
+The first infra deploy succeeded and GKE exists. Create the api-gateway Helm
+application now, then immediately copy its Kubernetes target connect command.
+If this deployment already exists from an earlier run, open it and do not
+create a second one.
+
 In Distr Hub:
   1. Create an api-gateway Helm deployment using the entitled, approved chart
      release.
   2. Use ${GATEWAY_DEPLOY_NAME} for ALL THREE values: Kubernetes target name,
      namespace, and Helm release.
   3. Leave Helm values empty because the infra runner generates and owns them.
-  4. Save/deploy once, open the Kubernetes target's connect action, and copy
+  4. Save the deployment, open its Kubernetes target connect action, and copy
      the COMPLETE one-time command beginning with:
 
   kubectl apply -n ${GATEWAY_DEPLOY_NAME} -f "https://app.distr.sh/api/v1/connect?..."
 
 Treat the command as a password because its URL contains targetSecret. Paste it
-only into the hidden prompt below—not into shell history, chat, or a ticket.
+only into the hidden prompt below, not into shell history, chat, or a ticket.
+An empty gateway deployment before the target exists is expected to do nothing.
 EOF
   install_read_secret hub_command 'Paste the complete Hub kubectl apply command'
   install_validate_hub_command "${hub_command}"
@@ -1376,27 +1642,32 @@ EOF
 
 install_step_7() {
   install_header 7 'Run the second infra deployment'
+  install_require_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
+  install_require_hostname DOMAIN_NAME 'Production gateway hostname'
   cat <<EOF
 In the api-gateway-infra Hub environment:
-  1. Replace the Environment field with the complete second-pass file prepared
-     in the single configuration step:
+  1. Replace the Environment field with the complete second-pass file:
        ${GENERATED_AUTO_DEPLOY_ENV}
-     Do not edit individual values or paste a resolved Hub Secret.
-  2. Confirm its only rollout difference is GATEWAY_AUTO_DEPLOY=true and that
-     GATEWAY_CHART_VERSION is the approved value prepared in step 4.
+  2. Confirm the only rollout difference is GATEWAY_AUTO_DEPLOY=true.
   3. Trigger the second infra deployment.
-  4. Wait for Terraform, ESO secret synchronization, the Helm deployment, the
-     managed certificate, and public readiness to complete.
+The installer then waits for the Google-managed certificate to become Active
+before opening the dashboard. Do not delete or recreate the certificate.
 EOF
-  install_wait_for_word 'Confirm the second infra deployment completed successfully.' 'done'
+  if ! install_ssl_cert_ready_now; then
+    install_wait_for_word \
+      'Trigger the second infra deployment, then type done to start the certificate wait.' \
+      'done'
+  fi
+  install_wait_for_managed_certificate || true
 }
 
 install_step_8() {
   local secret_prefix bootstrap_secret_name
   install_header 8 'Verify the dashboard and a test chat'
-  install_prompt_deployment_name GATEWAY_DEPLOY_NAME \
+  install_require_deployment_name GATEWAY_DEPLOY_NAME \
     'Gateway deployment/namespace name'
-  install_prompt_hostname DOMAIN_NAME 'Production gateway hostname'
+  install_require_hostname DOMAIN_NAME 'Production gateway hostname'
+  install_wait_for_public_https
   secret_prefix="$(install_secret_prefix "${GATEWAY_DEPLOY_NAME}")"
   bootstrap_secret_name="${secret_prefix}_GATEWAY_DASHBOARD_BOOTSTRAP_PASSWORD"
   cat <<EOF
@@ -1435,9 +1706,11 @@ EOF
   read -r run_smoke
   case "${run_smoke}" in
     ''|y|Y|yes|YES)
-      install_prompt_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
-      install_prompt_deployment_name GATEWAY_DEPLOY_NAME 'Gateway deployment/namespace name'
-      install_prompt_hostname DOMAIN_NAME 'Production gateway hostname'
+      install_require_deployment_name INFRA_DEPLOY_NAME 'Infra Docker deployment name'
+      install_require_deployment_name GATEWAY_DEPLOY_NAME 'Gateway deployment/namespace name'
+      install_require_hostname DOMAIN_NAME 'Production gateway hostname'
+      DATADOG_ENABLED="${DATADOG_ENABLED:-true}"
+      export DATADOG_ENABLED
       GCP_PROJECT="$(install_bootstrap_output project_id)"
       GCP_REGION="$(install_bootstrap_output region)"
       printf '\nCloud SQL instances in %s:\n' "${GCP_PROJECT}"
@@ -1448,8 +1721,13 @@ EOF
         --region "${GCP_REGION}" --format='table(name,region,redisVersion,state)'
       CLOUDSQL_INSTANCE="${CLOUDSQL_INSTANCE:-${INFRA_DEPLOY_NAME}-postgres}"
       REDIS_INSTANCE="${REDIS_INSTANCE:-${INFRA_DEPLOY_NAME}-redis}"
-      install_prompt_dns1123 CLOUDSQL_INSTANCE 'Cloud SQL instance name'
-      install_prompt_dns1123 REDIS_INSTANCE 'Redis instance name'
+      install_resolve_data_instance CLOUDSQL_INSTANCE 'Cloud SQL instance name' \
+        "${INFRA_DEPLOY_NAME}-postgres" \
+        "$(gcloud sql instances list --project "${GCP_PROJECT}" --format='value(name)')"
+      install_resolve_data_instance REDIS_INSTANCE 'Redis instance name' \
+        "${INFRA_DEPLOY_NAME}-redis" \
+        "$(gcloud redis instances list --project "${GCP_PROJECT}" \
+          --region "${GCP_REGION}" --format='value(name)')"
       "${SCRIPT_DIR}/smoke-checks.sh" \
         "${INFRA_DEPLOY_NAME}" \
         "${GATEWAY_DEPLOY_NAME}" \
@@ -1500,6 +1778,7 @@ install_main() {
 
   install_require_terminal
   install_check_files
+  install_load_generated_defaults
   printf '\nSubconscious Inference System - production GCP installer\n'
   printf 'Starting at step %s. Hub/application secrets are never stored locally.\n' \
     "${INSTALL_FROM_STEP}"
