@@ -100,9 +100,9 @@ download root. Accept its default unless you are also updating every model and
 host-mount path in the YAML. For FP8 + DFLASH it downloads the main GLM weights
 and the DFLASH repository serially; NVFP4 downloads only NVFP4. Rerunning the
 command resumes or verifies the same target directories through the Hugging
-Face CLI. Rocky/RHEL hosts use the Python 3.11 runtime installed by
-`install.sh`; the downloader rejects legacy Python versions that cannot provide
-the modern `hf` command.
+Face CLI. Before requesting a token, the downloader verifies Python 3.9+,
+`venv`, and the `hf` command. If needed, it installs the supported Python
+packages with `apt` on Debian/Ubuntu or Python 3.11 with `dnf` on Rocky/RHEL.
 
 Confirm the profile's `worker.modelPath` exists before continuing. For the
 four-GPU NVFP4 profile:
