@@ -16,8 +16,8 @@ a working host driver before installation (`nvidia-smi` must succeed); the
 script does not replace RPM-family GPU drivers. It preserves active
 `firewalld`, adding the k3s network rules and profile NodePorts `30001-30006`.
 On enforcing SELinux hosts it labels the supported model directories for
-container access. The NVFP4 profile mounts only `/mnt/glm-5.2-nvfp4`, not the
-entire `/mnt` filesystem.
+container access. The NVFP4 + DFLASH profile mounts `/mnt` read-only so both
+profile directories are visible to the worker.
 On enforcing RPM-family SELinux hosts, only the NVIDIA device-plugin DaemonSet
 runs privileged so it can register GPUs with the k3s kubelet; inference workers
 remain unprivileged.
@@ -52,7 +52,7 @@ families are:
 
 | Model | Profile YAML | Weight repositories |
 |---|---|---|
-| GLM-5.2 NVFP4, 4×B200 | `glm-5.2-nvfp4-b200-4gpu/` | `nvidia/GLM-5.2-NVFP4` |
+| GLM-5.2 NVFP4 + DFLASH, 4×B200 | `glm-5.2-nvfp4-b200-4gpu/` | `nvidia/GLM-5.2-NVFP4`, then `SubconsciousDev/glm-5.2-fp8-dflash-v2` |
 | GLM-5.2 FP8 + DFLASH, 4×B200 | `glm-5.2-b200-4gpu/` | `zai-org/GLM-5.2-FP8`, then `SubconsciousDev/glm-5.2-fp8-dflash-v2` |
 | GLM-5.2 FP8 + DFLASH, 8×B200 | `glm-5.2-b200-8gpu/` | Same two repositories |
 | Qwen3.6-27B-FP8 | `qwen36-27b-{gpu}-{count}gpu/` | `Qwen/Qwen3.6-27B-FP8` |
@@ -60,8 +60,9 @@ families are:
 
 The NVFP4 profile uses `registry.distr.sh/subconscious/timrun:sm_100-v0.13`,
 serves `glm-5.2`, and exposes the existing `glm-52` route on NodePort `30001`.
-Its only model directory is `/mnt/glm-5.2-nvfp4`; no DFLASH draft model is
-used by this profile.
+It serves `/mnt/glm-5.2-nvfp4` with the DFLASH draft at
+`/mnt/glm-5.2-fp8-dflash-v2`, following the Baseten `Braintree-2` settings with
+tensor parallelism reduced from 8 to 4.
 
 The legacy `qwen36-27b/` and `qwen3-8b/` directories remain available for
 existing multi-worker installs. New installs should use topology-specific

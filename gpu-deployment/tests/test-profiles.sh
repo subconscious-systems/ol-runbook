@@ -41,8 +41,11 @@ grep -Fq 'hf_cli_works "$HF_CLI_VENV/bin/hf"' "${PROFILE_DIR}/_weights.sh"
 test "$(grep -nE 'ensure_hf_cli|Hugging Face token:' "${PROFILE_DIR}/_weights.sh" | tail -2 | cut -d: -f2-)" = $'ensure_hf_cli\nread -r -s -p "Hugging Face token: " HF_TOKEN_INPUT'
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"
-test "$(grep -Fc 'path: /mnt/glm-5.2-nvfp4' "$nvfp4_values")" -eq 1
-test "$(grep -Fc 'mountPath: /mnt/glm-5.2-nvfp4' "$nvfp4_values")" -eq 1
+grep -Fq '      path: /mnt' "$nvfp4_values"
+grep -Fq '      mountPath: /mnt' "$nvfp4_values"
+grep -Fq -- '--speculative-algorithm DFLASH' "$nvfp4_values"
+grep -Fq -- '--speculative-draft-model-path /mnt/glm-5.2-fp8-dflash-v2' "$nvfp4_values"
+grep -Fq 'SubconsciousDev/glm-5.2-fp8-dflash-v2' "${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/weights.sh"
 
 for profile in "${PROFILE_DIR}"/*/values.yaml; do
   profile_dir="$(dirname "${profile}")"
