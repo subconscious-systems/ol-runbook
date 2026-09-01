@@ -10,14 +10,14 @@ cd <profile>
 ./weights.sh
 ```
 
-`install.sh` prepares NVIDIA drivers, Docker, k3s, kubectl, and the NVIDIA
-device plugin on Debian/Ubuntu and Rocky/RHEL-family hosts. Rocky/RHEL requires
+`install.sh` prepares NVIDIA drivers, Docker, k3s, kubectl, the default model
+roots, and the NVIDIA device plugin on Debian/Ubuntu and Rocky/RHEL-family hosts. Rocky/RHEL requires
 a working host driver before installation (`nvidia-smi` must succeed); the
 script does not replace RPM-family GPU drivers. It preserves active
 `firewalld`, adding the k3s network rules and profile NodePorts `30001-30006`.
-On enforcing SELinux hosts it labels the supported model directories for
-container access. The NVFP4 + DFLASH profile mounts `/mnt` read-only so both
-profile directories are visible to the worker.
+The profile's `weights.sh` labels its selected download root for container
+access on SELinux hosts. The NVFP4 + DFLASH profile mounts `/mnt` read-only so
+both profile directories are visible to the worker.
 On enforcing RPM-family SELinux hosts, only the NVIDIA device-plugin DaemonSet
 runs privileged so it can register GPUs with the k3s kubelet; inference workers
 remain unprivileged.
@@ -46,6 +46,9 @@ draft-model path in `worker.sglang.extraArgs`, and `worker.weights.hostPath`.
 The script creates each model directory beneath the chosen root. It
 passes the token through the `HF_TOKEN` environment variable, never echoes it,
 and never places it in the process command line.
+On SELinux-enabled hosts it installs the policy utilities when needed, adds a
+persistent `container_file_t` rule for that exact chosen root, and relabels the
+downloaded files. The parent mount is not relabeled.
 
 Each YAML begins with its exact `install.sh` and `weights.sh` commands. Profile
 families are:

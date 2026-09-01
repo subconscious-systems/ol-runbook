@@ -61,9 +61,10 @@ k3s. When `firewalld` is active, the installer keeps it enabled and adds the
 official k3s API, pod, and service-network rules plus TCP NodePorts
 `30001-30006`. Override the last range with `K3S_FIREWALL_NODEPORTS` if the
 selected profile uses different ports. On enforcing SELinux hosts, it also
-persists `container_file_t` labels for `/models/hf` and `/mnt`; override the
-colon-separated paths with
-`MODEL_STORAGE_PATHS` when using custom model locations. Rocky/RHEL 8 commonly
+creates the default model roots `/models/hf` and `/mnt/model-test`; override
+the colon-separated paths with `MODEL_STORAGE_PATHS` when using custom model
+locations. The profile's `weights.sh` applies container-readable SELinux labels
+only to the download root selected there. Rocky/RHEL 8 commonly
 boots with cgroup v1; the installer detects that filesystem and persists the
 kubelet's temporary `failCgroupV1=false` compatibility setting so k3s can start
 without a host reboot. Prefer cgroup v2 for future OS images. When SELinux is
@@ -106,6 +107,10 @@ command resumes or verifies the same target directories through the Hugging
 Face CLI. Before requesting a token, the downloader verifies Python 3.9+,
 `venv`, and the `hf` command. If needed, it installs the supported Python
 packages with `apt` on Debian/Ubuntu or Python 3.11 with `dnf` on Rocky/RHEL.
+When SELinux is enabled, `weights.sh` also persists a `container_file_t` rule
+for the download root actually selected at the prompt and relabels that root
+after the download. It never changes the label of the parent mount (for
+example, selecting `/mnt/model-test` does not relabel all of `/mnt`).
 
 Confirm the profile's `worker.modelPath` exists before continuing. For the
 four-GPU NVFP4 profile:

@@ -14,8 +14,11 @@ grep -Fq 'python3.11 python3.11-pip' "${PROFILE_DIR}/install.sh"
 grep -Fq 'k3s_exec+=" --selinux"' "${PROFILE_DIR}/install.sh"
 grep -Fq 'firewall-cmd --permanent --zone=trusted' "${PROFILE_DIR}/install.sh"
 grep -Fq 'K3S_FIREWALL_NODEPORTS must stay within' "${PROFILE_DIR}/install.sh"
-grep -Fq 'semanage fcontext -a -t container_file_t' "${PROFILE_DIR}/install.sh"
-grep -Fq 'restorecon -RF' "${PROFILE_DIR}/install.sh"
+grep -Fq 'MODEL_STORAGE_PATHS="${MODEL_STORAGE_PATHS:-/models/hf:/mnt/model-test}"' "${PROFILE_DIR}/install.sh"
+if grep -Fq 'configure_rpm_model_selinux' "${PROFILE_DIR}/install.sh"; then
+  echo "ERROR: weights.sh, not install.sh, must label the selected model root" >&2
+  exit 1
+fi
 grep -Fq 'stat -fc %T /sys/fs/cgroup' "${PROFILE_DIR}/install.sh"
 grep -Fq 'fail-cgroupv1=false' "${PROFILE_DIR}/install.sh"
 # These are literal shell source fragments, not expressions for this test.
@@ -38,6 +41,10 @@ grep -Fq 'python_is_supported "$HF_CLI_VENV/bin/python"' "${PROFILE_DIR}/_weight
 grep -Fq 'python_has_venv "$HF_CLI_VENV/bin/python"' "${PROFILE_DIR}/_weights.sh"
 # shellcheck disable=SC2016
 grep -Fq 'hf_cli_works "$HF_CLI_VENV/bin/hf"' "${PROFILE_DIR}/_weights.sh"
+grep -Fq 'configure_download_selinux "$DOWNLOAD_ROOT"' "${PROFILE_DIR}/_weights.sh"
+grep -Fq 'semanage fcontext -a -t container_file_t "$pattern"' "${PROFILE_DIR}/_weights.sh"
+grep -Fq 'run_as_root restorecon -RF "$DOWNLOAD_ROOT"' "${PROFILE_DIR}/_weights.sh"
+grep -Fq 'die "download root must not be /"' "${PROFILE_DIR}/_weights.sh"
 test "$(grep -nE 'ensure_hf_cli|Hugging Face token:' "${PROFILE_DIR}/_weights.sh" | tail -2 | cut -d: -f2-)" = $'ensure_hf_cli\nread -r -s -p "Hugging Face token: " HF_TOKEN_INPUT'
 
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"

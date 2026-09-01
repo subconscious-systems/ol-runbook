@@ -23,8 +23,68 @@ run_as_root() {
   elif have sudo; then
     sudo "$@"
   else
-    die "sudo is required to install Python"
+    die "sudo is required to install host prerequisites or configure SELinux"
   fi
+}
+
+selinux_is_enabled() {
+  have getenforce && [[ "$(getenforce)" != "Disabled" ]]
+}
+
+ensure_selinux_tools() {
+  selinux_is_enabled || return
+  have semanage && have restorecon && return
+
+  [[ -r /etc/os-release ]] ||
+    die "cannot install SELinux tools automatically without /etc/os-release"
+  # shellcheck disable=SC1091
+  source /etc/os-release
+  case " ${ID:-} ${ID_LIKE:-} " in
+    *" debian "* | *" ubuntu "*)
+      have apt-get || die "apt-get is required to install SELinux tools"
+      log "installing SELinux policy tools with apt"
+      run_as_root apt-get update
+      run_as_root apt-get install -y policycoreutils policycoreutils-python-utils
+      ;;
+    *" rhel "* | *" fedora "* | *" centos "*)
+      have dnf || die "dnf is required to install SELinux tools"
+      log "installing SELinux policy tools with dnf"
+      run_as_root dnf install -y policycoreutils policycoreutils-python-utils
+      ;;
+    *)
+      die "SELinux is enabled but semanage or restorecon is missing"
+      ;;
+  esac
+
+  have semanage || die "SELinux setup did not provide semanage"
+  have restorecon || die "SELinux setup did not provide restorecon"
+}
+
+selinux_escape_path() {
+  local input="$1" escaped="" char index
+  for ((index = 0; index < ${#input}; index++)); do
+    char="${input:index:1}"
+    case "$char" in
+      \\ | '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '|')
+        escaped+="\\${char}"
+        ;;
+      *) escaped+="$char" ;;
+    esac
+  done
+  printf '%s' "$escaped"
+}
+
+configure_download_selinux() {
+  local download_root="$1" pattern
+  selinux_is_enabled || return
+  ensure_selinux_tools
+
+  pattern="$(selinux_escape_path "$download_root")(/.*)?"
+  log "allowing containers to read $download_root under SELinux"
+  if ! run_as_root semanage fcontext -a -t container_file_t "$pattern"; then
+    run_as_root semanage fcontext -m -t container_file_t "$pattern"
+  fi
+  run_as_root restorecon -RF "$download_root"
 }
 
 find_hf_python() {
@@ -164,6 +224,8 @@ else
 fi
 [[ "$DOWNLOAD_ROOT" == /* ]] || die "download root must be an absolute path"
 DOWNLOAD_ROOT="${DOWNLOAD_ROOT%/}"
+[[ -n "$DOWNLOAD_ROOT" && "$DOWNLOAD_ROOT" != "/" ]] ||
+  die "download root must not be /"
 
 log "profile: $PROFILE_NAME"
 for row in "${DOWNLOAD_ROWS[@]}"; do
@@ -177,6 +239,7 @@ if ! mkdir -p "$DOWNLOAD_ROOT"; then
   die "cannot create $DOWNLOAD_ROOT; create it with the correct ownership first"
 fi
 [[ -w "$DOWNLOAD_ROOT" ]] || die "download root is not writable: $DOWNLOAD_ROOT"
+configure_download_selinux "$DOWNLOAD_ROOT"
 
 export HF_TOKEN="$HF_TOKEN_INPUT"
 for row in "${DOWNLOAD_ROWS[@]}"; do
@@ -185,6 +248,12 @@ for row in "${DOWNLOAD_ROWS[@]}"; do
   log "downloading $repo to $destination"
   "$HF_CLI_BIN" download "$repo" --local-dir "$destination"
 done
+
+# Re-apply the persistent file-context rule so resumed downloads and any files
+# created with a different label are readable through an unprivileged hostPath.
+if selinux_is_enabled; then
+  run_as_root restorecon -RF "$DOWNLOAD_ROOT"
+fi
 
 unset HF_TOKEN_INPUT HF_TOKEN
 trap - EXIT
