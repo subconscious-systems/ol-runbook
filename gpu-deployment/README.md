@@ -13,7 +13,7 @@ device to run the shared cloud routing wizard.
 | GPU host | AWS EC2 or GCP Compute Engine running Ubuntu/Debian or Rocky/RHEL 8.4+, with the GPU count required by the selected profile |
 | [api-gateway](https://github.com/subconscious-systems/api-gateway) | Deployed and reachable |
 | [Distr](https://app.distr.sh) account | Must be entitled to the SGLang application |
-| SGLang chart | **0.10.0+** for Qwen profiles; **0.13.0+** for GLM-5.2 FP8; **0.14.0+** for the concise GLM-5.2 NVFP4 runtime preset |
+| SGLang chart | **0.10.0+** for Qwen profiles; **0.13.0+** for GLM-5.2 FP8; **0.13.1+** for GLM-5.2 NVFP4 |
 | Model storage | Enough persistent space at the host path declared by the selected profile (`/models/hf` for Qwen/GLM FP8, `/mnt` for GLM NVFP4) |
 
 The gateway [EKS upgrade](../api-gateway/aws/eks-upgrade.md) does not alter these
@@ -38,9 +38,9 @@ The GLM-5.2 NVFP4 profile uses the existing `glm-52` worker route on NodePort
 `30001`, advertises the served model as `glm-5.2`, and pulls
 `registry.distr.sh/subconscious/timrun:sm_100-v0.13`. It mounts the preloaded
 `nvidia/GLM-5.2-NVFP4` weights from `/mnt/model-test/glm-5.2-nvfp4` and the
-DFLASH draft from `/mnt/model-test/glm-5.2-fp8-dflash-v2`. Its concise YAML
-selects the chart-owned `glm-5.2-nvfp4-dflash-b200-4gpu` runtime preset, whose
-flags mirror the Baseten `Braintree-2` configuration scaled from tensor
+DFLASH draft from `/mnt/model-test/glm-5.2-fp8-dflash-v2`. Its self-contained
+YAML exposes the DFLASH, hierarchical-cache, Subconscious buffer, concurrency,
+and cache environment settings from Baseten `Braintree-2`, scaled from tensor
 parallel 8 to 4.
 
 ## Step 1 — GPU Host Preparation
@@ -135,8 +135,8 @@ test -f /mnt/model-test/glm-5.2-fp8-dflash-v2/config.json
 
 3. Navigate to **Deployments** → **New Deployment**.
 4. Select the SGLang / gpu-deployment application. Use **0.10.0 or newer** for
-   Qwen, **0.13.0 or newer** for GLM-5.2 FP8, or **0.14.0 or newer** for the
-   concise GLM-5.2 NVFP4 runtime-preset profile.
+   Qwen, **0.13.0 or newer** for GLM-5.2 FP8, or **0.13.1 or newer** for the
+   GLM-5.2 NVFP4 profile.
 5. Enter a deployment name and set **Kubernetes Namespace** to `sglang`.
 6. Open [profiles](profiles/), pick the model and exact GPU topology, and paste
    the folder's **entire `values.yaml`** into **App Config → Helm Values** (full replace).

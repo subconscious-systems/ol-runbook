@@ -43,16 +43,26 @@ test "$(grep -nE 'ensure_hf_cli|Hugging Face token:' "${PROFILE_DIR}/_weights.sh
 nvfp4_values="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/values.yaml"
 grep -Fq '      path: /mnt' "$nvfp4_values"
 grep -Fq '      mountPath: /mnt' "$nvfp4_values"
-grep -Fq '  runtimePreset: glm-5.2-nvfp4-dflash-b200-4gpu' "$nvfp4_values"
 grep -Fq '  modelPath: /mnt/model-test/glm-5.2-nvfp4' "$nvfp4_values"
-if grep -Fq -- '--speculative-algorithm' "$nvfp4_values"; then
-  echo "ERROR: NVFP4 profile duplicates runtime-preset SGLang flags" >&2
+if grep -Fq 'runtimePreset:' "$nvfp4_values"; then
+  echo "ERROR: NVFP4 profile must expose its runtime settings directly" >&2
   exit 1
 fi
-if grep -Fq '  extraEnv:' "$nvfp4_values"; then
-  echo "ERROR: NVFP4 profile duplicates runtime-preset environment" >&2
-  exit 1
-fi
+grep -Fq '    memFractionStatic: "0.82"' "$nvfp4_values"
+grep -Fq '    maxRunningRequests: "96"' "$nvfp4_values"
+grep -Fq -- '--enable-hierarchical-cache' "$nvfp4_values"
+grep -Fq -- '--hicache-ratio 2' "$nvfp4_values"
+grep -Fq -- '--subconscious-x-st-buffer-size 5' "$nvfp4_values"
+grep -Fq -- '--subconscious-x-min-span-length 3' "$nvfp4_values"
+grep -Fq -- '--speculative-algorithm DFLASH' "$nvfp4_values"
+grep -Fq -- '--speculative-draft-model-path /mnt/model-test/glm-5.2-fp8-dflash-v2' "$nvfp4_values"
+grep -Fq -- '--speculative-num-draft-tokens 12' "$nvfp4_values"
+grep -Fq -- '--speculative-draft-kv-cache-dtype bfloat16' "$nvfp4_values"
+grep -Fq -- '--speculative-draft-attention-backend fa4' "$nvfp4_values"
+grep -Fq -- '--cuda-graph-max-bs 96' "$nvfp4_values"
+grep -Fq '  extraEnv:' "$nvfp4_values"
+grep -Fq '    - name: CUDA_VISIBLE_DEVICES' "$nvfp4_values"
+grep -Fq '    - name: SGLANG_SUBCONSCIOUS_TRANSPLANT' "$nvfp4_values"
 nvfp4_weights="${PROFILE_DIR}/glm-5.2-nvfp4-b200-4gpu/weights.sh"
 grep -Fq 'nvidia/GLM-5.2-NVFP4" "/mnt/model-test/glm-5.2-nvfp4' "$nvfp4_weights"
 grep -Fq 'SubconsciousDev/glm-5.2-fp8-dflash-v2" "/mnt/model-test/glm-5.2-fp8-dflash-v2' "$nvfp4_weights"
