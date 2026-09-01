@@ -14,6 +14,9 @@ Rotation: [secret-rotation.md](secret-rotation.md). Operations:
 [rollback.md](rollback.md), and
 [teardown.md](teardown.md).
 
+For environments where Ryvn runs Terraform and the Kubernetes installation,
+use the separate [Ryvn-managed environment setup](ryvn-environment-setup.md).
+
 ## Architecture overview
 
 | Application | Type | Where it runs | Job |
@@ -152,3 +155,4 @@ Keep each Distr deployment name at most 32 characters:
 9. [rollback.md](rollback.md) — release rollback
 10. [teardown.md](teardown.md) — ordered platform teardown
 11. [cost-estimate.md](cost-estimate.md) — planning estimate and live-pricing gate
+12. [ryvn-environment-setup.md](ryvn-environment-setup.md) — Ryvn-managed project identity and provisioning setup
