@@ -94,6 +94,17 @@ gateway namespace. Then trigger a **second** infra deploy with
 
 The first **empty** api-gateway Helm deploy (before the K8s agent) is **expected to fail / do nothing**.
 
+### Helm install rolled back: router Available 0/1, `/v1/models` 503
+
+The router process is up (`/health` 200). Day-0 SMG returns `503 No models
+available` because no dashboard models exist yet. Older router images treat
+that 503 as startup failure, so Helm `--wait` times out and
+`rollback-on-failure` uninstalls the whole release. Do not keep redeploying
+the same chart. Select an `api-gateway` release whose router image treats an
+empty desired-model list plus that 503 as ready. Rolling upgrades still wait
+until named models appear on `/v1/models`. Do not `helm rollback` or
+kubectl-patch the probe.
+
 ### Second infra / gateway auto-deploy
 
 Fragment generation, ESO sync timing, Ingress/DNS, and Datadog asset conflicts often need a re-run or Hub/env tweak. Prefer fixing infra env fields. Hub hand-edits to gateway Helm overrides are overwritten on the next auto-deploy.

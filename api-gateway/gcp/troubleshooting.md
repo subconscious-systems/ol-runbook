@@ -53,6 +53,17 @@ After a Hub-only rename, set `GATEWAY_DISTR_PORTAL_NAME` rather than changing
 the cluster identity. Logs: `no Distr deployment target named …`.
 Hand-edited Hub Helm values will be overwritten by the next runner fragment.
 
+### Helm install rolled back: router Available 0/1, `/v1/models` 503
+
+The router process is up (`/health` 200). Day-0 SMG returns `503 No models
+available` because no dashboard models exist yet. Older router images treat
+that 503 as startup failure, so Helm `--wait` times out and
+`rollback-on-failure` uninstalls the whole release. Do not keep redeploying
+the same chart. Select an `api-gateway` release whose router image treats an
+empty desired-model list plus that 503 as ready. Rolling upgrades still wait
+until named models appear on `/v1/models`. Do not `helm rollback` or
+kubectl-patch the probe.
+
 ### Terraform plan-only run
 
 As on AWS, `DISTR_DRY_RUN=1` shows the Terraform plan and stops. Return it to
