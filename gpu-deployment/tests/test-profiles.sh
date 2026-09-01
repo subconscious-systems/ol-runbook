@@ -57,6 +57,7 @@ if grep -Fq 'runtimePreset:' "$nvfp4_values"; then
 fi
 grep -Fq '    memFractionStatic: "0.82"' "$nvfp4_values"
 grep -Fq '    maxRunningRequests: "96"' "$nvfp4_values"
+test "$(grep -Fc '      memory: "681575Mi"' "$nvfp4_values")" -eq 2
 grep -Fq -- '--enable-hierarchical-cache' "$nvfp4_values"
 grep -Fq -- '--hicache-ratio 2' "$nvfp4_values"
 grep -Fq -- '--subconscious-x-st-buffer-size 5' "$nvfp4_values"
