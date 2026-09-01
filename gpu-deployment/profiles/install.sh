@@ -16,7 +16,7 @@
 #   NVIDIA_DEVICE_PLUGIN_URL=https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.19.3/deployments/static/nvidia-device-plugin.yml
 #   GPU_READY_TIMEOUT_SECONDS=180
 #   K3S_FIREWALL_NODEPORTS=30001-30006  # Rocky/RHEL firewalld only
-#   MODEL_STORAGE_PATHS=/models/hf:/mnt
+#   MODEL_STORAGE_PATHS=/models/hf:/mnt/model-test
 set -euo pipefail
 
 SKIP_NVIDIA_DRIVERS="${SKIP_NVIDIA_DRIVERS:-false}"
@@ -29,7 +29,7 @@ NAMESPACE="${NAMESPACE:-sglang}"
 K3S_FIREWALL_NODEPORTS="${K3S_FIREWALL_NODEPORTS:-30001-30006}"
 K3S_POD_CIDR="${K3S_POD_CIDR:-10.42.0.0/16}"
 K3S_SERVICE_CIDR="${K3S_SERVICE_CIDR:-10.43.0.0/16}"
-MODEL_STORAGE_PATHS="${MODEL_STORAGE_PATHS:-/models/hf:/mnt}"
+MODEL_STORAGE_PATHS="${MODEL_STORAGE_PATHS:-/models/hf:/mnt/model-test}"
 
 log() { printf '[dep] %s\n' "$*"; }
 die() { printf '[dep] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -169,26 +169,6 @@ ensure_model_storage() {
         run_as_root chown "${TARGET_USER}" "$model_path"
       fi
     fi
-  done
-}
-
-configure_rpm_model_selinux() {
-  [[ "$PACKAGE_FAMILY" == "rpm" ]] || return
-  have getenforce || return
-  [[ "$(getenforce)" != "Disabled" ]] || return
-  have semanage || die "semanage is required to label model storage for SELinux"
-  have restorecon || die "restorecon is required to label model storage for SELinux"
-
-  local model_path pattern
-  local -a model_paths
-  IFS=: read -r -a model_paths <<<"$MODEL_STORAGE_PATHS"
-  for model_path in "${model_paths[@]}"; do
-    pattern="${model_path}(/.*)?"
-    log "allowing container read access to ${model_path} under SELinux"
-    if ! run_as_root semanage fcontext -a -t container_file_t "$pattern"; then
-      run_as_root semanage fcontext -m -t container_file_t "$pattern"
-    fi
-    run_as_root restorecon -RF "$model_path"
   done
 }
 
@@ -560,7 +540,6 @@ ensure_deployment_namespace() {
 
 ensure_base_packages
 ensure_model_storage
-configure_rpm_model_selinux
 ensure_nvidia_drivers
 ensure_nvidia_container_toolkit
 configure_rpm_firewalld
