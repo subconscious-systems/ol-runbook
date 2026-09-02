@@ -13,7 +13,8 @@ dashboard and send it on every request.
 
 | Method | Path | Typical clients |
 | --- | --- | --- |
-| `GET` | `/v1/models` | Any OpenAI-compatible SDK |
+| `GET` | `/v1/models` | Any OpenAI-compatible SDK (public fleet catalog) |
+| `GET` | `/v1/models/available` | CLI or SDK listing models this API key may use |
 | `POST` | `/v1/chat/completions` | OpenAI Chat Completions clients |
 | `POST` | `/v1/responses` | OpenAI Codex (`wire_api = "responses"`) |
 | `POST` | `/v1/messages` | Anthropic Messages / Claude Code |
@@ -24,14 +25,16 @@ paths.
 
 ### Authentication
 
-- OpenAI-shaped endpoints (`/v1/models`, `/v1/chat/completions`, `/v1/responses`):
-  `Authorization: Bearer <gateway-api-key>`
+- OpenAI Chat Completions (`/v1/chat/completions`): `Authorization: Bearer <gateway-api-key>`
+- `/v1/responses` and `GET /v1/models/available`: `Authorization: Bearer <gateway-api-key>`, or
+  `x-api-key: <gateway-api-key>`
 - Anthropic Messages (`/v1/messages`, `/v1/messages/count_tokens`): `x-api-key: <gateway-api-key>`, or the
   same Bearer header as above
 
-`GET /v1/models` returns only models available to the authenticated key. An
-explicit key `model_ids` restriction takes precedence over organization model
-access.
+`GET /v1/models` is a public catalog of active model groups and does not require
+a key. `GET /v1/models/available` requires a key and returns the intersection of
+that catalog with the key's model access. An explicit key `model_ids`
+restriction takes precedence over organization model access.
 
 Optional request correlation: send `x-request-id`. The gateway preserves it
 through routing and usage events and returns it on responses. If omitted, it
@@ -279,7 +282,8 @@ instead of falling back to a sidecar `max_tokens: 1` Messages call.
 Prefer `subc claude` ([coding-agents/](coding-agents/)). Point Claude Code (or
 any Anthropic Messages client) at your gateway origin and authenticate with
 your gateway API key via `x-api-key` (or Bearer). Use model names from
-`GET /v1/models` / the dashboard for your org.
+`GET /v1/models/available` or the dashboard when you need the models this key
+can call. `GET /v1/models` lists the public fleet catalog.
 
 ## Timeouts and retries
 

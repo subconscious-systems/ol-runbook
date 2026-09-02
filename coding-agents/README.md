@@ -14,7 +14,7 @@ subc config --gateway-url https://gateway.example --api-key sk-gw-... --model gw
 subc claude
 ```
 
-Use the model name shown in your dashboard (`GET /v1/models`). `subc <agent> help` covers flags and profile settings. Named profiles work with `-p` (or `SUBC_PROFILE`).
+Use the model name shown in your dashboard or `GET /v1/models/available` (the models this API key may call). `GET /v1/models` is the public fleet catalog. `subc <agent> help` covers flags and profile settings. Named profiles work with `-p` (or `SUBC_PROFILE`).
 
 ## Commands
 
