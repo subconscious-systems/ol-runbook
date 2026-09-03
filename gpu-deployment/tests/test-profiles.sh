@@ -7,6 +7,13 @@ PROFILE_DIR="${GPU_DIR}/profiles"
 bash -n "${GPU_DIR}/dependencies.sh"
 bash -n "${PROFILE_DIR}/install.sh"
 bash -n "${PROFILE_DIR}/_weights.sh"
+bash -n "${PROFILE_DIR}/_deploy.sh"
+for provider_file in "${PROFILE_DIR}"/_providers/*.sh; do
+  bash -n "${provider_file}"
+done
+for deploy in "${PROFILE_DIR}"/*/*/deploy.sh; do
+  bash -n "${deploy}"
+done
 
 grep -Fq 'rocky | rhel | centos | almalinux)' "${PROFILE_DIR}/install.sh"
 grep -Fq 'stable/rpm/nvidia-container-toolkit.repo' "${PROFILE_DIR}/install.sh"

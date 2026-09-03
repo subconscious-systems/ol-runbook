@@ -75,3 +75,27 @@ filenames.
 All profiles mount downloaded weights read-only. The chart contains no model
 downloader or Hugging Face secret; a worker fails to start if its
 configured host path was not populated first.
+
+## Provider deploy scripts (optional)
+
+Each profile directory also contains per-cloud deploy scripts for supported
+providers: `aws`, `gcp`, `azure`, `oci`, `coreweave`, `lambda`, `crusoe`,
+`nebius`, `baseten`, `together`, and `fireworks`. A script provisions a GPU
+instance matching the profile, runs `install.sh` on it, stages the profile's
+`values.yaml` and `weights.sh`, and starts `./weights.sh` — automating host
+preparation and the weight download:
+
+```bash
+cd qwen36-27b-h100-80gb-2gpu/gcp
+./deploy.sh
+```
+
+Defaults cover only topologies each provider actually sells; override them
+with `AWS_INSTANCE_TYPE`, `GCP_MACHINE_TYPE`, `AZURE_VM_SIZE`, `OCI_SHAPE`,
+`COREWEAVE_FLAVOR`, `LAMBDA_INSTANCE_TYPE`, or `CRUSOE_INSTANCE_TYPE`.
+CoreWeave, Nebius, Baseten, Together AI, and Fireworks have no scripted
+provisioning — their scripts print the console steps for their platform, and
+where the platform provides SSH you continue with
+`./deploy.sh --instance-ip <ip>`. Cloud instance catalogs change frequently;
+verify a script's default instance type before first use. Distr Apply
+(Step 3) is never automated; the script prints the remaining steps at the end.
