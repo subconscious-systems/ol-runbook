@@ -100,10 +100,41 @@ The router process is up (`/health` 200). Day-0 SMG returns `503 No models
 available` because no dashboard models exist yet. Older router images treat
 that 503 as startup failure, so Helm `--wait` times out and
 `rollback-on-failure` uninstalls the whole release. Do not keep redeploying
-the same chart. Select an `api-gateway` release whose router image treats an
-empty desired-model list plus that 503 as ready. Rolling upgrades still wait
-until named models appear on `/v1/models`. Do not `helm rollback` or
-kubectl-patch the probe.
+the same chart. Current router images treat `/health` as Ready even with an
+empty or partial worker catalog. Do not `helm rollback` or kubectl-patch the
+probe.
+
+## Router vs worker registration
+
+**Can the router start without any models registered?**
+Yes. SMG can answer `GET /health` with an empty worker catalog. It cannot route inference until workers are registered.
+
+**Who registers workers?**
+Postgres (dashboard model groups) is the source of truth. On router startup, `ops-cli router-register` pushes desired endpoints into SMG via `POST /workers`. The gateway reconciler (every ~15s) keeps that catalog in sync afterward.
+
+**What URL gets registered?**
+Not the raw GPU URL. SMG receives adapter-scoped URLs like `http://adapter:30000/endpoints/{uuid}`. SMG health-checks that URL; the adapter proxies to Baseten or the SGLang GPU using its own route table.
+
+**What does router Ready mean?**
+The SMG process is listening (`GET /health` 200). It does not mean every dashboard endpoint is healthy or registered.
+
+**What happens if one endpoint is down but another is up?**
+The router pod still becomes Ready. SMG registers and routes to healthy workers. Requests that hit the bad worker fail at request time (502/503) or get circuit-broken. The dashboard shows the bad row as `sync_status=error` with `last_sync_error`.
+
+**What is the 3-rounds policy?**
+At startup, each endpoint gets up to 3 registration rounds (submit + ~30s expose poll each). After 3 failed rounds, startup stops waiting for that endpoint, marks it `sync_status=error`, and continues booting the router. The background reconciler keeps retrying. Alerts stay on until the endpoint recovers or an operator sets `health=down`.
+
+## Router worker circuit breaker
+
+The Datadog monitor **A router worker circuit breaker is open** is an SMG runtime safety valve, not a registration check.
+
+SMG tracks live inference request failures per registered worker. After enough failures in a short window (default: 5 in 60s), it opens the circuit and stops sending new traffic to that worker until it recovers:
+
+- 0 closed: normal routing
+- 1 open: fast-fail this worker
+- 2 half-open: probing recovery
+
+This is not the same as `sync_status=error` (the gateway could not register the endpoint). Circuit breaker means the worker was registered and then failed on live requests. It is not a site outage when another worker for the same model is still healthy. Named endpoint/model tags on this alert are a later follow-up.
 
 ### Second infra / gateway auto-deploy
 

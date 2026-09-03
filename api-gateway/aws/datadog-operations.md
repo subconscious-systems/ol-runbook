@@ -42,7 +42,9 @@ Monitors are prefixed `[<DATADOG_ENV>]` and link to
 | Rate-limiter checks are slow | Limiter Valkey checks slow | Limiter check latency widget, Valkey CPU/memory (if enabled) |
 | Rate-limiter Redis script is failing | Limiter backend/script errors | Valkey health, limiter script error logs |
 | No inference workers are registered | No workers registered | Router worker pool, model-group sync, worker route health |
-| A router worker circuit breaker is open | Worker circuit breaker open | Inference path CB state, worker connectivity |
+| A model-group endpoint failed router registration | At least one endpoint `sync_status=error` for 5m | Staff Model groups `last_sync_error`; router may still be Ready |
+| A model-group endpoint is stuck pending registration | Endpoint `sync_status=pending` for 15m | Model-group sync, router control plane, whether a roll is still exposing workers |
+| A router worker circuit breaker is open | SMG isolated a registered worker after live request failures (0=closed, 1=open, 2=half-open) | Gateway dashboard CB widget; Staff Model groups for `sync_status=error`. Not the same as registration failure. See [troubleshooting](troubleshooting.md#router-worker-circuit-breaker) |
 | Router requests are stuck in flight | Stuck router requests | Router inflight age, active requests |
 | Router worker request count is high | Router saturation | Worker in-flight (`worker_requests_active`), worker pool size |
 | Adapter wait for first token is slow | Slow adapter to worker path | Adapter upstream TTFT, router latency |

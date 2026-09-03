@@ -59,10 +59,9 @@ The router process is up (`/health` 200). Day-0 SMG returns `503 No models
 available` because no dashboard models exist yet. Older router images treat
 that 503 as startup failure, so Helm `--wait` times out and
 `rollback-on-failure` uninstalls the whole release. Do not keep redeploying
-the same chart. Select an `api-gateway` release whose router image treats an
-empty desired-model list plus that 503 as ready. Rolling upgrades still wait
-until named models appear on `/v1/models`. Do not `helm rollback` or
-kubectl-patch the probe.
+the same chart. Current router images treat `/health` as Ready even with an
+empty or partial worker catalog. Do not `helm rollback` or kubectl-patch the
+probe. See [AWS troubleshooting: Router vs worker registration](../aws/troubleshooting.md#router-vs-worker-registration).
 
 ### Terraform plan-only run
 
