@@ -123,6 +123,30 @@ test -f /mnt/model-test/glm-5.2-fp8-dflash-v2/config.json
 
 ---
 
+## Optional — Provision with provider deploy scripts
+
+Instead of provisioning a GPU host and preparing it by hand, each profile
+directory contains per-cloud deploy scripts: `aws/`, `gcp/`, `azure/`,
+`oci/`, `coreweave/`, `lambda/`, `crusoe/`, `nebius/`, `baseten/`,
+`together/`, and `fireworks/`. From the selected profile:
+
+```bash
+cd profiles/qwen36-27b-h100-80gb-2gpu
+AZ_RESOURCE_GROUP=workers-rg ./azure/deploy.sh
+```
+
+The script provisions a matching GPU instance, runs `install.sh` on it,
+stages the profile's `values.yaml` and `weights.sh`, and starts the weight
+download; it then prints the remaining Step 3 (Distr) steps. Provider
+environment variables and topology defaults are listed in
+[`profiles/README.md`](profiles/README.md). CoreWeave, Nebius, Baseten,
+Together AI, and Fireworks provision through their consoles; where the
+platform provides SSH, continue on the created host with
+`./deploy.sh --instance-ip <ip>`. Verify each provider's default instance
+type before first use — cloud instance catalogs change frequently.
+
+---
+
 ## Step 3 — Distr Setup
 
 1. Log into [Distr](https://app.distr.sh/) and open **Secrets**.
