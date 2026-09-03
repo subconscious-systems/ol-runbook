@@ -64,7 +64,11 @@ can stay empty until Datadog is enabled.
 
 ### Datadog metric-tag ensure failed / flaky API
 
-Terraform runs a Datadog metric-tag ensure script during apply. 409 / rate-limit / timeout failures can fail the whole infra run. Re-run the infra job; upserts are idempotent. Secrets are ensured only after a successful apply.
+The infra runner upserts org-global metric tag configs after Terraform apply. Datadog rate-limits that API per org / API key, not per environment. Two infra jobs at once that share `DD_API_KEY` (for example hosted-dev and another env) can 429 even when a later single deploy succeeds.
+
+Current releases POST then PATCH every distribution on every apply. That is about 44 writes and is close to the ceiling. Newer infra releases GET first and PATCH only when `distributions.json` differs from live, so tag-key changes still land and unchanged configs do not rewrite.
+
+If the job fails after Terraform printed outputs (VPC, security groups), cloud resources are already applied. Re-run **one** infra job after the other has finished. Secrets are ensured only after a successful apply.
 
 ### Datadog AWS CloudWatch metrics missing
 
