@@ -26,7 +26,7 @@ No customer data leaves your cloud environment. Prompts, completions, inference 
 
 Three flows cross the boundary, all outbound-initiated.
 
-**Releases.** The Ryvn Agent pulls signed gateway releases from the Subconscious release channel, automatically or after your approval. The OrangeLine image is pulled from the Subconscious container registry on your schedule.
+**Releases.** The Ryvn Agent pulls signed gateway releases from the Subconscious release channel, automatically or after your approval. The OrangeLine image is pulled from the Docker Hub repository we provision for your org, on your schedule.
 
 **Deployment status.** The agent reports heartbeat and task status to the Ryvn control plane so deployments can be tracked. This is operational metadata only.
 

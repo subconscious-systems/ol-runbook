@@ -22,7 +22,7 @@ Public on-prem docs are the source of truth for architecture, methods, complianc
 There are two ways to run it:
 
 - **Full inference system (default):** Ryvn deploys the API Gateway into your cloud. OrangeLine attaches as model routes. This path includes gateway features such as API keys, routing, usage, and context pruning visualization and intelligence.
-- **OrangeLine only:** we issue registry credentials and you run the container on your GPUs. No Ryvn and no Subconscious API Gateway. You will not get context pruning visualization and intelligence without our gateway.
+- **OrangeLine only:** we provision a Docker Hub repository and give you a pull-only username and token; you run the container on your GPUs. No Ryvn and no Subconscious API Gateway. You will not get context pruning visualization and intelligence without our gateway.
 
 A Subconscious FDE leads the work with your technical champion. You grant cloud permissions (account ID or a cross-account role), approve releases, and point coding agents at the endpoint. You do not apply the gateway Helm chart yourself.
 
@@ -33,7 +33,7 @@ A Subconscious FDE leads the work with your technical champion. You grant cloud 
 | [getting-started.md](getting-started.md) | Kickoff through rollout: the eight deployment steps |
 | [TRUST_MODEL.md](TRUST_MODEL.md) | Security packet: data boundary, updates, telemetry, support access |
 | [FAQ.md](FAQ.md) | Common questions, plus SSO and coding-agent pointers |
-| [gpu-deployment/README.md](gpu-deployment/README.md) | OrangeLine credentials and FDE-led deploy |
+| [gpu-deployment/README.md](gpu-deployment/README.md) | OrangeLine Docker Hub pull and AWS/GCP worker routing Terraform |
 | [coding-agents/](coding-agents/) | Point Cursor, Claude Code, Codex, Copilot, OpenCode, and Pi at the gateway with `subc` |
 | [supported-agent-apis.md](supported-agent-apis.md) | OpenAI / Anthropic / Codex / Claude Code API contract |
 | [api-gateway/sso-okta.md](api-gateway/sso-okta.md) | Dashboard OIDC SSO with Okta |

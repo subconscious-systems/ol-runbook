@@ -20,7 +20,7 @@ See [how it works](https://docs.subconscious.dev/on-prem/how-it-works).
 
 **Full inference system:** Ryvn deploys the API Gateway into your AWS, GCP, or Azure account. OrangeLine runs on GPUs anywhere you can run a Docker container and attaches to the gateway. This path includes context pruning visualization and intelligence.
 
-**OrangeLine only:** we issue registry credentials and you run the container on your GPUs. Use this for trials or if you already have a gateway. You will not get context pruning visualization and intelligence without our gateway.
+**OrangeLine only:** we provision a Docker Hub repository and give you a pull-only username and token; you run the container on your GPUs. Use this for trials or if you already have a gateway. You will not get context pruning visualization and intelligence without our gateway.
 
 See [methods](https://docs.subconscious.dev/on-prem/deployments/methods) and [getting-started.md](getting-started.md).
 

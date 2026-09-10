@@ -12,7 +12,7 @@ OrangeLine-only trials skip Ryvn: complete step 1, then step 6, and point your e
 - GPU compute from any provider for OrangeLine. Same cloud and region as the gateway is simpler when you have it.
 - A person who can grant scoped provisioner permissions (account ID, or the cross-account role commands your FDE shares).
 - A public hostname for the dashboard, if you are deploying the full system.
-- Outbound HTTPS from the cluster to the Ryvn control plane and to the Subconscious container registry.
+- Outbound HTTPS from the cluster to the Ryvn control plane and to Docker Hub (for OrangeLine image pulls).
 - A named approver on your team if you choose on-approval updates.
 
 See [How Ryvn works](https://ryvn.ai/docs/how-ryvn-works), the [Ryvn Agent](https://ryvn.ai/docs/guides/ryvn-agent), and [deployment approvals](https://ryvn.ai/docs/guides/deployment-approvals). Cloud-specific provisioner details: [AWS](https://ryvn.ai/docs/provision/aws), [Google Cloud](https://ryvn.ai/docs/provision/google-cloud), [Azure](https://ryvn.ai/docs/provision/azure).
@@ -43,9 +43,9 @@ Subconscious publishes the release to your environment's release channel. If app
 
 ## 6. Deploy OrangeLine
 
-We issue registry credentials for the OrangeLine container, plus launch configuration and recommended instance types. Your FDE helps you deploy that image. See [gpu-deployment/README.md](gpu-deployment/README.md).
+Subconscious provisions a Docker Hub repository for your org and gives your team a pull-only username and access token. Your FDE supplies the repository and tag, plus launch configuration. See [gpu-deployment/README.md](gpu-deployment/README.md) for the `docker login` / `docker pull` snippet.
 
-- **Same cloud and region as the gateway:** launch GPU instances, pull the image, and start the containers. The gateway reaches workers on your private network.
+- **Same cloud and region as the gateway:** launch GPU instances, pull the image, and start the containers. On AWS or GCP, optional Terraform in `gpu-deployment/` publishes HTTPS worker domains so the gateway can reach those GPUs on your private network.
 - **Somewhere else:** NeoCloud, inference platform, local cluster, or bare metal. Your FDE works that provider's procedure with you.
 
 Ryvn is not required on every GPU host. Workers attach to the gateway as model routes.
