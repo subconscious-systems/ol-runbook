@@ -56,7 +56,9 @@ Yes. Production gateway updates are customer-approved. Use Ryvn [deployment appr
 
 ## Do you support vulnerability scanning?
 
-Subconscious can provide release evidence such as scan results, SBOMs, image digests, checksums, and release notes. You can also scan artifacts and running components with your own tools.
+Yes. Every gateway, router, and adapter digest is scanned with Trivy when it is built. CI produces an SPDX SBOM, a Trivy JSON report, and a Cosign signature for that digest. We re-scan currently deployed images daily. High and Critical findings are remediated under SLA. Customer `byoc` promotions wait for a green scan.
+
+You can also scan artifacts and running components with your own tools.
 
 See [TRUST_MODEL.md](TRUST_MODEL.md).
 
