@@ -35,7 +35,7 @@ AWS, GCP, and Azure follow this same path. The identifier you hand your FDE is t
 
 In environment settings, turn the approval requirement on or off to match your update mode, and enable or disable metric and log collection. You can change these later.
 
-Telemetry is opt-in. It never includes prompts, completions, keys, or user data. See [TRUST_MODEL.md](TRUST_MODEL.md). Ryvn shows installation status and logs. Keep the monitoring stack you already run; we do not require Datadog. You do not have to send production inference data to Ryvn. See [Ryvn logs](https://ryvn.ai/docs/observability/logs).
+Telemetry is opt-in. It never includes prompts, completions, keys, or user data. See [TRUST_MODEL.md](TRUST_MODEL.md). Ryvn shows installation status and logs. Keep the monitoring stack you already run. You do not have to send production inference data to Ryvn. See [Ryvn logs](https://ryvn.ai/docs/observability/logs).
 
 ## 5. Deploy the gateway and admin dashboard
 

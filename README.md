@@ -36,6 +36,7 @@ A Subconscious FDE leads the work with your technical champion. You grant cloud 
 | [gpu-deployment/README.md](gpu-deployment/README.md) | OrangeLine Docker Hub pull and AWS/GCP worker routing Terraform |
 | [coding-agents/](coding-agents/) | Point Cursor, Claude Code, Codex, Copilot, OpenCode, and Pi at the gateway with `subc` |
 | [supported-agent-apis.md](supported-agent-apis.md) | OpenAI / Anthropic / Codex / Claude Code API contract |
+| [api-gateway/cost-estimates.md](api-gateway/cost-estimates.md) | Gateway-only AWS, GCP, and Azure planning estimates |
 | [api-gateway/sso-okta.md](api-gateway/sso-okta.md) | Dashboard OIDC SSO with Okta |
 | [api-gateway/sso-entra.md](api-gateway/sso-entra.md) | Dashboard OIDC SSO with Microsoft Entra ID |
 

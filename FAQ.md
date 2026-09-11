@@ -2,7 +2,7 @@
 
 Common questions about the Subconscious Inference System. Canonical public FAQ: [on-prem FAQ](https://docs.subconscious.dev/on-prem/faq).
 
-Working docs in this repo: [getting started](getting-started.md) · [trust model](TRUST_MODEL.md) · [OrangeLine](gpu-deployment/README.md) · [coding agents](coding-agents/) · [Okta SSO](api-gateway/sso-okta.md) · [Entra SSO](api-gateway/sso-entra.md).
+Working docs in this repo: [getting started](getting-started.md) · [trust model](TRUST_MODEL.md) · [cost estimates](api-gateway/cost-estimates.md) · [OrangeLine](gpu-deployment/README.md) · [coding agents](coding-agents/) · [Okta SSO](api-gateway/sso-okta.md) · [Entra SSO](api-gateway/sso-entra.md).
 
 ## Why use this over Claude Code or Codex?
 
