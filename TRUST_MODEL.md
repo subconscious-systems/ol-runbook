@@ -41,7 +41,7 @@ Tell us which framework governs your review and we will provide a control-by-con
 | Area | Subconscious | Customer |
 | --- | --- | --- |
 | Software quality | Delivers stable, scalable, rigorously tested software for the gateway, admin dashboard, and OrangeLine. | Validates releases against internal requirements before rollout. |
-| Vulnerability management | Scans every release for vulnerabilities and malware. Remediates severe vulnerabilities within customer-agreed SLA. | Scans the deployed environment under its own security program. Applies patched releases. |
+| Vulnerability management | Scans every release for vulnerabilities (Trivy). Remediates High and Critical findings within the published SLA. | Scans the deployed environment under its own security program. Applies patched releases. |
 | Data | Never accesses customer data. Receives opt-in operational telemetry only. | Owns all prompts, completions, keys, user records, and application data, including storage, backup, and retention. |
 | Monitoring | Monitors system health through opt-in telemetry when enabled. | Monitors the deployed environment. Owns alerting and incident response when telemetry is not opted-in. |
 | Infrastructure | Provides provisioning packaging, sizing guidance, and deployment support. | Provisions and operates the cloud account, cluster, and GPU compute. Keeps the account in good standing, including billing and quotas. |
@@ -50,10 +50,11 @@ Tell us which framework governs your review and we will provide a control-by-con
 
 Subconscious software runs in your environment, so the relevant risk category is software supply chain.
 
-- A software bill of materials accompanies every release.
-- Vulnerability and malware scans run against the SBOM on every deploy.
-- Severe vulnerabilities are remediated within customer-agreed SLA.
-- Release artifacts are signed and scanned before publication to your release channel.
+- A software bill of materials (SPDX) accompanies every release.
+- Trivy vulnerability scans run against each container digest when it is built, and again daily against what is running.
+- High and Critical findings are ticketed and remediated under SLA.
+- Container images are signed with Cosign (GitHub OIDC / Sigstore). Verify a digest with `cosign verify` against issuer `https://token.actions.githubusercontent.com`.
+- Customer `byoc` promotions wait until those scans are green (or explicitly excepted). Internal hosted and Ryvn-dev deploys are not blocked on scan results.
 - Material security issues trigger direct customer notification and a published advisory with the remediation path.
 - You may scan release artifacts and deployed components with your own tooling before approving deployment.
 
@@ -61,7 +62,7 @@ You remain responsible for scanning and monitoring the deployed environment unde
 
 ## Release and update process
 
-All Subconscious software is version controlled. Every release passes through a defined procedure that verifies compliance and confirms the build has no critical vulnerabilities. Before a release reaches any customer environment, Subconscious deploys and tests it on its own infrastructure. Only then is it published to the release channel your environment subscribes to.
+All Subconscious software is version controlled. Every release is scanned and signed. Before a release is promoted onto the customer `byoc` channel, Subconscious deploys it on its own infrastructure (`aws-gateway-dev` and hosted AWS) and confirms the container scans are green or excepted.
 
 ### Update modes
 
