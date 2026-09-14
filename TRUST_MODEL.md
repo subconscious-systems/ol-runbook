@@ -52,7 +52,7 @@ Subconscious software runs in your environment, so the relevant risk category is
 
 - A software bill of materials (SPDX) accompanies every release.
 - Trivy vulnerability scans run against each container digest when it is built, and again daily against what is running.
-- High and Critical findings are ticketed and remediated under SLA (Critical: 7 days, High: 30 days).
+- High and Critical findings are ticketed and remediated under SLA.
 - Container images are signed with Cosign (GitHub OIDC / Sigstore). Verify a digest with `cosign verify` against issuer `https://token.actions.githubusercontent.com`.
 - Customer `byoc` promotions wait until those scans are green (or explicitly excepted). Internal hosted and Ryvn-dev deploys are not blocked on scan results.
 - Material security issues trigger direct customer notification and a published advisory with the remediation path.
