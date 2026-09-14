@@ -52,7 +52,8 @@ Subconscious software runs in your environment, so the relevant risk category is
 
 - A software bill of materials (SPDX) accompanies every release.
 - Trivy vulnerability scans run against each container digest when it is built, and again daily against what is running.
-- High and Critical findings are ticketed and remediated under SLA.
+- High and Critical findings that have an upstream patch are ticketed and remediated under SLA.
+- High and Critical findings with no upstream fix that are not on the serve path are accepted in a dated exception file (owner plus expiry) and reopened when that date passes. Releases are not held for a zero-CVE image.
 - Container images are signed with Cosign (GitHub OIDC / Sigstore). Verify a digest with `cosign verify` against issuer `https://token.actions.githubusercontent.com`.
 - Customer `byoc` promotions wait until those scans are green (or explicitly excepted). Internal hosted and Ryvn-dev deploys are not blocked on scan results.
 - Material security issues trigger direct customer notification and a published advisory with the remediation path.
