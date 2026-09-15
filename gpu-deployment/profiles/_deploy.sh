@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared implementation used by each profile/provider deploy.sh wrapper.
+# Shared implementation used by each provider/profile deploy.sh wrapper.
 # Provisions one GPU instance on the selected cloud, bootstraps the host with
 # the ol-runbook installer, stages values.yaml/weights.sh, and starts the
 # interactive weight download. Runtime deployment and endpoint setup remain
@@ -20,14 +20,14 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
   cat <<'EOF'
-Usage (from a profile/provider directory):
+Usage (from a provider/profile directory):
   ./deploy.sh --help
   ./deploy.sh
   ./deploy.sh --instance-ip <host>
 
 Shared entry point: _deploy.sh <provider> <gpu> <gpu-count> <profile> [options]
 
-Called by profiles/<profile>/<provider>/deploy.sh. Provisions a GPU instance
+Called by <provider>/<profile>/deploy.sh. Provisions a GPU instance
 matching the profile topology, bootstraps the host with the ol-runbook
 installer (drivers, k3s, NVIDIA device plugin), stages the profile files,
 and runs the interactive weight download. --instance-ip skips provisioning
@@ -196,7 +196,7 @@ if ((BOOTSTRAP_RC == 2)); then
   cat >&2 <<EOF
 [deploy] The installer requested a host reboot for NVIDIA drivers.
 [deploy] Reboot the instance, wait for SSH, then continue with:
-[deploy]   ${PROFILE}/${PROVIDER}/deploy.sh --instance-ip ${SSH_HOST}
+[deploy]   ${SCRIPT_DIR}/../${PROVIDER}/${PROFILE}/deploy.sh --instance-ip ${SSH_HOST}
 EOF
   exit 3
 fi

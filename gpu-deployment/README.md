@@ -33,6 +33,29 @@ Image:
 
 ## Provider helpers
 
+Choose a provider directory, then a model/GPU subfolder:
+
+| Provider | Directory | Current path |
+| --- | --- | --- |
+| AWS | [aws/](aws/README.md) | EC2 and SSH host preparation |
+| GCP | [gcp/](gcp/README.md) | Compute Engine and host preparation |
+| Azure | [azure/](azure/README.md) | VM and SSH host preparation |
+| OCI | [oci/](oci/README.md) | Instance and SSH host preparation |
+| CoreWeave | [coreweave/](coreweave/README.md) | CLI provisioning path needs validation; SSH host preparation |
+| Lambda | [lambda/](lambda/README.md) | Launch request needs correction; SSH host preparation |
+| Crusoe | [crusoe/](crusoe/README.md) | CLI provisioning path needs validation; SSH host preparation |
+| Nebius | [nebius/](nebius/README.md) | Manual provisioning, then SSH host preparation |
+| Together | [together/](together/README.md) | Manual provisioning, then SSH host preparation |
+| Fireworks | [fireworks/](fireworks/README.md) | Managed-platform guidance only |
+| Modal | [modal/](modal/README.md) | Native Modal profiles |
+| Baseten | [baseten/](baseten/README.md) | Native Truss configs |
+
+For example, `aws/qwen36-27b-h100-80gb-2gpu/deploy.sh --help` shows the
+selected AWS helper's inputs. Shared host launch settings and weight-download
+scripts live in `profiles/`; native Modal and Baseten settings live inside
+their provider folders. See the [provider capability details](profiles/README.md#provider-helpers)
+before provisioning a host.
+
 For Modal, choose a [native deployment profile](modal/README.md). Each
 subfolder contains its own app, weight-download job, and environment example.
 

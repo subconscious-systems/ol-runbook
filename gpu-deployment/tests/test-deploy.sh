@@ -44,17 +44,29 @@ expect_failure() {
   grep -Fq -- "$expected" "$TMP/output" || { cat "$TMP/output"; fail "missing: $expected"; }
 }
 
-# Every generated entry point must identify its bound profile and provider.
+# Every provider-first and earlier entry point must identify its selection.
 : > "$DEPLOY_TEST_LOG"
 count=0
-for wrapper in "$ROOT"/profiles/*/*/deploy.sh; do
-  provider_dir="$(dirname "$wrapper")"
-  provider="$(basename "$provider_dir")"
-  profile="$(basename "$(dirname "$provider_dir")")"
+check_help() {
+  local wrapper="$1" profile="$2" provider="$3"
   "$wrapper" --help > "$TMP/output"
   grep -Fq "Selected: $profile on $provider (" "$TMP/output" || fail "$wrapper: missing selection"
   grep -Fqi 'environment:' "$TMP/output" || fail "$wrapper: missing provider help"
   count=$((count + 1))
+}
+for provider in aws gcp azure oci coreweave lambda crusoe nebius together fireworks; do
+  for values in "$ROOT"/profiles/*/values.yaml; do
+    profile="$(basename "$(dirname "$values")")"
+    wrapper="$ROOT/$provider/$profile/deploy.sh"
+    test -x "$wrapper" || fail "missing executable $wrapper"
+    check_help "$wrapper" "$profile" "$provider"
+  done
+done
+for wrapper in "$ROOT"/profiles/*/*/deploy.sh; do
+  provider_dir="$(dirname "$wrapper")"
+  provider="$(basename "$provider_dir")"
+  profile="$(basename "$(dirname "$provider_dir")")"
+  check_help "$wrapper" "$profile" "$provider"
 done
 test "$count" -gt 0 || fail "no wrappers found"
 test ! -s "$DEPLOY_TEST_LOG" || fail "help attempted a remote command"
@@ -63,13 +75,15 @@ PROFILE=qwen36-27b-h100-80gb-2gpu
 for provider in aws gcp azure oci coreweave lambda crusoe nebius together; do
   : > "$DEPLOY_TEST_LOG"
   SSH_USER=test-operator SSH_KEY="$TMP/test-key" SSH_PORT=2222 \
-    "$ROOT/profiles/$PROFILE/$provider/deploy.sh" --instance-ip 203.0.113.10 > "$TMP/output"
+    "$ROOT/$provider/$PROFILE/deploy.sh" --instance-ip 203.0.113.10 > "$TMP/output"
   grep -Fq 'Host preparation complete' "$TMP/output"
   grep -Fq 'The inference runtime has not been deployed' "$TMP/output"
   grep -Fq 'test-operator@203.0.113.10' "$DEPLOY_TEST_LOG"
   grep -Fq -- '-p 2222' "$DEPLOY_TEST_LOG"
   grep -Fq -- "-i $TMP/test-key" "$DEPLOY_TEST_LOG"
   grep -Fq 'weights.sh' "$DEPLOY_TEST_LOG"
+  grep -Fq "$ROOT/profiles/$PROFILE/values.yaml" "$DEPLOY_TEST_LOG"
+  grep -Fq "$ROOT/profiles/$PROFILE/weights.sh" "$DEPLOY_TEST_LOG"
   if grep -Fq 'unexpected cloud command' "$DEPLOY_TEST_LOG"; then
     fail "$provider: existing-host path attempted cloud provisioning"
   fi
@@ -77,17 +91,18 @@ done
 
 # Omitting SSH_USER must keep the provider's default login user.
 : > "$DEPLOY_TEST_LOG"
-(unset SSH_USER; "$ROOT/profiles/$PROFILE/azure/deploy.sh" --instance-ip 203.0.113.10) > "$TMP/output"
+(unset SSH_USER; "$ROOT/azure/$PROFILE/deploy.sh" --instance-ip 203.0.113.10) > "$TMP/output"
 grep -Fq 'azureuser@203.0.113.10' "$DEPLOY_TEST_LOG"
 
 # An installer reboot request must stop before weights and preserve the retry address.
 : > "$DEPLOY_TEST_LOG"
 set +e
-DEPLOY_TEST_BOOTSTRAP_RC=2 "$ROOT/profiles/$PROFILE/aws/deploy.sh" --instance-ip 203.0.113.10 > "$TMP/output" 2>&1
+DEPLOY_TEST_BOOTSTRAP_RC=2 "$ROOT/aws/$PROFILE/deploy.sh" --instance-ip 203.0.113.10 > "$TMP/output" 2>&1
 rc=$?
 set -e
 test "$rc" -eq 3 || fail "expected reboot exit 3, got $rc"
 grep -Fq -- '--instance-ip 203.0.113.10' "$TMP/output"
+grep -Fq -- "/aws/$PROFILE/deploy.sh --instance-ip 203.0.113.10" "$TMP/output"
 if grep -Fq '&& ./weights.sh' "$DEPLOY_TEST_LOG"; then
   fail "weight download started despite reboot request"
 fi
@@ -98,7 +113,11 @@ for provider in baseten fireworks; do
   expect_failure 'uses a platform deployment' \
     "$ROOT/profiles/$PROFILE/$provider/deploy.sh" --instance-ip 203.0.113.10
 done
-wrapper="$ROOT/profiles/$PROFILE/aws/deploy.sh"
+expect_failure 'uses a platform deployment' \
+  "$ROOT/fireworks/$PROFILE/deploy.sh" --instance-ip 203.0.113.10
+expect_failure 'automatic provisioning is not implemented for fireworks' \
+  "$ROOT/fireworks/$PROFILE/deploy.sh"
+wrapper="$ROOT/aws/$PROFILE/deploy.sh"
 expect_failure 'requires a value' "$wrapper" --instance-ip
 expect_failure 'requires a host address' "$wrapper" --instance-ip ''
 expect_failure 'requires a host address' "$wrapper" --instance-ip --help

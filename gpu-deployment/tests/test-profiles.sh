@@ -11,7 +11,7 @@ bash -n "${PROFILE_DIR}/_deploy.sh"
 for provider_file in "${PROFILE_DIR}"/_providers/*.sh; do
   bash -n "${provider_file}"
 done
-for deploy in "${PROFILE_DIR}"/*/*/deploy.sh; do
+for deploy in "${GPU_DIR}"/*/*/deploy.sh "${PROFILE_DIR}"/*/*/deploy.sh; do
   bash -n "${deploy}"
 done
 

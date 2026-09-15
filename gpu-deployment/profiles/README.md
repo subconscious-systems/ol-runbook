@@ -36,7 +36,9 @@ one host. Inspect their values before selecting a worker layout.
 
 ## Provider helpers
 
-The same entry point exists at `<profile>/<provider>/deploy.sh`. The table
+Provider directories beside `profiles/` contain `<profile>/deploy.sh` entry
+points, for example `../azure/qwen36-27b-h100-80gb-2gpu/deploy.sh`.
+The earlier `<profile>/<provider>/deploy.sh` paths remain available. The table
 describes code present in this branch; it is not a certification of live cloud
 deployment. Verify the provider API, GPU type/count, memory, region, image, and
 quota before creating resources. Some current defaults and API calls still
@@ -66,7 +68,7 @@ GPU resources, and endpoint settings. The SSH/k3s helper is not that deployment.
 From this directory:
 
 ```bash
-cd qwen36-27b-h100-80gb-2gpu/azure
+cd ../azure/qwen36-27b-h100-80gb-2gpu
 ./deploy.sh --help
 ```
 
