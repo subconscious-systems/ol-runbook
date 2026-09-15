@@ -53,7 +53,7 @@ need validation and correction.
 | CoreWeave | CLI-based Virtual Server creation, then SSH host preparation | `COREWEAVE_FLAVOR`, `COREWEAVE_IMAGE`, `COREWEAVE_REGION`; verify CLI flags |
 | Nebius | Prints manual provisioning instructions; can prepare an existing SSH host | `SSH_KEY`, `SSH_USER`, `SSH_PORT` |
 | Together | Prints manual provisioning instructions; can prepare an existing SSH host | `SSH_KEY`, `SSH_USER`, `SSH_PORT` |
-| Baseten | Prints platform guidance; no deployment implementation | Use a Baseten Truss/custom-server configuration |
+| Baseten | Directs you to the [native Truss configs and push helper](../baseten/README.md) | Select the Baseten config explicitly; it may differ from this Helm profile |
 | Fireworks | Prints platform guidance; no deployment implementation | Use a compatible managed endpoint separately |
 | Modal | No helper in this directory | Use the Modal app, secrets, and volume setup supplied by your FDE |
 

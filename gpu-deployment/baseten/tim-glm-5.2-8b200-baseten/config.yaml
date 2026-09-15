@@ -1,0 +1,47 @@
+model_metadata:
+  example_model_input:
+    messages:
+      - role: system
+        content: "You are a helpful assistant."
+      - role: user
+        content: "What does Subconscious.dev do?"
+    stream: true
+    model: zai-org/glm-5.2-fp8
+    max_total_tokens: 262144
+    temperature: 1.0
+  tags:
+    - openai-compatible
+model_name: Braintree-2
+base_image:
+  image: subconsciouslabs/sglang-baseten:b200-v0
+docker_server:
+  start_command: >-
+    sh -c "GPU_COUNT=$(nvidia-smi --list-gpus | wc -l);
+    SGLANG_CACHE_DIR=/opt/sgl-warm-cache/sglang SGLANG_DG_CACHE_DIR=/opt/sgl-warm-cache/deep_gemm FLASHINFER_WORKSPACE_BASE=/opt/sgl-warm-cache/flashinfer HF_HOME=/tmp/hf SGLANG_PP_SPIKE_MODE=on_drop SGLANG_SUBCONSCIOUS_TRANSPLANT=1 SGLANG_SUBCONSCIOUS_BACKTRACK_MAX_LEVELS=1 python3 -m sglang.launch_server \
+      --port 8000 --host 0.0.0.0 --tp 8 --model-path /models/glm-5.2-fp8 \
+      --chat-template /sgl-workspace/sglang/deploy/chat_templates/glm5.2.jinja \
+      --tool-call-parser glm47 \
+      --subconscious-x-mode \
+      --mem-fraction-static 0.9 \
+      --subconscious-x-st-buffer-size 5 --subconscious-x-min-span-length 3 \
+      --speculative-algorithm EAGLE \
+      --speculative-num-steps 1 \
+      --speculative-eagle-topk 1 \
+      --speculative-num-draft-tokens 2 \
+      --trust-remote-code --enable-cache-report --cuda-graph-max-bs 128 \
+      --max-running-requests 32 --stream-response-default-include-usage"
+  readiness_endpoint: /health
+  liveness_endpoint: /health
+  predict_endpoint: /v1/chat/completions
+  server_port: 8000
+weights:
+  - source: "hf://zai-org/GLM-5.2-FP8@a0b55e88465d1a06afece97bc8d6b366aff39089"
+    mount_location: "/models/glm-5.2-fp8"
+    auth_secret_name: "hf_access_token"
+resources:
+  accelerator: B200:8
+  use_gpu: true
+runtime:
+  predict_concurrency: 48
+  health_checks:
+    startup_threshold_seconds: 3000

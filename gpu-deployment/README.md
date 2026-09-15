@@ -33,6 +33,10 @@ Image:
 
 ## Provider helpers
 
+For Baseten, use the [native Truss configurations and push helper](baseten/README.md).
+They preserve the existing GLM and Qwen deployment variants and offer a local
+preview before pushing the selected configuration.
+
 The optional [provider helpers](profiles/README.md#provider-helpers) prepare
 GPU hosts for FDE-assisted deployments. Their capabilities vary by provider:
 some create a VM, some print setup instructions, and managed inference platforms
