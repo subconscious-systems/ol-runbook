@@ -55,7 +55,7 @@ need validation and correction.
 | Together | Prints manual provisioning instructions; can prepare an existing SSH host | `SSH_KEY`, `SSH_USER`, `SSH_PORT` |
 | Baseten | Directs you to the [native Truss configs and push helper](../baseten/README.md) | Select the Baseten config explicitly; it may differ from this Helm profile |
 | Fireworks | Prints platform guidance; no deployment implementation | Use a compatible managed endpoint separately |
-| Modal | No helper in this directory | Use the Modal app, secrets, and volume setup supplied by your FDE |
+| Modal | [Native deployment profiles](../modal/README.md), each in its own folder | Select FP8 on four/eight B200s or NVFP4 on four B200s |
 
 Baseten and Modal run the serving container through their own deployment APIs.
 Their platform configurations must carry the image, model paths, launch flags,

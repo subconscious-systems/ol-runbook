@@ -1,6 +1,6 @@
 # OrangeLine
 
-**OrangeLine** is the GPU inference runtime for the Subconscious Inference System. It runs TIMRUN on GPUs you provide.
+**OrangeLine** is the GPU inference runtime for the Subconscious Inference System. It runs on GPUs you provide.
 
 Subconscious provisions a Docker Hub repository for your org and gives your team a pull-only username and access token. Your FDE helps you deploy that image into your environment. On AWS or GCP, optional Terraform in this directory publishes HTTPS worker domains so the gateway can reach those GPUs.
 
@@ -32,6 +32,9 @@ Image:
 ```
 
 ## Provider helpers
+
+For Modal, choose a [native deployment profile](modal/README.md). Each
+subfolder contains its own app, weight-download job, and environment example.
 
 For Baseten, use the [native Truss configurations and push helper](baseten/README.md).
 They preserve the existing GLM and Qwen deployment variants and offer a local

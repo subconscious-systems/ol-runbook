@@ -6,8 +6,9 @@ The last commit touching that deployment directory was `4d013ea5e`
 (2026-08-25). The user selected these local configurations as the starting
 point and will supply replacements if needed.
 
-The six `tim-*/config.yaml` files, `pyproject.toml`, and `uv.lock` were copied
-byte-for-byte with their original relative names. The lockfile selects Truss
+The six `*/config.yaml` files, `pyproject.toml`, and `uv.lock` were copied
+byte-for-byte. Configuration directories are named by model, precision, GPU
+layout, and speculative decoder. The lockfile selects Truss
 0.18.6. No credential values were copied.
 
 `push_truss.py` comes from the same source, with a named-config selector,

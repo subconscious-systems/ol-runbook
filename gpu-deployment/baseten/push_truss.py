@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Select and push a copied Baseten Truss config, or preview its push command."""
-# uv run python push_truss.py tim-1.5-27b-b200
+# uv run python push_truss.py qwen3.6-27b-b200-1gpu
 
 from __future__ import annotations
 

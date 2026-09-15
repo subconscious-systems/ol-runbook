@@ -13,15 +13,14 @@ Baseten deployment in this PR. Replace them when newer configurations arrive.
 
 | Configuration directory | Model and GPUs | Speculation | Image tag |
 | --- | --- | --- | --- |
-| `tim-glm-5.2-8b200-dflash-baseten-private` | GLM-5.2 NVFP4, 8 × B200 | DFLASH | `sm_100-v0.9` |
-| `tim-glm-5.2-8b200-baseten-private` | GLM-5.2 NVFP4, 8 × B200 | EAGLE | `sm_100-v0.8` |
-| `tim-glm-5.2-4b200-baseten` | GLM-5.2 NVFP4, 4 × B200 | EAGLE | `sm_100-v0.1` |
-| `tim-glm-5.2-8b200-baseten` | GLM-5.2 FP8, 8 × B200 | EAGLE | `b200-v0` |
-| `tim-qwen3.6-27b-h100-baseten-private` | Qwen3.6-27B, 2 × H100 | As specified in config | `h100-v0` |
-| `tim-1.5-27b-b200` | Qwen3.6-27B, 1 × B200 | As specified in config | `sm_100-v0` (Distr registry) |
+| `glm-5.2-nvfp4-b200-8gpu-dflash` | GLM-5.2 NVFP4, 8 × B200 | DFLASH | `sm_100-v0.9` |
+| `glm-5.2-nvfp4-b200-8gpu-eagle` | GLM-5.2 NVFP4, 8 × B200 | EAGLE | `sm_100-v0.8` |
+| `glm-5.2-nvfp4-b200-4gpu-eagle` | GLM-5.2 NVFP4, 4 × B200 | EAGLE | `sm_100-v0.1` |
+| `glm-5.2-fp8-b200-8gpu-eagle` | GLM-5.2 FP8, 8 × B200 | EAGLE | `b200-v0` |
+| `qwen3.6-27b-h100-2gpu` | Qwen3.6-27B, 2 × H100 | As specified in config | `h100-v0` |
+| `qwen3.6-27b-b200-1gpu` | Qwen3.6-27B, 1 × B200 | As specified in config | `sm_100-v0` (Distr registry) |
 
-The directory names are retained from the source. The `tim-1.5` config's
-weights declaration identifies Qwen3.6-27B. These configurations are selected
+Directory names identify the model and hardware. These configurations are selected
 independently of `../profiles/`: its GLM DFLASH and Qwen FP8 Helm profiles are
 not interchangeable with these Baseten variants.
 
@@ -32,7 +31,7 @@ From the runbook root, with Python 3.10+ installed:
 ```bash
 cd gpu-deployment/baseten
 ./deploy.sh --list
-./deploy.sh tim-glm-5.2-8b200-dflash-baseten-private --dry-run
+./deploy.sh glm-5.2-nvfp4-b200-8gpu-dflash --dry-run
 ```
 
 `--dry-run` checks that the named config and image field exist, checks the
@@ -66,7 +65,7 @@ In your Baseten account, create the secrets referenced by the chosen config:
 | --- | --- |
 | `hf_access_token` | Access to the gated Hugging Face checkpoint in `weights` |
 | `DOCKER_REGISTRY_https://index.docker.io/v1/` | Private Docker Hub image pulls where declared |
-| `DOCKER_REGISTRY_registry.distr.sh` | The Distr image used by `tim-1.5-27b-b200` |
+| `DOCKER_REGISTRY_registry.distr.sh` | The Distr image used by `qwen3.6-27b-b200-1gpu` |
 
 Use the registry credentials supplied for your deployment. Follow Baseten's
 [private-registry instructions](https://docs.baseten.co/development/model/private-registries)
@@ -75,7 +74,7 @@ CLI configuration; the checked-in YAML contains secret names only.
 
 Two source details need review for the selected account:
 
-- The FP8 `tim-glm-5.2-8b200-baseten` config does not declare a Docker Hub
+- The FP8 `glm-5.2-fp8-b200-8gpu-eagle` config does not declare a Docker Hub
   registry secret. If that image is private for your deployment, add the
   Docker Hub secret declaration used by the other Docker Hub configs.
 - The DFLASH config mounts the main model through Baseten's weight cache but
@@ -91,14 +90,14 @@ SGLang image or install those files into it.
 ## Push the selected configuration
 
 ```bash
-./deploy.sh tim-glm-5.2-8b200-dflash-baseten-private
+./deploy.sh glm-5.2-nvfp4-b200-8gpu-dflash
 ```
 
 The helper calls `uv run --frozen --directory <config-directory> truss push`
 and returns its exit status. The original Python entry point is also available:
 
 ```bash
-uv run --frozen python push_truss.py tim-glm-5.2-8b200-dflash-baseten-private
+uv run --frozen python push_truss.py glm-5.2-nvfp4-b200-8gpu-dflash
 ```
 
 This command creates or updates a Baseten model deployment and can allocate
