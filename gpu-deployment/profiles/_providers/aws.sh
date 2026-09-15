@@ -33,10 +33,8 @@ resolve_instance_type() {
     return
   fi
   case "${gpu}-${count}" in
-    l4-1) INSTANCE_TYPE="g6.xlarge" ;;
-    l40s-1) INSTANCE_TYPE="g6e.xlarge" ;;
-    a100-80gb-1) INSTANCE_TYPE="p4de.8xlarge" ;;
-    a100-80gb-2) INSTANCE_TYPE="p4de.16xlarge" ;;
+    l4-1) INSTANCE_TYPE="g6.4xlarge" ;;
+    l40s-1) INSTANCE_TYPE="g6e.2xlarge" ;;
     a100-80gb-8) INSTANCE_TYPE="p4de.24xlarge" ;;
     h100-80gb-8) INSTANCE_TYPE="p5.48xlarge" ;;
     h200-8) INSTANCE_TYPE="p5e.48xlarge" ;;

@@ -25,6 +25,17 @@ def invoke(*args):
 
 
 class BasetenTests(unittest.TestCase):
+    def test_profile_wrappers_preview_their_own_config(self):
+        for config in ROOT.glob("*/config.yaml"):
+            with self.subTest(config=config.parent.name):
+                result = push.subprocess.run(
+                    [str(config.parent / "deploy.sh"), "--dry-run"],
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"Config: {config}", result.stdout)
+                self.assertIn("Dry run: Truss was not invoked", result.stdout)
+
     def test_list_does_not_run_truss(self):
         with patch.object(push.subprocess, "run") as run:
             code, output = invoke("--list")

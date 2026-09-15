@@ -11,8 +11,8 @@
 # Notes: drivers are installed by the ol-runbook installer's Compute Engine
 # path, so a plain Ubuntu image is enough. Only topologies GCP actually sells
 # are mapped; anything else requires GCP_MACHINE_TYPE.
-GCP_PROJECT="${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || true)}"
-GCP_ZONE="${GCP_ZONE:-$(gcloud config get-value compute/zone 2>/dev/null || true)}"
+GCP_PROJECT="${GCP_PROJECT:-}"
+GCP_ZONE="${GCP_ZONE:-}"
 DISK_GB="${DISK_GB:-1024}"
 SSH_USER="${SSH_USER:-ubuntu}"
 GCP_IMAGE_FAMILY="${GCP_IMAGE_FAMILY:-ubuntu-2204-lts-amd64}"
@@ -46,7 +46,7 @@ resolve_instance_type() {
     h100-80gb-4) INSTANCE_TYPE="a3-highgpu-4g" ;;
     h100-80gb-8) INSTANCE_TYPE="a3-highgpu-8g" ;;
     h200-8) INSTANCE_TYPE="a3-ultragpu-8g" ;;
-    b200-8) INSTANCE_TYPE="a4-megagpu-1g" ;;
+    b200-8) INSTANCE_TYPE="a4-highgpu-8g" ;;
     *)
       die "no default GCP machine type for ${gpu} x ${count}; set GCP_MACHINE_TYPE"
       ;;
@@ -56,6 +56,8 @@ resolve_instance_type() {
 
 provision() {
   have gcloud || die "install and configure the Google Cloud CLI"
+  GCP_PROJECT="${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || true)}"
+  GCP_ZONE="${GCP_ZONE:-$(gcloud config get-value compute/zone 2>/dev/null || true)}"
   [[ -n "$GCP_PROJECT" ]] || die "set GCP_PROJECT (or run: gcloud config set project)"
   [[ -n "$GCP_ZONE" ]] || die "set GCP_ZONE (or run: gcloud config set compute/zone)"
 

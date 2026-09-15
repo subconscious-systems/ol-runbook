@@ -10,9 +10,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROVIDERS=(aws gcp azure oci coreweave lambda crusoe nebius baseten together fireworks)
 INSTALL_SH_URL="${INSTALL_SH_URL:-https://raw.githubusercontent.com/subconscious-systems/ol-runbook/main/gpu-deployment/profiles/install.sh}"
-SSH_WAIT_TIMEOUT_SECONDS="${SSH_WAIT_TIMEOUT_SECONDS:-900}"
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
-SSH_PORT="${SSH_PORT:-22}"
 
 log() { printf '[deploy] %s\n' "$*"; }
 die() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -41,6 +38,8 @@ Providers: aws gcp azure oci coreweave lambda crusoe nebius baseten together fir
 GPU slugs:  l4 l40s a100-80gb h100-80gb h200 b200
 
 Common environment:
+  .env      optional file beside the selected profile's deploy.sh
+            KEY=value or quoted values; process environment takes precedence
   SSH_KEY   private key path (default: ~/.ssh/id_ed25519)
   SSH_USER  remote login user (default: provider-specific)
   SSH_PORT  SSH port (default: 22)
@@ -91,10 +90,56 @@ case "$GPU_COUNT" in
   *) die "invalid gpu count: ${GPU_COUNT}" ;;
 esac
 
-PROFILE_DIR="${SCRIPT_DIR}/${PROFILE}"
+PROFILE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)/${PROVIDER}/${PROFILE}"
+if [[ ! -d "${PROFILE_DIR}" ]]; then
+  PROFILE_DIR="${SCRIPT_DIR}/${PROFILE}"
+fi
 [[ -f "${PROFILE_DIR}/values.yaml" ]] || die "missing ${PROFILE_DIR}/values.yaml"
 [[ -x "${PROFILE_DIR}/weights.sh" ]] || die "missing ${PROFILE_DIR}/weights.sh"
 [[ -f "${SCRIPT_DIR}/_weights.sh" ]] || die "missing ${SCRIPT_DIR}/_weights.sh"
+
+# Read data, not shell code: no command substitution or variable expansion.
+load_profile_env() {
+  local file="$1" line key value quote line_number=0
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_number=$((line_number + 1))
+    line="${line%$'\r'}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    [[ "$line" == export\ * ]] && line="${line#export }"
+    [[ "$line" == *=* ]] || die "invalid .env assignment at line ${line_number}"
+    key="${line%%=*}"
+    key="${key%"${key##*[![:space:]]}"}"
+    case "$key" in
+      SSH_KEY|SSH_USER|SSH_PORT|SSH_WAIT_TIMEOUT_SECONDS|INSTANCE_NAME|DISK_GB|\
+      AWS_REGION|AWS_INSTANCE_TYPE|AMI_ID|AWS_AMI_SSM_PARAM|KEY_NAME|SUBNET_ID|SG_ID|\
+      GCP_PROJECT|GCP_ZONE|GCP_MACHINE_TYPE|GCP_IMAGE_FAMILY|GCP_IMAGE_PROJECT|GCP_NETWORK|\
+      AZ_RESOURCE_GROUP|AZ_LOCATION|AZURE_VM_SIZE|AZ_IMAGE|\
+      OCI_COMPARTMENT|OCI_SHAPE|OCI_SUBNET|OCI_IMAGE|OCI_AD|\
+      COREWEAVE_FLAVOR|COREWEAVE_REGION|COREWEAVE_IMAGE|\
+      LAMBDA_API_KEY|LAMBDA_REGION|LAMBDA_INSTANCE_TYPE|LAMBDA_SSH_KEY_NAME|\
+      CRUSOE_INSTANCE_TYPE|CRUSOE_LOCATION|CRUSOE_IMAGE) ;;
+      *) die "unsupported .env key at line ${line_number}; see .env.example" ;;
+    esac
+    value="${line#*=}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    quote="${value:0:1}"
+    if [[ "$quote" == \" || "$quote" == \' ]]; then
+      [[ ${#value} -ge 2 && "${value: -1}" == "$quote" ]] ||
+        die "unclosed .env quote at line ${line_number}"
+      value="${value:1:${#value}-2}"
+    fi
+    # A nonempty caller override wins over the profile-local default.
+    [[ -n "${!key:-}" ]] || export "$key=$value"
+  done < "$file"
+}
+
+load_profile_env "${PROFILE_DIR}/.env"
+SSH_WAIT_TIMEOUT_SECONDS="${SSH_WAIT_TIMEOUT_SECONDS:-900}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
+SSH_PORT="${SSH_PORT:-22}"
 
 PROVIDER_FILE="${SCRIPT_DIR}/_providers/${PROVIDER}.sh"
 [[ -f "${PROVIDER_FILE}" ]] || die "missing ${PROVIDER_FILE}"
@@ -139,6 +184,7 @@ source "${PROVIDER_FILE}"
 if $SHOW_HELP; then
   usage
   printf '\nSelected: %s on %s (%s x %s)\n\n' "$PROFILE" "$PROVIDER" "$GPU" "$GPU_COUNT"
+  printf 'Profile files: %s\n\n' "$PROFILE_DIR"
   provider_help
   exit 0
 fi

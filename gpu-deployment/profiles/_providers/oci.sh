@@ -30,7 +30,7 @@ resolve_instance_type() {
     die "OCI GPU hosts are 8-GPU bare metal; set OCI_SHAPE for a custom shape"
   fi
   case "$gpu" in
-    a100-80gb) INSTANCE_TYPE="BM.GPU4.A100.8" ;;
+    a100-80gb) INSTANCE_TYPE="BM.GPU.A100-v2.8" ;;
     h100-80gb) INSTANCE_TYPE="BM.GPU.H100.8" ;;
     h200) INSTANCE_TYPE="BM.GPU.H200.8" ;;
     b200) INSTANCE_TYPE="BM.GPU.B200.8" ;;

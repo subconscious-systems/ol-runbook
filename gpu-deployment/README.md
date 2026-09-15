@@ -51,9 +51,9 @@ Choose a provider directory, then a model/GPU subfolder:
 | Baseten | [baseten/](baseten/README.md) | Native Truss configs |
 
 For example, `aws/qwen36-27b-h100-80gb-2gpu/deploy.sh --help` shows the
-selected AWS helper's inputs. Shared host launch settings and weight-download
-scripts live in `profiles/`; native Modal and Baseten settings live inside
-their provider folders. See the [provider capability details](profiles/README.md#provider-helpers)
+selected AWS helper's inputs. Each provider/profile folder contains local launch settings, weight-download
+scripts, environment examples, and instructions. Native Modal and Baseten
+settings also live inside their provider folders. See the [provider capability details](profiles/README.md#provider-helpers)
 before provisioning a host.
 
 For Modal, choose a [native deployment profile](modal/README.md). Each

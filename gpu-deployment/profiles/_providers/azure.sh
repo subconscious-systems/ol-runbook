@@ -35,7 +35,7 @@ resolve_instance_type() {
     a100-80gb-1) INSTANCE_TYPE="Standard_NC24ads_A100_v4" ;;
     a100-80gb-2) INSTANCE_TYPE="Standard_NC48ads_A100_v4" ;;
     a100-80gb-4) INSTANCE_TYPE="Standard_NC96ads_A100_v4" ;;
-    a100-80gb-8) INSTANCE_TYPE="Standard_ND96asr_v4" ;;
+    a100-80gb-8) INSTANCE_TYPE="Standard_ND96amsr_A100_v4" ;;
     h100-80gb-1) INSTANCE_TYPE="Standard_NC40ads_H100_v5" ;;
     h100-80gb-2) INSTANCE_TYPE="Standard_NC80ads_H100_v5" ;;
     h100-80gb-8) INSTANCE_TYPE="Standard_ND96isr_H100_v5" ;;

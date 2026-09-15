@@ -21,7 +21,8 @@ Your FDE must adapt the runtime image and credentials before starting workers.
 ## Choose a model and GPU layout
 
 Each profile contains `values.yaml` (launch settings) and `weights.sh` (model
-downloads). The directory name identifies the model, GPU type, and GPU count.
+downloads). Provider folders contain editable copies alongside environment
+examples and profile-specific instructions; deploy helpers use those local copies. The directory name identifies the model, GPU type, and GPU count.
 For example, `qwen36-27b-h100-80gb-2gpu` requires two H100 80 GB GPUs.
 
 | Model | Profile directory |

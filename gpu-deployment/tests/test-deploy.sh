@@ -82,8 +82,8 @@ for provider in aws gcp azure oci coreweave lambda crusoe nebius together; do
   grep -Fq -- '-p 2222' "$DEPLOY_TEST_LOG"
   grep -Fq -- "-i $TMP/test-key" "$DEPLOY_TEST_LOG"
   grep -Fq 'weights.sh' "$DEPLOY_TEST_LOG"
-  grep -Fq "$ROOT/profiles/$PROFILE/values.yaml" "$DEPLOY_TEST_LOG"
-  grep -Fq "$ROOT/profiles/$PROFILE/weights.sh" "$DEPLOY_TEST_LOG"
+  grep -Fq "$ROOT/$provider/$PROFILE/values.yaml" "$DEPLOY_TEST_LOG"
+  grep -Fq "$ROOT/$provider/$PROFILE/weights.sh" "$DEPLOY_TEST_LOG"
   if grep -Fq 'unexpected cloud command' "$DEPLOY_TEST_LOG"; then
     fail "$provider: existing-host path attempted cloud provisioning"
   fi
@@ -124,4 +124,40 @@ expect_failure 'requires a host address' "$wrapper" --instance-ip --help
 expect_failure 'unknown option:' "$wrapper" --unknown
 test ! -s "$DEPLOY_TEST_LOG" || fail "invalid invocation attempted a remote command"
 
-echo "OK: $count wrapper help checks; existing-host, SSH override, reboot, and managed-provider flows"
+# Use an isolated profile to exercise .env loading without touching local credentials.
+ENV_ROOT="$TMP/profile env"
+mkdir -p "$ENV_ROOT/profiles/_providers" "$ENV_ROOT/aws/$PROFILE"
+cp "$ROOT/profiles/_deploy.sh" "$ROOT/profiles/_weights.sh" "$ENV_ROOT/profiles/"
+cp "$ROOT/profiles/_providers/aws.sh" "$ENV_ROOT/profiles/_providers/"
+cp "$ROOT/aws/$PROFILE/"{deploy.sh,values.yaml,weights.sh} "$ENV_ROOT/aws/$PROFILE/"
+cat > "$ENV_ROOT/aws/$PROFILE/.env" <<'ENV'
+SSH_USER="profile-operator"
+SSH_PORT=2200
+SSH_KEY='/tmp/key with spaces'
+LAMBDA_API_KEY=credential-sentinel
+ENV
+: > "$DEPLOY_TEST_LOG"
+(unset SSH_USER SSH_PORT SSH_KEY; "$ENV_ROOT/aws/$PROFILE/deploy.sh" --instance-ip 203.0.113.10) > "$TMP/output"
+grep -Fq 'profile-operator@203.0.113.10' "$DEPLOY_TEST_LOG"
+grep -Fq -- '-p 2200' "$DEPLOY_TEST_LOG"
+grep -Fq '/tmp/key with spaces' "$DEPLOY_TEST_LOG"
+grep -Fq "$ENV_ROOT/aws/$PROFILE/values.yaml" "$DEPLOY_TEST_LOG"
+! grep -Fq 'credential-sentinel' "$TMP/output" || fail '.env secret leaked'
+: > "$DEPLOY_TEST_LOG"
+SSH_USER=caller-operator SSH_PORT=2222 "$ENV_ROOT/aws/$PROFILE/deploy.sh" --instance-ip 203.0.113.10 > "$TMP/output"
+grep -Fq 'caller-operator@203.0.113.10' "$DEPLOY_TEST_LOG"
+grep -Fq -- '-p 2222' "$DEPLOY_TEST_LOG"
+
+# Literal values must never be evaluated as shell commands.
+# shellcheck disable=SC2016  # This intentionally writes literal command-substitution text.
+printf 'LAMBDA_API_KEY=$(touch "%s")\n' "$TMP/evaluated-env" > "$ENV_ROOT/aws/$PROFILE/.env"
+"$ENV_ROOT/aws/$PROFILE/deploy.sh" --help > "$TMP/output"
+test ! -e "$TMP/evaluated-env" || fail '.env executed a command substitution'
+printf 'BASH_ENV=/tmp/injected\n' > "$ENV_ROOT/aws/$PROFILE/.env"
+expect_failure 'unsupported .env key' "$ENV_ROOT/aws/$PROFILE/deploy.sh" --help
+printf 'SSH_USER="unclosed\n' > "$ENV_ROOT/aws/$PROFILE/.env"
+expect_failure 'unclosed .env quote' "$ENV_ROOT/aws/$PROFILE/deploy.sh" --help
+rm "$ENV_ROOT/aws/$PROFILE/.env" "$ENV_ROOT/aws/$PROFILE/values.yaml"
+expect_failure 'missing' "$ENV_ROOT/aws/$PROFILE/deploy.sh" --help
+
+echo "OK: $count wrapper help checks; local profiles/env, existing-host, SSH override, reboot, and managed-provider flows"
