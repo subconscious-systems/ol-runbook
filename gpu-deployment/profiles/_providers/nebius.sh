@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Nebius provider: GPU instances on Nebius AI Cloud.
 # Nebius resources are managed through the Nebius AI Cloud console or their
-# Terraform provider; there is no stable CLI surface this script can drive.
+# Terraform provider; this helper does not implement the Nebius CLI/API path.
 # Provision the GPU host in the Nebius console/Terraform (matching the profile
 # topology; their GPU platforms cover H100, H200, B200, and L40S), then run the
 # profile's deploy.sh with --instance-ip to bootstrap, stage, and start the

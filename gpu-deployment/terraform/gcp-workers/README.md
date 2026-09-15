@@ -140,7 +140,7 @@ the k3s Secret. Verify auth before adding the public endpoint to the gateway:
 # Must fail without a key.
 curl -i https://8b-a.workers.example.com/v1/models
 
-# Must succeed with the same worker key stored in Distr and the dashboard.
+# Must succeed with the same worker key stored in the gateway dashboard.
 curl -i \
   -H 'Authorization: Bearer <WORKER_API_KEY>' \
   https://8b-a.workers.example.com/v1/models

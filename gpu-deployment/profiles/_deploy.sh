@@ -2,9 +2,9 @@
 # Shared implementation used by each profile/provider deploy.sh wrapper.
 # Provisions one GPU instance on the selected cloud, bootstraps the host with
 # the ol-runbook installer, stages values.yaml/weights.sh, and starts the
-# interactive weight download. The final Distr Apply steps stay with the
-# operator (ol-runbook documents that automation boundary) and are printed at
-# the end. Cloud specifics live in _providers/<provider>.sh.
+# interactive weight download. Runtime deployment and endpoint setup remain
+# FDE-assisted and are printed at the end. Cloud specifics live in
+# _providers/<provider>.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,7 +13,6 @@ INSTALL_SH_URL="${INSTALL_SH_URL:-https://raw.githubusercontent.com/subconscious
 SSH_WAIT_TIMEOUT_SECONDS="${SSH_WAIT_TIMEOUT_SECONDS:-900}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SSH_PORT="${SSH_PORT:-22}"
-NAMESPACE="${NAMESPACE:-sglang}"
 
 log() { printf '[deploy] %s\n' "$*"; }
 die() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -21,41 +20,61 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
   cat <<'EOF'
-Usage: _deploy.sh <provider> <gpu> <gpu-count> <profile> [--instance-ip <ip>]
+Usage (from a profile/provider directory):
+  ./deploy.sh --help
+  ./deploy.sh
+  ./deploy.sh --instance-ip <host>
+
+Shared entry point: _deploy.sh <provider> <gpu> <gpu-count> <profile> [options]
 
 Called by profiles/<profile>/<provider>/deploy.sh. Provisions a GPU instance
 matching the profile topology, bootstraps the host with the ol-runbook
 installer (drivers, k3s, NVIDIA device plugin), stages the profile files,
 and runs the interactive weight download. --instance-ip skips provisioning
-and continues on an existing host.
+and continues on an existing general-purpose SSH host. It is not supported
+for Baseten or Fireworks. Provider capabilities vary; see profiles/README.md.
+
+This prepares a k3s host; it does not deploy the inference runtime.
+Use the current FDE-assisted Docker Hub deployment guide for runtime setup.
 
 Providers: aws gcp azure oci coreweave lambda crusoe nebius baseten together fireworks
 GPU slugs:  l4 l40s a100-80gb h100-80gb h200 b200
 
-Per-provider environment variables (instance type override, region, keys)
-are described by each _providers/<provider>.sh header comment.
+Common environment:
+  SSH_KEY   private key path (default: ~/.ssh/id_ed25519)
+  SSH_USER  remote login user (default: provider-specific)
+  SSH_PORT  SSH port (default: 22)
+
+Full guide: https://github.com/subconscious-systems/ol-runbook/blob/main/gpu-deployment/README.md
 EOF
 }
 
 POSITIONAL=()
 INSTANCE_IP_FLAG=""
+SHOW_HELP=false
 while (($#)); do
   case "$1" in
     -h | --help)
-      usage
-      exit 0
+      SHOW_HELP=true
+      shift
       ;;
     --instance-ip)
       [[ $# -ge 2 ]] || die "--instance-ip requires a value"
+      [[ -n "$2" && "$2" != -* ]] || die "--instance-ip requires a host address"
       INSTANCE_IP_FLAG="$2"
       shift 2
       ;;
+    -*) die "unknown option: $1 (use --help)" ;;
     *)
       POSITIONAL+=("$1")
       shift
       ;;
   esac
 done
+if $SHOW_HELP && ((${#POSITIONAL[@]} == 0)); then
+  usage
+  exit 0
+fi
 ((${#POSITIONAL[@]} == 4)) || { usage >&2; exit 2; }
 read -r PROVIDER GPU GPU_COUNT PROFILE <<<"${POSITIONAL[*]}"
 
@@ -82,7 +101,7 @@ PROVIDER_FILE="${SCRIPT_DIR}/_providers/${PROVIDER}.sh"
 
 SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 SSH_HOST=""
-SSH_USER=""
+SSH_USER="${SSH_USER:-}"
 
 remote_run() {
   ssh "${SSH_OPTS[@]}" -i "${SSH_KEY}" -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" -- "$@"
@@ -117,11 +136,21 @@ require_pub_key() {
 
 # shellcheck disable=SC1090
 source "${PROVIDER_FILE}"
+if $SHOW_HELP; then
+  usage
+  printf '\nSelected: %s on %s (%s x %s)\n\n' "$PROFILE" "$PROVIDER" "$GPU" "$GPU_COUNT"
+  provider_help
+  exit 0
+fi
 [[ "$(declare -Ff resolve_instance_type 2>/dev/null)" ]] || die "${PROVIDER_FILE} does not define resolve_instance_type"
 [[ "$(declare -Ff provision 2>/dev/null)" ]] || die "${PROVIDER_FILE} does not define provision"
 
 if [[ -n "$INSTANCE_IP_FLAG" ]]; then
-  [[ -n "${SSH_HOST}" ]] || die "provider ${PROVIDER} did not default SSH_HOST for --instance-ip; set it"
+  case "$PROVIDER" in
+    baseten | fireworks)
+      die "${PROVIDER} uses a platform deployment; --instance-ip cannot run the SSH/k3s host installer there"
+      ;;
+  esac
   SSH_HOST="$INSTANCE_IP_FLAG"
   log "skipping provisioning; continuing on ${SSH_HOST}"
 else
@@ -183,15 +212,18 @@ remote_interactive "cd '${REMOTE_PROFILE_DIR}' && ./weights.sh"
 
 cat <<EOF
 
-Instance ready on ${PROVIDER}: ${SSH_HOST} (${GPU} x ${GPU_COUNT})
+Host preparation complete on ${PROVIDER}: ${SSH_HOST} (${GPU} x ${GPU_COUNT})
 Profile staged at: ${REMOTE_PROFILE_DIR}
 
-Remaining Distr steps (ol-runbook gpu-deployment):
-  1. Distr Hub Secrets: WORKER_API_KEY (gateway dashboard) and DD_API_KEY.
-  2. Deployments -> New Deployment -> SGLang application, namespace ${NAMESPACE}.
-  3. Paste ${REMOTE_PROFILE_DIR}/values.yaml into App Config -> Helm Values (full replace).
-  4. Run the Distr connect command on the instance, wait for the target, and Apply.
-  5. Worker URL and dashboard registration: ol-runbook gpu-deployment steps 4-5.
+The inference runtime has not been deployed. Continue with your FDE:
+  1. Obtain your Docker Hub image and pull-only credentials.
+  2. Adapt the staged profile's image, registry credentials, and worker key
+     to your deployment. The existing Helm values retain Distr references.
+  3. Deploy the runtime and verify worker health.
+  4. Configure worker HTTPS routing and register the endpoint with your gateway.
+
+Deployment guide:
+  https://github.com/subconscious-systems/ol-runbook/blob/main/gpu-deployment/README.md
 
 EOF
 log "done"

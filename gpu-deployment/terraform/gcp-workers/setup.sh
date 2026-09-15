@@ -315,7 +315,7 @@ if [[ "$EXPOSURE_MODE" == "public-api-key" ]]; then
   log ""
   log "PUBLIC MODE SECURITY GATE"
   log "The published worker profile must have worker.auth.enabled=true and its"
-  log "SGLANG_WORKER_API_KEY Distr secret populated before this endpoint is public."
+  log "SGLANG_WORKER_API_KEY populated in the dashboard before this endpoint is public."
   confirm "I confirmed bearer auth is enabled on every selected worker" "no" ||
     die "public-api-key mode was not confirmed"
   CONFIRM_WORKER_API_KEY=true

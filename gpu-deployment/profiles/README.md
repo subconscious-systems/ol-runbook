@@ -1,101 +1,111 @@
 # GPU profiles
 
-Run host preparation and weight downloads from this directory, then paste the
-selected YAML into Distr as the complete Helm values document.
+Launch profiles and host-preparation helpers used by Subconscious FDEs.
+For customer deployment, start with [the GPU deployment guide](../README.md):
+your FDE supplies Docker Hub pull credentials and helps you run the image.
+
+These files retain the existing k3s/Helm profile format, including Distr image
+and secret references. They are not a complete self-serve Docker Hub installer.
+Your FDE must adapt the runtime image and credentials before starting workers.
+
+## Choose the deployment path
+
+| What you need | Starting point | Result |
+| --- | --- | --- |
+| Run the runtime on GPUs you already have | [GPU deployment guide](../README.md) | FDE-assisted deployment of your Docker Hub image |
+| Prepare a k3s GPU host | Provider helpers below, or `install.sh` on the host | Drivers/toolkit, k3s, and staged model weights |
+| Give an existing AWS worker an HTTPS endpoint | [AWS worker routing](../terraform/aws-private-workers/README.md) | Private HTTPS routing to a healthy worker |
+| Give an existing GCP worker an HTTPS endpoint | [GCP worker routing](../terraform/gcp-workers/README.md) | Internal or public HTTPS routing to a healthy worker |
+| Deploy on a managed inference platform | A platform-specific deployment configuration | A platform-managed inference endpoint |
+
+## Choose a model and GPU layout
+
+Each profile contains `values.yaml` (launch settings) and `weights.sh` (model
+downloads). The directory name identifies the model, GPU type, and GPU count.
+For example, `qwen36-27b-h100-80gb-2gpu` requires two H100 80 GB GPUs.
+
+| Model | Profile directory |
+| --- | --- |
+| GLM-5.2 NVFP4 + DFLASH, four B200s | `glm-5.2-nvfp4-b200-4gpu` |
+| GLM-5.2 FP8 + DFLASH, four or eight B200s | `glm-5.2-b200-{4,8}gpu` |
+| Qwen3.6-27B FP8 | `qwen36-27b-{gpu}-{count}gpu` |
+| Qwen3-8B FP8, one L4 | `qwen3-8b-l4-1gpu` |
+
+The legacy `qwen36-27b` and `qwen3-8b` profiles describe multiple workers on
+one host. Inspect their values before selecting a worker layout.
+
+## Provider helpers
+
+The same entry point exists at `<profile>/<provider>/deploy.sh`. The table
+describes code present in this branch; it is not a certification of live cloud
+deployment. Verify the provider API, GPU type/count, memory, region, image, and
+quota before creating resources. Some current defaults and API calls still
+need validation and correction.
+
+| Provider | What the helper implements | Configuration to review |
+| --- | --- | --- |
+| AWS | EC2 creation, then SSH host preparation | `AWS_REGION`, `AWS_INSTANCE_TYPE`, `AMI_ID`, `KEY_NAME`, `SUBNET_ID`, `SG_ID` |
+| GCP | Compute Engine creation, then host preparation through `gcloud` | `GCP_PROJECT`, `GCP_ZONE`, `GCP_MACHINE_TYPE`, `GCP_NETWORK` |
+| Azure | VM creation and NVIDIA extension, then SSH host preparation | `AZ_RESOURCE_GROUP`, `AZ_LOCATION`, `AZURE_VM_SIZE` |
+| OCI | Instance creation, then SSH host preparation | `OCI_COMPARTMENT`, `OCI_SHAPE`, `OCI_SUBNET`, `OCI_IMAGE`, `OCI_AD` |
+| Lambda | API-based instance creation, then SSH host preparation | `LAMBDA_API_KEY`, `LAMBDA_REGION`, `LAMBDA_INSTANCE_TYPE`; launch API needs correction |
+| Crusoe | CLI-based VM creation, then SSH host preparation | `CRUSOE_INSTANCE_TYPE`, `CRUSOE_LOCATION`, `CRUSOE_IMAGE`; verify CLI flags |
+| CoreWeave | CLI-based Virtual Server creation, then SSH host preparation | `COREWEAVE_FLAVOR`, `COREWEAVE_IMAGE`, `COREWEAVE_REGION`; verify CLI flags |
+| Nebius | Prints manual provisioning instructions; can prepare an existing SSH host | `SSH_KEY`, `SSH_USER`, `SSH_PORT` |
+| Together | Prints manual provisioning instructions; can prepare an existing SSH host | `SSH_KEY`, `SSH_USER`, `SSH_PORT` |
+| Baseten | Prints platform guidance; no deployment implementation | Use a Baseten Truss/custom-server configuration |
+| Fireworks | Prints platform guidance; no deployment implementation | Use a compatible managed endpoint separately |
+| Modal | No helper in this directory | Use the Modal app, secrets, and volume setup supplied by your FDE |
+
+Baseten and Modal run the serving container through their own deployment APIs.
+Their platform configurations must carry the image, model paths, launch flags,
+GPU resources, and endpoint settings. The SSH/k3s helper is not that deployment.
+
+### Inspect the selected helper
+
+From this directory:
 
 ```bash
-cd gpu-deployment/profiles
-./install.sh
-cd <profile>
-./weights.sh
+cd qwen36-27b-h100-80gb-2gpu/azure
+./deploy.sh --help
 ```
 
-`install.sh` prepares NVIDIA drivers, Docker, k3s, kubectl, the default model
-roots, and the NVIDIA device plugin on Debian/Ubuntu and Rocky/RHEL-family hosts. Rocky/RHEL requires
-a working host driver before installation (`nvidia-smi` must succeed); the
-script does not replace RPM-family GPU drivers. It preserves active
-`firewalld`, adding the k3s network rules and profile NodePorts `30001-30006`.
-The profile's `weights.sh` labels its selected download root for container
-access on SELinux hosts. The NVFP4 + DFLASH profile mounts `/mnt` read-only so
-both profile directories are visible to the worker.
-On enforcing RPM-family SELinux hosts, only the NVIDIA device-plugin DaemonSet
-runs privileged so it can register GPUs with the k3s kubelet; inference workers
-remain unprivileged.
-Rocky/RHEL 8 cgroup v1 hosts receive the kubelet compatibility setting needed
-by current k3s releases; future images should use cgroup v2.
-The script pins k3s to `v1.36.0+k3s1` and replaces a mismatched installed
-version; override `K3S_VERSION` only when validating a newer runtime against
-the Distr registry image.
-It may request a reboot for Debian/Ubuntu driver installation; rerun it
-afterward.
+Help prints the selected profile and provider-specific environment variables.
+It does not create resources. After your FDE has checked the configuration,
+running without `--help` starts the provider's provisioning path and can incur
+cloud charges. AWS, GCP, and Azure helpers currently create public SSH and
+worker-port ingress by default; review that networking before use.
 
-Each profile directory contains its own `values.yaml` and `weights.sh`. The
-script declares only that profile's repositories and target paths, securely
-prompts for a Hugging Face token and download root, and runs the Hugging Face
-CLI downloads on the host. It verifies Python 3.9+, installs the distro Python
-and venv packages when needed, and verifies the resulting `hf` command before
-requesting a token. For example:
+### Continue on an existing GPU host
+
+For a provider that supplies a general-purpose SSH host:
 
 ```bash
-cd glm-5.2-nvfp4-b200-4gpu
-./weights.sh
+SSH_USER=ubuntu SSH_KEY="$HOME/.ssh/id_ed25519" \
+  ./deploy.sh --instance-ip 203.0.113.10
 ```
 
-Accept the default download root unless you also update `worker.modelPath`, the
-draft-model path in `worker.sglang.extraArgs`, and `worker.weights.hostPath`.
-The script creates each model directory beneath the chosen root. It
-passes the token through the `HF_TOKEN` environment variable, never echoes it,
-and never places it in the process command line.
-On SELinux-enabled hosts it installs the policy utilities when needed, adds a
-persistent `container_file_t` rule for that exact chosen root, and relabels the
-downloaded files. The parent mount is not relabeled.
+Replace the example address and SSH user with your host's details. This skips
+VM creation, prepares the host, stages the profile, and starts the interactive
+weight download. It does not launch the inference runtime. If driver setup
+requests a reboot, reboot the host and rerun with the same address and SSH
+settings. Baseten and Fireworks do not use this host-preparation path.
 
-Each YAML begins with its exact `install.sh` and `weights.sh` commands. Profile
-families are:
+### What host preparation does
 
-| Model | Profile YAML | Weight repositories |
-|---|---|---|
-| GLM-5.2 NVFP4 + DFLASH, 4×B200 | `glm-5.2-nvfp4-b200-4gpu/` | `nvidia/GLM-5.2-NVFP4`, then `SubconsciousDev/glm-5.2-fp8-dflash-v2` |
-| GLM-5.2 FP8 + DFLASH, 4×B200 | `glm-5.2-b200-4gpu/` | `zai-org/GLM-5.2-FP8`, then `SubconsciousDev/glm-5.2-fp8-dflash-v2` |
-| GLM-5.2 FP8 + DFLASH, 8×B200 | `glm-5.2-b200-8gpu/` | Same two repositories |
-| Qwen3.6-27B-FP8 | `qwen36-27b-{gpu}-{count}gpu/` | `Qwen/Qwen3.6-27B-FP8` |
-| Qwen3-8B-FP8 | `qwen3-8b-l4-1gpu/` | `Qwen/Qwen3-8B-FP8` |
+1. Connects to the GPU host and copies `values.yaml`, `weights.sh`, and the
+   shared downloader.
+2. Runs `install.sh` to prepare NVIDIA tooling, Docker, k3s, and the device
+   plugin. Rocky/RHEL hosts must already have a working NVIDIA driver.
+3. Runs `weights.sh`, which prompts for a Hugging Face token without echoing it.
+   GLM profiles download both the main checkpoint and the DFLASH draft.
+4. Prints the remaining FDE-assisted runtime and endpoint setup steps.
 
-The NVFP4 profile uses `registry.distr.sh/subconscious/timrun:sm_100-v0.13`,
-serves `glm-5.2`, and exposes the existing `glm-52` route on NodePort `30001`.
-It serves `/mnt/model-test/glm-5.2-nvfp4` with the DFLASH draft at
-`/mnt/model-test/glm-5.2-fp8-dflash-v2`. Its self-contained YAML exposes the
-Baseten `Braintree-2` settings, including DFLASH and Subconscious buffer tuning,
-with tensor parallelism reduced from 8 to 4.
+Keep the default weight paths unless you also update the model, draft, and
+mount paths in the runtime configuration. On SELinux hosts the downloader
+labels its selected root for container access. It does not relabel the parent
+mount. Weights are mounted read-only by the profiles.
 
-The legacy `qwen36-27b/` and `qwen3-8b/` directories remain available for
-existing multi-worker installs. New installs should use topology-specific
-filenames.
-
-All profiles mount downloaded weights read-only. The chart contains no model
-downloader or Hugging Face secret; a worker fails to start if its
-configured host path was not populated first.
-
-## Provider deploy scripts (optional)
-
-Each profile directory also contains per-cloud deploy scripts for supported
-providers: `aws`, `gcp`, `azure`, `oci`, `coreweave`, `lambda`, `crusoe`,
-`nebius`, `baseten`, `together`, and `fireworks`. A script provisions a GPU
-instance matching the profile, runs `install.sh` on it, stages the profile's
-`values.yaml` and `weights.sh`, and starts `./weights.sh` — automating host
-preparation and the weight download:
-
-```bash
-cd qwen36-27b-h100-80gb-2gpu/gcp
-./deploy.sh
-```
-
-Defaults cover only topologies each provider actually sells; override them
-with `AWS_INSTANCE_TYPE`, `GCP_MACHINE_TYPE`, `AZURE_VM_SIZE`, `OCI_SHAPE`,
-`COREWEAVE_FLAVOR`, `LAMBDA_INSTANCE_TYPE`, or `CRUSOE_INSTANCE_TYPE`.
-CoreWeave, Nebius, Baseten, Together AI, and Fireworks have no scripted
-provisioning — their scripts print the console steps for their platform, and
-where the platform provides SSH you continue with
-`./deploy.sh --instance-ip <ip>`. Cloud instance catalogs change frequently;
-verify a script's default instance type before first use. Distr Apply
-(Step 3) is never automated; the script prints the remaining steps at the end.
+After the runtime starts, verify its health before configuring AWS/GCP routing
+and adding the endpoint to the gateway dashboard. Host preparation alone does
+not establish a healthy inference endpoint.

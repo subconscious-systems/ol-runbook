@@ -1,223 +1,98 @@
 # FAQ
 
-Common questions for deploying the Subconscious Inference System.
+Common questions about the Subconscious Inference System. Canonical public FAQ: [on-prem FAQ](https://docs.subconscious.dev/on-prem/faq).
 
-AWS: [architecture](api-gateway/aws/README.md) · [setup](api-gateway/aws/instructions.md) · [bootstrap](api-gateway/aws/bootstrap/) · [secrets](api-gateway/aws/gateway-secrets.md) · [rotation](api-gateway/aws/secret-rotation.md) · [rollback](api-gateway/aws/rollback.md) · [teardown](api-gateway/aws/teardown.md) · [troubleshooting](api-gateway/aws/troubleshooting.md).
+Working docs in this repo: [getting started](getting-started.md) · [trust model](TRUST_MODEL.md) · [cost estimates](api-gateway/cost-estimates.md) · [OrangeLine](gpu-deployment/README.md) · [coding agents](coding-agents/) · [Okta SSO](api-gateway/sso-okta.md) · [Entra SSO](api-gateway/sso-entra.md).
 
-GCP: [architecture and release gate](api-gateway/gcp/README.md) · [setup](api-gateway/gcp/instructions.md) · [bootstrap](api-gateway/gcp/bootstrap/) · [secrets](api-gateway/gcp/gateway-secrets.md) · [rotation](api-gateway/gcp/secret-rotation.md) · [rollback](api-gateway/gcp/rollback.md) · [teardown](api-gateway/gcp/teardown.md) · [troubleshooting](api-gateway/gcp/troubleshooting.md).
+## Why use this over Claude Code or Codex?
 
-## Can I use the GCP runbook with any infra release?
+Closed hosted tools can send prompts, code, and engineering context outside your trust boundary. The Subconscious Inference System gives your team frontier-level coding-agent intelligence while keeping API Gateway traffic, OrangeLine execution, and deployment policy inside infrastructure you control.
 
-No. The GCP runbook defines a complete production-parity contract, but the
-selected `api-gateway-infra` Distr Application release must explicitly say its
-full `CLOUD=gcp` path is enabled. A release whose runner still reports GCP as a
-stub fails closed. Complete the production release preflight before deployment.
+See [TRUST_MODEL.md](TRUST_MODEL.md) and [compliance](https://docs.subconscious.dev/on-prem/trust-center/compliance).
 
-The GCP path is greenfield production only: one dedicated project in
-`us-east1`, no AWS data migration, and no GPU provisioning. See
-[api-gateway/gcp/README.md](api-gateway/gcp/README.md).
+## Why use Subconscious instead of hosting the models ourselves?
 
-## How should I name my deployments, namespaces, and releases?
+You can rent GPUs and host open models yourself, but serving coding-agent workloads efficiently is the hard part. Subconscious provides the API Gateway, OrangeLine, upgrades, and support. OrangeLine is designed to serve teams of engineers with roughly half the GPUs compared with off-the-shelf runtimes like vLLM.
 
-Use a short readable slug and keep the Distr deployment names consistent:
+See [how it works](https://docs.subconscious.dev/on-prem/how-it-works).
 
-| What | Name |
-| --- | --- |
-| Infra Distr Docker deployment (`api-gateway-infra`) | `{readable-slug}-api-gateway-infra` |
-| Gateway cluster identity (`GATEWAY_DISTR_DEPLOYMENT_NAME`) | `{readable-slug}-api-gateway` |
-| Kubernetes namespace | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
-| Helm release name | same as `GATEWAY_DISTR_DEPLOYMENT_NAME` |
-| Hub Kubernetes target (optional `GATEWAY_DISTR_PORTAL_NAME`) | same as cluster identity unless the Hub target was renamed |
+## What are the two ways to run it?
 
-Example: slug `example` → infra `example-api-gateway-infra`, gateway/namespace/release `example-api-gateway`.
+**Full inference system:** Ryvn deploys the API Gateway into your AWS, GCP, or Azure account. OrangeLine runs on GPUs anywhere you can run a Docker container and attaches to the gateway. This path includes context pruning visualization and intelligence.
 
-It is rare to need more than one deployment of the infra package or the api-gateway chart. If you do, use a different readable slug for each stack. The same rule applies to the public hostname where the api-gateway dashboard is hosted (`DOMAIN_NAME`): each deploy needs its own unique hostname.
+**OrangeLine only:** we provision a Docker Hub repository and give you a pull-only username and token; you run the container on your GPUs. Use this for trials or if you already have a gateway. You will not get context pruning visualization and intelligence without our gateway.
 
-Terraform state keys and Datadog `env` (defaults from the infra `DEPLOY_NAME` unless you set `DATADOG_ENV`) are derived from the names you provide. Gateway **cluster** secrets live in AWS Secrets Manager (`orangeline/{infra-name}/rds|valkey|app`) and sync into the cluster via External Secrets Operator - not Distr Hub keys for DB/Redis/crypto. Details: [api-gateway/aws/gateway-secrets.md](api-gateway/aws/gateway-secrets.md).
+See [methods](https://docs.subconscious.dev/on-prem/deployments/methods) and [getting-started.md](getting-started.md).
 
-On GCP the same logical bundles map to Secret Manager IDs such as
-`orangeline__{infra-name}__rds|valkey|app` and sync through ESO with Workload
-Identity Federation. Production uses its dedicated project and secret
-versions. Details:
-[api-gateway/gcp/gateway-secrets.md](api-gateway/gcp/gateway-secrets.md).
+## How does this fit into our security review?
 
-Keep each Distr deployment name **32 characters or fewer**. Longer names can hit cloud resource id limits (especially cache replication group ids).
+For the full system, the API Gateway runs in your AWS, GCP, or Azure account. A customer-installed Ryvn Agent pulls updates over outbound HTTPS. Subconscious does not need inbound access. You approve production changes through Ryvn approvals and your change-management process.
 
-The infra runner treats `GATEWAY_DISTR_DEPLOYMENT_NAME` as the Kubernetes namespace and Helm release. Do not rename the live release or namespace independently of that field.
+OrangeLine-only is a thinner review: you run our container on your GPUs; we are an image vendor, not the operator of your gateway.
 
-Greenfield can use one name for the Hub Kubernetes target, namespace, and Helm release. If you later rename the Hub target for sorting (for example `subconscious-gcp-gateway` → `gcp-gateway`), set `GATEWAY_DISTR_PORTAL_NAME` to the new Hub name and leave `GATEWAY_DISTR_DEPLOYMENT_NAME` as the live namespace. Changing `GATEWAY_DISTR_DEPLOYMENT_NAME` moves Terraform/ESO into a new namespace.
+See [TRUST_MODEL.md](TRUST_MODEL.md).
 
-Auto-deploy looks up the Kubernetes target named `GATEWAY_DISTR_PORTAL_NAME` (empty means `GATEWAY_DISTR_DEPLOYMENT_NAME`) and still `PUT`s Helm `releaseName` as `GATEWAY_DISTR_DEPLOYMENT_NAME`. If Hub lists deployments by Helm release name rather than target name, that UI label may snap back on the next auto-deploy.
+## Where does it run?
 
-`VPC_CIDR` stays an explicit field: choose a `/16` that does not overlap other VPCs in the account (important if you later peer or share routing). It is not auto-detected today.
+The API Gateway runs in your AWS, GCP, or Azure account. OrangeLine GPUs can be in that same account, on a NeoCloud or inference platform, on your own local cluster, or on bare metal. They do not have to match the gateway's cloud.
 
-## Do I need a manual api-gateway deploy before infra works?
+See [configurations](https://docs.subconscious.dev/on-prem/deployments/configurations).
 
-No live gateway on the cluster is required for Terraform or SM/ESO secret prep.
+## What data does Subconscious access?
 
-You need:
+By default, production prompts, completions, source code, API keys, gateway logs, OrangeLine logs, and operational data stay in your environment. You may choose to share selected diagnostics for support.
 
-- The published **api-gateway Helm Application** in Distr (leave `DISTR_GATEWAY_APPLICATION_ID` as the default unless forking)
-- For auto-deploy: a Kubernetes deployment **target** named `GATEWAY_DISTR_PORTAL_NAME` if set, otherwise `GATEWAY_DISTR_DEPLOYMENT_NAME` (after the K8s agent connects), and `GATEWAY_CHART_VERSION` set (see below)
+See [TRUST_MODEL.md](TRUST_MODEL.md).
 
-Practical greenfield path: first infra deploy with `GATEWAY_AUTO_DEPLOY=false`
-(platform + secrets) → connect K8s agent → second infra deploy with
-`GATEWAY_AUTO_DEPLOY=true` and `GATEWAY_CHART_VERSION=latest`. See
-[instructions.md](api-gateway/aws/instructions.md).
+## How are upgrades delivered?
 
-## How do I choose the gateway chart version?
+Gateway updates go through Ryvn: you review the release, then approvals, maintenance windows, and release channels decide when the agent applies it. OrangeLine on other GPU hosts is a new image tag.
 
-Set `GATEWAY_CHART_VERSION` on the **infra** Docker deployment (not a Distr UUID):
+See [Ryvn](https://docs.subconscious.dev/on-prem/ryvn/overview) and [getting-started.md](getting-started.md).
 
-| Value | When to use |
-| --- | --- |
-| `latest` | Default - newest non-archived entitled version via Distr API |
-| `nochange` | Keep whatever version is already on the gateway deploy (fails if none exists) |
-| `0.n.n` | Pin a published Distr version **name** (chart/semver tag) |
-| (rare) `DISTR_GATEWAY_APPLICATION_VERSION_ID` | Absolute UUID override; wins over `GATEWAY_CHART_VERSION` |
+## Can we control when updates are deployed?
 
-Empty `GATEWAY_CHART_VERSION` is an error when auto-deploy is on.
+Yes. Production gateway updates are customer-approved. Use Ryvn [deployment approvals](https://ryvn.ai/docs/guides/deployment-approvals) and [maintenance windows](https://ryvn.ai/docs/configure/maintenance-windows).
 
-`GATEWAY_CHART_VERSION` only selects the Distr application **version**. Helm override YAML is **always regenerated** by the infra runner on auto-deploy. Hub UI edits to gateway values are overwritten. Put lasting customizations on the infra env / fragment path, or set `GATEWAY_AUTO_DEPLOY=false`.
+## Do you support vulnerability scanning?
 
-When `GATEWAY_AUTO_DEPLOY=true`, every successful infra apply re-`PUT`s the gateway deployment (not change-aware). Use `GATEWAY_AUTO_DEPLOY=false` for infra-only runs.
+Yes. Every gateway, router, and adapter digest is scanned with Trivy when it is built. CI produces an SPDX SBOM, a Trivy JSON report, and a Cosign signature for that digest. We re-scan currently deployed images daily. High and Critical findings that have a patch are remediated under SLA. Findings with no upstream fix that are not on the serve path are accepted in a dated exception file and reopened when that date passes. Customer `byoc` promotions wait for a green scan or a current documented exception.
 
-## If auto-deploy is off, are cluster secrets still prepared?
+You can also scan artifacts and running components with your own tools.
 
-Yes. After apply the runner still ensures the AWS Secrets Manager `app` secret and waits for ESO to sync `gateway-secrets`. The composed values fragment is pushed to Distr only when auto-deploy runs. Manual gateway Helm before `gateway-secrets` exists will fail readiness; wait for a successful infra apply first. See [gateway-secrets.md](api-gateway/aws/gateway-secrets.md).
+See [TRUST_MODEL.md](TRUST_MODEL.md).
 
-## How do I set provider route allowlists?
+## Do we need to bring our own GPUs?
 
-Production installs with the adapter require external downstream DNS suffixes. Set this on the **infra** Docker deployment (auto-deploy overwrites hand-edited gateway Helm values):
+Usually yes, or you use a GPU cloud or platform. We can help you source capacity. OrangeLine runs anywhere you can run a GPU Docker container.
 
-| Hub field | Notes |
-| --- | --- |
-| `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES` | Comma or JSON. Matches the suffix and any subdomain. `svc.cluster.local` is always added. |
+See [gpu-deployment/README.md](gpu-deployment/README.md).
 
-At least one **external** suffix is required (`svc.cluster.local` alone fails).
+## If a new model comes out, can we deploy it?
 
-```bash
-GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES=customer.example,api.baseten.co
-```
+Yes, if OrangeLine supports the architecture and you have GPU capacity. You may need more GPUs or to replace an existing route.
 
-That allows `l4-a.customer.example`, `g6-b.customer.example`, etc.
+See [customer success](https://docs.subconscious.dev/on-prem/integration-journey/customer-success).
 
-## How do I add another public hostname to the AWS gateway ALB?
+## Which coding agents are supported?
 
-Use the AWS-only alias fields on the **infra** Docker deployment:
+The API Gateway exposes OpenAI- and Anthropic-compatible endpoints, so teams can connect Claude Code, Cursor, Codex, OpenCode, Pi, and internal tools that speak those APIs.
 
-| Hub field | Notes |
-| --- | --- |
-| `GATEWAY_EXTRA_INGRESS_HOSTS` | Comma or JSON list of additional hostnames routed to the existing gateway Service. |
-| `GATEWAY_EXTRA_ACM_CERTIFICATE_ARNS` | Comma or JSON list of issued ACM certificate ARNs in the ALB's AWS region. |
+See [coding-agents/](coding-agents/), [supported-agent-apis.md](supported-agent-apis.md), and [API Gateway setup](https://docs.subconscious.dev/on-prem/api-gateway/setup).
 
-For a hostname whose DNS is authoritative outside Route 53, request a separate
-ACM certificate in the ALB's region and publish ACM's validation CNAME with the
-authoritative DNS provider. Keep that validation record permanently for ACM
-renewal. Do not add the alias to the primary Terraform-managed certificate or
-to `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES`.
+## How do I enable dashboard SSO?
 
-The generated Ingress keeps `DOMAIN_NAME` as the only external-dns hostname,
-adds the aliases as host rules, and attaches the primary and extra certificates
-to the ALB listener. Empty alias fields retain the original single-host
-behavior. Configure these fields instead of editing the live Ingress or ALB:
-the next auto-deploy replaces manual changes.
+Dashboard login supports OpenID Connect. Inference APIs still use org API keys. Invite users before first SSO login; there is no open JIT provisioning.
 
-Before changing public DNS, resolve the alias directly to the ALB and verify
-valid TLS plus a gateway response. Then change the alias's traffic record with
-its authoritative provider. Roll back by restoring that record; the additional
-ALB rule and certificate may remain attached safely.
-
-## How is the initial dashboard admin created?
-
-Not by Terraform. Prefer the api-gateway chart **identity-bootstrap** Job:
-
-1. Create a Hub Secret for the bootstrap password (12+ chars)
-2. Reference it from the infra env (see `sample-gateway-infra.env` / `DASHBOARD_BOOTSTRAP_PASSWORD`)
-3. On gateway install, the Job bootstraps the admin using the password in the cluster `gateway-secrets` (via SM/ESO)
-
-Idempotent for existing users (password is **not** rotated on re-run). Break-glass: `ops-cli identity bootstrap` with cluster access. See [troubleshooting.md](api-gateway/aws/troubleshooting.md).
-
-The gateway base URL (`https://<DOMAIN_NAME>/`) redirects to `/dashboard`. Day-0
-login uses the bootstrap password; day-2 operators can use corporate SSO after
-you enable OIDC and invite them (see below).
-
-## How do I enable dashboard SSO (Okta / Entra ID)?
-
-Dashboard login supports OpenID Connect (OIDC). Inference APIs still use org API
-keys. Invite users (or create accounts) before first SSO login — there is no open
-JIT provisioning.
+Create the IdP application (Okta or Microsoft Entra ID), then your FDE wires OIDC on the gateway.
 
 - Okta: [api-gateway/sso-okta.md](api-gateway/sso-okta.md)
 - Microsoft Entra ID: [api-gateway/sso-entra.md](api-gateway/sso-entra.md)
 
 Password login remains available as break-glass for the bootstrap admin.
 
-## How do I tag Datadog so I can filter dashboards and metrics?
+## What happens if the deployment has an incident?
 
-Set `DATADOG_ENV` (defaults to `DEPLOY_NAME` when empty). That value is applied as:
+You own incident response for the gateway and OrangeLine in your environment. Subconscious supports investigation when you ask, using access or diagnostics you approve.
 
-- Agent tag `env:<DATADOG_ENV>`
-- Monitor names prefixed with `[<DATADOG_ENV>]`, queries scoped to `env:<DATADOG_ENV>`
-- Dashboard title `[<DATADOG_ENV>][managed] …`
-- Log pipeline + gateway Helm UST / `ENVIRONMENT` via the fragment
-
-Two gateways in one Datadog org get distinct monitors/dashboards/pipelines. Filter telemetry with `env:<your-value>`.
-
-Optional Hub overrides:
-
-- `DATADOG_DASHBOARD_TAGS`: default `team:api-gateway` (some sites restrict keys)
-- `DATADOG_RESOURCE_TAGS`: extra monitor tags when set
-- `DATADOG_MONITORS_DRAFT`: `true` creates monitors as draft (no alerts until published)
-
-Metric tag *configurations* (allowlisted tag keys on metric names) are org-global and shared (intentional). Deploy isolation is via tag *values* (`env`, `service`).
-
-Operations guides: [AWS](api-gateway/aws/datadog-operations.md) ·
-[GCP STS/Agent/Cloud SQL DBM](api-gateway/gcp/datadog-operations.md).
-
-## How do I control gateway log volume?
-
-Set Hub `GATEWAY_LOG_LEVEL` (default `WARN`). That one field sets gateway,
-adapter, and router together. `WARN` ships exceptions only. `INFO` ships one
-`gateway.request.completed` JSON line per request. GPU workers use
-`worker.sglang.logLevel: warning` on their own chart.
-
-`DATADOG_ENABLED=true` does **not** turn on APM traces or LLM Observability.
-Those stay off unless `DATADOG_APM_ENABLED` / `DATADOG_LLM_OBS_ENABLED`.
-
-## How do I rotate gateway secrets?
-
-App csrf and credential encryption: copy-paste from [api-gateway/aws/secret-rotation.md](api-gateway/aws/secret-rotation.md) (`bootstrap/scripts/rotate-app-secret.sh`). RDS/Valkey URLs: new infra deploy. Org API keys and worker endpoint keys: dashboard (same doc).
-
-For GCP, use
-[api-gateway/gcp/secret-rotation.md](api-gateway/gcp/secret-rotation.md). It
-uses the keyless bootstrap/IAP path for app keys, overlapping Cloud SQL users,
-and blue/green Redis replacement because Memorystore cannot overlap old/new
-AUTH strings.
-
-## Infra Hub field cheatsheet
-
-| Field | Notes |
-| --- | --- |
-| `DEPLOY_NAME` | Infra Distr deploy + TF/EKS name_prefix |
-| `GATEWAY_DISTR_DEPLOYMENT_NAME` | Gateway K8s namespace + Helm release |
-| `GATEWAY_DISTR_PORTAL_NAME` | Optional Hub Kubernetes target name; empty = `GATEWAY_DISTR_DEPLOYMENT_NAME` |
-| `DOMAIN_NAME` / `DNS_ZONE_NAME` | Public hostname + existing Route 53 zone |
-| `VPC_CIDR` | Non-colliding VPC `/16` (explicit; not auto-detected) |
-| `DATADOG_ENABLED` / `DATADOG_ENV` | Sample path: on; env facet for titles/monitors/filters. Does not turn on OTLP/APM |
-| `GATEWAY_LOG_LEVEL` | Default `WARN` (gateway + adapter + router). `INFO` = one `request.completed` line per call |
-| `DATADOG_APM_ENABLED` | Default `false`. Opt in to in-cluster OTLP traces |
-| `DATADOG_LLM_OBS_ENABLED` | Default `false`. Requires `DATADOG_APM_ENABLED` |
-| `DATADOG_DASHBOARD_TAGS` | Optional; default `team:api-gateway` |
-| `DATADOG_MONITORS_DRAFT` | Draft vs published monitors only |
-| `DATADOG_SLOS_ENABLED` | Managed availability + TTFT SLOs (default off) |
-| `GATEWAY_AUTO_DEPLOY` | Default false; enable only for a separate gateway rollout |
-| `GATEWAY_CHART_VERSION` | `latest` (default), `nochange`, or `0.n.n` |
-| `GATEWAY_ROUTE_ALLOWED_HOST_SUFFIXES` | Provider DNS suffixes; `svc.cluster.local` always added |
-| `GATEWAY_EXTRA_INGRESS_HOSTS` | AWS-only public aliases routed by the existing ALB |
-| `GATEWAY_EXTRA_ACM_CERTIFICATE_ARNS` | AWS-only issued ACM certificates for those aliases |
-| `DISTR_GATEWAY_APPLICATION_ID` | Defaulted to Subconscious-published api-gateway app |
-| `DISTR_GATEWAY_APPLICATION_VERSION_ID` | Rare UUID override; prefer `GATEWAY_CHART_VERSION` |
-| `DASHBOARD_BOOTSTRAP_PASSWORD` | Optional; enables identity-bootstrap Job |
-
-Full template comments: shipped with the infra Application as `runner/template.env`.
+See [customer success](https://docs.subconscious.dev/on-prem/integration-journey/customer-success).

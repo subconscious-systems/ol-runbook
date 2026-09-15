@@ -12,7 +12,7 @@ worker_subnetwork_name      = "gpu-workers-us-central1"
 # HTTPS frontend and requires a published profile with worker auth enabled.
 exposure_mode = "internal"
 # Set true only after confirming worker.auth.enabled=true and the
-# SGLANG_WORKER_API_KEY Distr secret is populated for public-api-key mode.
+# SGLANG_WORKER_API_KEY is populated in the dashboard for public-api-key mode.
 confirm_worker_api_key = false
 
 gateway_project_id  = "gateway-project-id"
