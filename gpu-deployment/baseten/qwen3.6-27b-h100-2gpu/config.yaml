@@ -1,0 +1,52 @@
+model_metadata:
+  example_model_input:
+    messages:
+      - role: system
+        content: "You are a helpful assistant."
+      - role: user
+        content: "What does Subconscious.dev do?"
+    stream: true
+    model: Qwen/Qwen3.6-27B
+    max_total_tokens: 262144
+    temperature: 0.6
+  tags:
+    - openai-compatible
+model_name: Braintree-1
+base_image:
+  image: subconsciouslabs/sglang-baseten:h100-v0
+secrets:
+  DOCKER_REGISTRY_https://index.docker.io/v1/: null
+docker_server:
+  start_command: >-
+    sh -c "GPU_COUNT=$(nvidia-smi --list-gpus | wc -l);
+    SGLANG_PP_SPIKE_MODE=on_drop SGLANG_SUBCONSCIOUS_TRANSPLANT=1 SGLANG_SUBCONSCIOUS_BACKTRACK_MAX_LEVELS=2 python -m sglang.launch_server
+    --port 8000 --host 0.0.0.0
+    --tp $GPU_COUNT
+    --model-path /models/qwen
+    --chat-template /sgl-workspace/sglang/deploy/chat_templates/qwen3-coder-raw.jinja
+    --attention-backend flashinfer
+    --page-size 1
+    --tool-call-parser qwen3_coder
+    --subconscious-x-mode
+    --context-length 262144
+    --mem-fraction-static 0.8
+    --max-mamba-cache-size 384
+    --subconscious-x-st-buffer-size 5
+    --subconscious-x-min-span-length 3
+    --enable-cache-report"
+  readiness_endpoint: /health
+  liveness_endpoint: /health
+  predict_endpoint: /v1/chat/completions
+  server_port: 8000
+weights:
+  - source: "hf://Qwen/Qwen3.6-27B@6a9e13bd6fc8f0983b9b99948120bc37f49c13e9"
+    mount_location: "/models/qwen"
+    auth_secret_name: "hf_access_token"
+resources:
+  accelerator: H100:2
+  use_gpu: true
+runtime:
+  predict_concurrency: 48
+  health_checks:
+    restart_threshold_seconds: 600
+    stop_traffic_threshold_seconds: 240

@@ -6,7 +6,7 @@
 #
 # Weights: Qwen/Qwen3-8B-FP8
 # Distr UI (not in this file): namespace sglang, operation-timeout-minutes 120, served-model qwen3-8b
-# NodePorts 30003–30006 — four workers, one GPU each (tp=1).
+# NodePort 30003 — one worker, one GPU (tp=1).
 # Distr Hub Secrets: WORKER_API_KEY (from api-gateway dashboard), DD_API_KEY (Datadog Agent)
 # Chart version: 0.10.0+ (digest-pinned worker image + automatic pre-pull)
 # Host bootstrap: ../install.sh
@@ -97,26 +97,11 @@ worker:
       readOnly: true
 
 models:
-  - slug: 8b-a
+  - slug: 8b
     replicas: 1
     port: 30003
     discoveryLabels:
-      subconscious.dev/worker-name: 8b-a
-  - slug: 8b-b
-    replicas: 1
-    port: 30004
-    discoveryLabels:
-      subconscious.dev/worker-name: 8b-b
-  - slug: 8b-c
-    replicas: 1
-    port: 30005
-    discoveryLabels:
-      subconscious.dev/worker-name: 8b-c
-  - slug: 8b-d
-    replicas: 1
-    port: 30006
-    discoveryLabels:
-      subconscious.dev/worker-name: 8b-d
+      subconscious.dev/worker-name: 8b
 
 secrets:
   create: true

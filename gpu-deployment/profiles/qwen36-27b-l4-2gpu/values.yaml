@@ -94,16 +94,11 @@ worker:
       readOnly: true
 
 models:
-  - slug: 27b-a
+  - slug: 27b
     replicas: 1
     port: 30001
     discoveryLabels:
-      subconscious.dev/worker-name: 27b-a
-  - slug: 27b-b
-    replicas: 1
-    port: 30002
-    discoveryLabels:
-      subconscious.dev/worker-name: 27b-b
+      subconscious.dev/worker-name: 27b
 
 secrets:
   create: true

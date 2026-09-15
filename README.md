@@ -16,7 +16,7 @@ Public on-prem docs are the source of truth for architecture, methods, complianc
 | Component | Role |
 | --- | --- |
 | **API Gateway** | Agent traffic, authentication, API keys, routing, usage, and context pruning visualization and intelligence |
-| **OrangeLine** | GPU inference runtime (TIMRUN) on compute you provision |
+| **OrangeLine** | GPU inference runtime on compute you provision |
 | **Ryvn** | Deploys and updates the gateway in your AWS, GCP, or Azure account |
 
 There are two ways to run it:

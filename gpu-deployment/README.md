@@ -1,6 +1,6 @@
 # OrangeLine
 
-**OrangeLine** is the GPU inference runtime for the Subconscious Inference System. It runs TIMRUN on GPUs you provide.
+**OrangeLine** is the GPU inference runtime for the Subconscious Inference System. It runs on GPUs you provide.
 
 Subconscious provisions a Docker Hub repository for your org and gives your team a pull-only username and access token. Your FDE helps you deploy that image into your environment. On AWS or GCP, optional Terraform in this directory publishes HTTPS worker domains so the gateway can reach those GPUs.
 
@@ -30,6 +30,49 @@ Image:
 
   docker pull <DOCKERHUB_REPOSITORY>:<TAG>
 ```
+
+## Provider helpers
+
+Choose a provider directory, then a model/GPU subfolder:
+
+| Provider | Directory | Current path |
+| --- | --- | --- |
+| AWS | [aws/](aws/README.md) | EC2 and SSH host preparation |
+| GCP | [gcp/](gcp/README.md) | Compute Engine and host preparation |
+| Azure | [azure/](azure/README.md) | VM and SSH host preparation |
+| OCI | [oci/](oci/README.md) | Instance and SSH host preparation |
+| CoreWeave | [coreweave/](coreweave/README.md) | CLI provisioning path needs validation; SSH host preparation |
+| Lambda | [lambda/](lambda/README.md) | Launch request needs correction; SSH host preparation |
+| Crusoe | [crusoe/](crusoe/README.md) | CLI provisioning path needs validation; SSH host preparation |
+| Nebius | [nebius/](nebius/README.md) | Manual provisioning, then SSH host preparation |
+| Together | [together/](together/README.md) | Manual provisioning, then SSH host preparation |
+| Fireworks | [fireworks/](fireworks/README.md) | Managed-platform guidance only |
+| Modal | [modal/](modal/README.md) | Native Modal profiles |
+| Baseten | [baseten/](baseten/README.md) | Native Truss configs |
+
+For example, `aws/qwen36-27b-h100-80gb-2gpu/deploy.sh --help` shows the
+selected AWS helper's inputs. Each provider/profile folder contains local launch settings, weight-download
+scripts, environment examples, and instructions. Native Modal and Baseten
+settings also live inside their provider folders. See the [provider capability details](profiles/README.md#provider-helpers)
+before provisioning a host.
+
+For Modal, choose a [native deployment profile](modal/README.md). Each
+subfolder contains its own app, weight-download job, and environment example.
+
+For Baseten, use the [native Truss configurations and push helper](baseten/README.md).
+They preserve the existing GLM and Qwen deployment variants and offer a local
+preview before pushing the selected configuration.
+
+The optional [provider helpers](profiles/README.md#provider-helpers) prepare
+GPU hosts for FDE-assisted deployments. Their capabilities vary by provider:
+some create a VM, some print setup instructions, and managed inference platforms
+need their own deployment configuration. A provider folder does not mean every
+GPU topology is supported or that a complete runtime deployment is automated.
+
+For a new deployment, start with the Docker Hub image and FDE instructions
+above. These helpers still prepare the existing k3s-based host profiles; your
+FDE must adapt the image, credentials, and runtime configuration to your deployment.
+AWS/GCP worker routing below is a separate step after the runtime is healthy.
 
 ## Worker URL with AWS
 
