@@ -12,6 +12,9 @@ This is step 6 in [getting-started.md](../getting-started.md). Product overview:
 
 ## Pull the image
 
+For the upcoming native routing release, see the
+[Dynamo routing migration](dynamo-routing.md) configuration and verification guide.
+
 Your FDE supplies `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and the image (`DOCKERHUB_REPOSITORY:TAG`). Do not commit the token.
 
 ```text
