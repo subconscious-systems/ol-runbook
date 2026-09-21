@@ -10,6 +10,10 @@ For trials, or if you already have a gateway, you can run OrangeLine alone: pull
 
 This is step 6 in [getting-started.md](../getting-started.md). Product overview: [OrangeLine](https://docs.subconscious.dev/on-prem/inference-runtime/overview). Placement relative to the gateway: [configurations](https://docs.subconscious.dev/on-prem/deployments/configurations).
 
+For a production gateway/router cluster connected to existing GPU servers, see
+[Production Kubernetes control plane](kubernetes-control-plane.md). This path
+places management workloads on CPU nodes and does not install anything on GPUs.
+
 ## Pull the image
 
 Your FDE supplies `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and the image (`DOCKERHUB_REPOSITORY:TAG`). Do not commit the token.
@@ -32,6 +36,10 @@ Image:
 ```
 
 ## Provider helpers
+
+For gateway-managed workers using the Dynamo routing layer, see
+[Dynamo workers and cache allocation](dynamo-cache.md). It describes the optional
+Rust bridge/collector, deployment inputs, and the model-group allocation view.
 
 Choose a provider directory, then a model/GPU subfolder:
 
