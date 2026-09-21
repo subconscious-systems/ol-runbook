@@ -146,3 +146,5 @@ glm-52 | https://glm-52.<worker-domain> | <WORKER_API_KEY>
 ```
 
 Add `<worker-domain>` (for example `workers.example.com`) to the gateway `routeAllowedHostSuffixes`, then wait for each endpoint to report `registered`.
+
+Regional deployments: [Regional pods and router endpoints](regional-pods.md).

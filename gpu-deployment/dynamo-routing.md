@@ -1,5 +1,10 @@
 # Dynamo routing migration
 
+For the regional-pod architecture, use [Regional pods](regional-pods.md).
+The gateway binds sessions to regional router endpoints; native discovery and
+GPU cache processing are deployed within each region.
+
+
 This guide accompanies the Dynamo implementation branch. Use it with a reviewed
 release containing the Rust router and worker bridge; it is not a change to an
 already published application version.
@@ -34,14 +39,9 @@ The FDE supplies the following for the installation:
   `31003`, and access to the discovery service. An existing HTTP NodePort alone
   does not establish native Dynamo connectivity across separate clusters.
 
-Gateway Helm values:
-
-```yaml
-router:
-  dynamo:
-    endpoint: customerdeployment.workers.generate
-    etcdEndpoints: http://etcd.example.internal:2379
-```
+The gateway endpoint points at the regional router HTTP URL. Configure native
+discovery on that regional router, using the same regional etcd and Dynamo
+endpoint as its GPU bridges. See [Regional pods](regional-pods.md).
 
 Worker Helm values, merged into the existing model/GPU profile:
 
