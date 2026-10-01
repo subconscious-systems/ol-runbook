@@ -1,0 +1,112 @@
+# glm-5.2-nvfp4-b200-4gpu on Fireworks
+# Profile-local Helm values. See README.md for resources and provider setup.
+# Run ./weights.sh on the GPU host after host preparation.
+# Existing image repositories and tags are retained from the shared profile.
+
+images:
+  distrPullSecret:
+    enabled: true
+
+releaseImages:
+  worker:
+    repository: ""
+    digest: ""
+
+datadog:
+  enabled: true
+  worker:
+    service: sglang-worker-glm-5.2-nvfp4-b200-4gpu
+  datadog:
+    site: us5.datadoghq.com
+
+worker:
+  hostIPC: true
+  auth:
+    enabled: true
+  service:
+    type: NodePort
+  image:
+    repository: registry.distr.sh/subconscious/timrun
+    tag: sm_100-v0.13
+    prePull:
+      enabled: true
+  servedModelName: glm-5.2
+  modelPath: /mnt/model-test/glm-5.2-nvfp4
+  contextLength: ""
+  gpu:
+    count: 4
+  discoveryLabels:
+    subconscious.dev/worker-pool: glm-5.2-nvfp4-b200-4gpu
+  sglang:
+    memFractionStatic: "0.82"
+    maxRunningRequests: "96"
+    maxTotalTokens: ""
+    chunkedPrefillSize: ""
+    extraArgs: >-
+      --tp 4
+      --chat-template /sgl-workspace/sglang/deploy/chat_templates/glm5.2.jinja
+      --tool-call-parser glm47
+      --subconscious-x-mode
+      --enable-hierarchical-cache
+      --hicache-ratio 2
+      --hicache-io-backend direct
+      --hicache-mem-layout page_first_direct
+      --hicache-write-policy write_back
+      --subconscious-x-st-buffer-size 5
+      --subconscious-x-min-span-length 3
+      --speculative-algorithm DFLASH
+      --speculative-draft-model-path /mnt/model-test/glm-5.2-fp8-dflash-v2
+      --speculative-num-draft-tokens 12
+      --speculative-draft-kv-cache-dtype bfloat16
+      --speculative-draft-attention-backend fa4
+      --subconscious-leaf-only
+      --stream-response-default-include-usage
+      --trust-remote-code
+      --enable-cache-report
+      --cuda-graph-max-bs 96
+  extraEnv:
+    - name: CUDA_VISIBLE_DEVICES
+      value: "0,1,2,3"
+    - name: SGLANG_CACHE_DIR
+      value: /opt/sgl-warm-cache/sglang
+    - name: SGLANG_DG_CACHE_DIR
+      value: /opt/sgl-warm-cache/deep_gemm
+    - name: FLASHINFER_WORKSPACE_BASE
+      value: /opt/sgl-warm-cache/flashinfer
+    - name: HF_HOME
+      value: /tmp/hf
+    - name: PYTHONUNBUFFERED
+      value: "1"
+    - name: SGLANG_PP_SPIKE_MODE
+      value: "on_drop"
+    - name: SGLANG_SUBCONSCIOUS_TRANSPLANT
+      value: "1"
+    - name: SGLANG_SUBCONSCIOUS_BACKTRACK_MAX_LEVELS
+      value: "1"
+  resources:
+    requests:
+      cpu: "32"
+      memory: "681575Mi"
+    limits:
+      cpu: "32"
+      memory: "681575Mi"
+  weights:
+    hostPath:
+      enabled: true
+      path: /mnt
+      mountPath: /mnt
+      readOnly: true
+
+models:
+  - slug: glm-52
+    replicas: 1
+    port: 30001
+    discoveryLabels:
+      subconscious.dev/worker-name: glm-52
+
+secrets:
+  create: true
+  worker:
+    SGLANG_WORKER_API_KEY: "{{.Secrets.WORKER_API_KEY}}"
+  datadog:
+    DD_API_KEY: "{{.Secrets.DD_API_KEY}}"

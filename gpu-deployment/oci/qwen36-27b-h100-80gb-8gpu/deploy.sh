@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Prepare the GPU host for qwen36-27b-h100-80gb-8gpu (h100-80gb x 8) on OCI.
+set -euo pipefail
+
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/profiles/_deploy.sh" \
+  oci h100-80gb 8 qwen36-27b-h100-80gb-8gpu "$@"

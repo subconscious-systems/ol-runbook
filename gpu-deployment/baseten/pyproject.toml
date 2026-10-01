@@ -1,0 +1,8 @@
+[project]
+name = "subconscious-baseten-deploy"
+version = "0.0.0"
+description = "Baseten Truss deploy tooling for Subconscious SGLang runtimes"
+requires-python = ">=3.10"
+dependencies = [
+    "truss>=0.18",
+]
