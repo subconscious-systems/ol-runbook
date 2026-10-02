@@ -224,6 +224,45 @@ variable "protect_bootstrap_vms" {
   default     = true
 }
 
+variable "datadog_domain_restricted_sharing_environments" {
+  type        = set(string)
+  description = "Environments whose enforced Domain Restricted Sharing policy needs a project-scoped Datadog STS exception."
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for environment in var.datadog_domain_restricted_sharing_environments :
+      contains(["sandbox", "prod"], environment)
+    ])
+    error_message = "datadog_domain_restricted_sharing_environments may contain only sandbox and prod."
+  }
+}
+
+variable "domain_restricted_sharing_existing_customer_ids" {
+  type        = set(string)
+  description = "Customer IDs already allowed by the effective Domain Restricted Sharing policy; Terraform preserves these when adding Datadog."
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for customer_id in var.domain_restricted_sharing_existing_customer_ids :
+      can(regex("^C[0-9A-Za-z]+$", customer_id))
+    ])
+    error_message = "domain_restricted_sharing_existing_customer_ids must contain Google customer IDs such as C0123example."
+  }
+}
+
+variable "datadog_customer_identity" {
+  type        = string
+  description = "Datadog customer identity allowed by Domain Restricted Sharing: commercial or government sites."
+  default     = "C0147pk0i"
+
+  validation {
+    condition     = contains(["C0147pk0i", "C03lf3ewa"], var.datadog_customer_identity)
+    error_message = "datadog_customer_identity must be C0147pk0i (commercial) or C03lf3ewa (government)."
+  }
+}
+
 variable "labels" {
   type        = map(string)
   description = "Additional labels applied to projects and bootstrap resources."

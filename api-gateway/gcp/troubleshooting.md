@@ -340,10 +340,12 @@ infra. Do not hand-edit the live BackendConfig; auto-deploy will overwrite it.
 ### Datadog delegate is not in the permitted organization
 
 `constraints/iam.allowedPolicyMemberDomains` is blocking Datadog's external
-STS delegate. Do not disable Domain Restricted Sharing globally. Have an
-organization policy administrator add Datadog customer identity `C0147pk0i`
-(`C03lf3ewa` for government sites) to a project-level override while retaining
-the existing corporate customer identity. See
+STS delegate. Do not disable Domain Restricted Sharing globally. Add the
+environment to bootstrap `datadog_domain_restricted_sharing_environments`, preserve
+the effective corporate IDs in
+`domain_restricted_sharing_existing_customer_ids`, and apply the reviewed
+project-scoped policy with a foundation identity that has temporary
+`roles/orgpolicy.policyAdmin`. See
 [datadog-operations.md](datadog-operations.md#domain-restricted-sharing-prerequisite).
 
 ### No GCP metrics but Agent data exists

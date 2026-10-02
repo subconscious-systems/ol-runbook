@@ -19,9 +19,9 @@ delegate cannot receive Token Creator until an organization policy
 administrator allows Datadog's customer identity. Commercial Datadog sites,
 including US5, use `C0147pk0i`; government sites use `C03lf3ewa`.
 
-Prefer a project-level override on each gateway environment rather than
-broadening the policy for the whole organization. Preserve every customer ID
-already allowed by the effective policy and add the Datadog ID:
+Bootstrap Terraform owns a project-level override on each selected gateway
+environment rather than broadening the policy for the whole organization.
+Before the foundation plan, inspect the effective policy:
 
 ```bash
 gcloud org-policies describe \
@@ -29,25 +29,26 @@ gcloud org-policies describe \
   --project="$GCP_PROJECT" \
   --effective \
   --format=yaml
-
-GCP_PROJECT_NUMBER="$(
-  gcloud projects describe "$GCP_PROJECT" --format='value(projectNumber)'
-)"
-cat >domain-restricted-sharing.yaml <<EOF
-name: projects/${GCP_PROJECT_NUMBER}/policies/iam.allowedPolicyMemberDomains
-spec:
-  rules:
-  - values:
-      allowedValues:
-      - EXISTING_CUSTOMER_ID
-      - C0147pk0i
-EOF
-gcloud org-policies set-policy domain-restricted-sharing.yaml
 ```
 
-Replace `EXISTING_CUSTOMER_ID` with the value from the effective policy; do
-not remove the organization's existing identity. Setting the override requires
-`roles/orgpolicy.policyAdmin`. The bootstrap service account receives only
+Copy every existing `allowedValues` entry into bootstrap `terraform.tfvars`,
+then select the deployment environments that enable Datadog cloud metrics:
+
+```hcl
+datadog_domain_restricted_sharing_environments = ["sandbox"]
+domain_restricted_sharing_existing_customer_ids = [
+  "EXISTING_CUSTOMER_ID",
+]
+datadog_customer_identity = "C0147pk0i"
+```
+
+The bootstrap plan creates only per-project overrides and preserves the listed
+identities. Adding `prod` to both `enabled_environments` and
+`datadog_domain_restricted_sharing_environments` applies the same deployment type to
+the new production project. Applying the override requires the human
+foundation identity to hold temporary `roles/orgpolicy.policyAdmin` on the
+organization. Remove that role after the reviewed foundation apply. The
+long-lived bootstrap service account receives only
 `roles/orgpolicy.policyViewer`, and the infra runner fails before Terraform
 mutation if the required Datadog identity is absent.
 

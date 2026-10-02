@@ -20,6 +20,17 @@ locals {
     if contains(var.enabled_environments, environment)
   }
 
+  datadog_domain_policy_environments = {
+    for environment, config in local.environments :
+    environment => config
+    if contains(var.datadog_domain_restricted_sharing_environments, environment)
+  }
+
+  datadog_domain_policy_allowed_customer_ids = sort(tolist(setunion(
+    var.domain_restricted_sharing_existing_customer_ids,
+    toset([var.datadog_customer_identity]),
+  )))
+
   required_apis = toset([
     "artifactregistry.googleapis.com",
     "billingbudgets.googleapis.com",
@@ -174,5 +185,25 @@ check "separate_projects" {
   assert {
     condition     = var.sandbox_project_id != var.production_project_id
     error_message = "Sandbox and production must use separate project IDs."
+  }
+}
+
+check "datadog_policy_environments_are_enabled" {
+  assert {
+    condition = length(setsubtract(
+      var.datadog_domain_restricted_sharing_environments,
+      var.enabled_environments,
+    )) == 0
+    error_message = "Every datadog_domain_restricted_sharing_environments entry must also be present in enabled_environments."
+  }
+}
+
+check "datadog_policy_preserves_existing_customer_ids" {
+  assert {
+    condition = (
+      length(var.datadog_domain_restricted_sharing_environments) == 0 ||
+      length(var.domain_restricted_sharing_existing_customer_ids) > 0
+    )
+    error_message = "Set domain_restricted_sharing_existing_customer_ids from the effective policy before enabling a Datadog project override."
   }
 }

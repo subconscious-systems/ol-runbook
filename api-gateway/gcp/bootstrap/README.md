@@ -59,11 +59,16 @@ Remove temporary parent-level grants after each approved project foundation
 passes preflight.
 
 If Domain Restricted Sharing is enforced and Datadog GCP cloud metrics are
-enabled, a human with `roles/orgpolicy.policyAdmin` must create the
-project-scoped Datadog customer-identity exception documented in
+enabled, the human foundation identity also needs temporary
+`roles/orgpolicy.policyAdmin` on the organization. Bootstrap Terraform creates
+the project-scoped Datadog customer-identity exception when the environment is
+listed in `datadog_domain_restricted_sharing_environments`; no console policy edit is
+required. Copy every customer ID from the effective parent policy into
+`domain_restricted_sharing_existing_customer_ids` so the override preserves
+existing access. See
 [`../datadog-operations.md`](../datadog-operations.md#domain-restricted-sharing-prerequisite).
-The bootstrap enables `orgpolicy.googleapis.com` but grants the long-lived
-platform service account only `roles/orgpolicy.policyViewer`.
+The long-lived platform service account retains only
+`roles/orgpolicy.policyViewer`.
 
 ### Install and configure gcloud
 
@@ -134,6 +139,7 @@ creation is explicitly approved, change:
 
 ```hcl
 enabled_environments = ["sandbox", "prod"]
+datadog_domain_restricted_sharing_environments = ["sandbox", "prod"]
 ```
 
 Run `bootstrap.sh --plan`, review the production project/VM/budget additions,

@@ -21,6 +21,18 @@ production_project_id    = "acme-gateway-prod"
 sandbox_project_name     = "Acme Gateway Sandbox"
 production_project_name  = "Acme Gateway Production"
 
+# Deployment-type feature selection. Leave the set empty when Domain
+# Restricted Sharing is not enforced. When it is enforced, select the gateway
+# environments that need a project-only Datadog exception and copy every
+# customer ID from the effective parent policy. Terraform preserves them and
+# adds Datadog's commercial identity C0147pk0i.
+datadog_domain_restricted_sharing_environments = []
+domain_restricted_sharing_existing_customer_ids = [
+  # "C0123example",
+]
+# Government Datadog sites use C03lf3ewa instead.
+datadog_customer_identity = "C0147pk0i"
+
 # Alerts are sent to default billing-account/project recipients. These are not
 # hard caps; replace with approved Calculator-based whole-dollar amounts.
 monthly_budget_amounts_usd = {

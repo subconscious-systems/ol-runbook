@@ -41,6 +41,14 @@ output "platform_apply_roles" {
   value       = sort(tolist(local.platform_apply_roles))
 }
 
+output "datadog_domain_restricted_sharing_policies" {
+  description = "Project-scoped Datadog Domain Restricted Sharing policy name by selected environment."
+  value = {
+    for environment, policy in google_org_policy_policy.datadog_domain_restricted_sharing :
+    environment => policy.name
+  }
+}
+
 output "state_bucket_roles" {
   description = "Bucket-scoped roles granted to platform and operator principals."
   value       = sort(tolist(local.state_bucket_roles))

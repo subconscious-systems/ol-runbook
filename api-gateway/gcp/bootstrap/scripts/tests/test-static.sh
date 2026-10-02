@@ -96,6 +96,12 @@ for api in \
 done
 grep -Fq '"orgpolicy.googleapis.com"' "${BOOTSTRAP_DIR}/locals.tf"
 grep -Fq '"roles/orgpolicy.policyViewer"' "${BOOTSTRAP_DIR}/locals.tf"
+grep -Fq 'resource "google_org_policy_policy" "datadog_domain_restricted_sharing"' \
+  "${BOOTSTRAP_DIR}/org-policy.tf"
+grep -Fq 'datadog_domain_restricted_sharing_environments = []' \
+  "${BOOTSTRAP_DIR}/terraform.tfvars.example"
+grep -Fq 'domain_restricted_sharing_existing_customer_ids' \
+  "${BOOTSTRAP_DIR}/terraform.tfvars.example"
 grep -Fq 'C0147pk0i' "${GCP_DIR}/datadog-operations.md"
 
 if grep -Eq '(BEGIN (RSA|OPENSSH|PRIVATE) KEY|\"type\"[[:space:]]*:[[:space:]]*\"service_account\")' \

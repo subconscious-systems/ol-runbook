@@ -118,7 +118,7 @@ $EDITOR terraform.tfvars
 bash scripts/bootstrap.sh --plan
 # Review: enabled_environments contains only sandbox; one project, budget,
 # state bucket, isolated bootstrap VPC/NAT, keyless service account/IAM, IAP
-# firewall, and one private VM.
+# firewall, one private VM, and the sandbox-only Datadog domain-policy override.
 bash scripts/bootstrap.sh --apply
 ```
 
@@ -405,7 +405,8 @@ Production is a new deployment, not a state/data clone:
 
 1. Pin the exact sandbox-approved infra and gateway Application versions.
 2. In `bootstrap/terraform.tfvars`, set
-   `enabled_environments = ["sandbox", "prod"]`.
+   `enabled_environments = ["sandbox", "prod"]` and
+   `datadog_domain_restricted_sharing_environments = ["sandbox", "prod"]`.
 3. Run `bootstrap.sh --plan`; require an unchanged sandbox and production-only
    project, budget, state bucket, network, service account, and VM additions.
 4. After approval, run `bootstrap.sh --apply` and `preflight.sh prod`.
