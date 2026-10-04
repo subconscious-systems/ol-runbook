@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Download weights for the glm-5.2-b200-4gpu profile.
+set -euo pipefail
+
+PROFILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOWNLOADER="${PROFILE_DIR}/../../profiles/_weights.sh"
+# The SSH helper stages the shared downloader beside the remote profile.
+[[ -x "$DOWNLOADER" ]] || DOWNLOADER="${PROFILE_DIR}/../_weights.sh"
+exec "$DOWNLOADER" "glm-5.2-b200-4gpu" \
+  "zai-org/GLM-5.2-FP8" "/models/hf/GLM-5.2-FP8" \
+  "SubconsciousDev/glm-5.2-fp8-dflash-v2" "/models/hf/glm-5.2-fp8-dflash-v2"
