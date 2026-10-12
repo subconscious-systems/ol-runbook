@@ -10,6 +10,13 @@ For trials, or if you already have a gateway, you can run OrangeLine alone: pull
 
 This is step 6 in [getting-started.md](../getting-started.md). Product overview: [OrangeLine](https://docs.subconscious.dev/on-prem/inference-runtime/overview). Placement relative to the gateway: [configurations](https://docs.subconscious.dev/on-prem/deployments/configurations).
 
+## Aranya managed Kubernetes
+
+For a provider-managed Aranya clusterdOS cluster, follow
+[Aranya deployment profiles](aranya/README.md). The L1/L2 guide covers the provider
+handoff, private image access, model staging and Helm deployment. The separate
+L1/L2/L3 folder records the additional storage requirements and pending work.
+
 ## Pull the image
 
 Your FDE supplies `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and the image (`DOCKERHUB_REPOSITORY:TAG`). Do not commit the token.
