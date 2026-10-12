@@ -1,0 +1,43 @@
+# Planning record only. Do not pass this file to Helm or kubectl apply.
+profile: aranya-l1-l2-l3
+status: pending-implementation-and-qualification
+deploymentReady: false
+model: glm-5.3
+cacheTiers: [l1, l2, l3]
+
+storage:
+  candidateBackend: packed_fs
+  candidateService: 3fs
+  topology: null # Decide: node-local domains or an actually shared store.
+  transport: null # Decide and qualify: TCP or RDMA.
+  operator: null # Provider-managed service or supported customer workload.
+  kubernetesInterface: null # CSI/PVC/mount contract agreed with Aranya.
+  perNodeCacheCapacity: null # Excludes model, image, scratch and etcd budgets.
+  domainAndIndexOwnership: null
+  durabilityAndRecovery: null
+
+provider:
+  storageIntegrationConfirmed: false
+  admissionRequirementsConfirmed: false
+  nativeClientRequirementsConfirmed: false
+  transportQualified: false
+  resourceBudgetConfirmed: false
+
+release:
+  chartRevision: null
+  workerImageDigest: null
+  runtimeImageDigest: null
+  storageImageDigest: null
+  indexImageDigest: null
+  engineAndNativeClientVersions: null
+  packedFormatVersion: null
+
+acceptance:
+  storageReadWrite: false
+  restoreAfterL1L2Cleared: false
+  freshWorkerRestore: false
+  secondNodeRestoreIfShared: null
+  workerDynamoPageAgreement: false
+  evictionAndFailureRecovery: false
+  l1L2L3Pressure: false
+  concurrencyAndLatency: false

@@ -1,0 +1,74 @@
+# Replace all REPLACE_ fields using the Aranya handoff and model release record.
+# Pair this file with the delivered images.yaml, which must be the final overlay.
+runtimeClassName: REPLACE_NVIDIA_RUNTIME_CLASS # Use "" if the runtime is automatic.
+tolerations: [] # Add only the workload-node tolerations supplied by Aranya.
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+model:
+  family: glm
+  servedName: glm-5.3
+  main:
+    repo: REPLACE_MAIN_NVFP4_REPO
+    revision: "REPLACE_MAIN_40_CHARACTER_COMMIT"
+  draft:
+    repo: REPLACE_MATCHING_DFLASH2_REPO
+    revision: "REPLACE_DRAFT_40_CHARACTER_COMMIT"
+  hfSecretName: "" # Use hf-download if either repository requires authentication.
+
+control:
+  nodeSelector:
+    kubernetes.io/hostname: REPLACE_GPU_NODE_A
+  etcdStorage:
+    storageClass: REPLACE_LOCAL_STORAGE_CLASS
+    size: 4Gi
+    volumeName: "" # Set only if Aranya supplies a prebound PV.
+
+workers:
+  tpSize: 4
+  hicacheRatio: 4
+  contextLength: 262144
+  maxRunningRequests: 48
+  shmSize: 900Gi
+  scratchSize: 128Gi
+  resources:
+    requests: {cpu: "32", memory: 900Gi, nvidia.com/gpu: 4}
+    limits: {memory: 1000Gi, nvidia.com/gpu: 4}
+  env:
+    NCCL_IB_DISABLE: "1"
+    NCCL_SOCKET_IFNAME: eth0
+    GLOO_SOCKET_IFNAME: eth0
+  launchArgs:
+    numa-node: false
+  groups:
+    - name: a
+      replicas: 1 # Increase to 2 after initial acceptance and capacity checks.
+      nodeSelector:
+        kubernetes.io/hostname: REPLACE_GPU_NODE_A
+      modelStorage:
+        storageClass: REPLACE_LOCAL_STORAGE_CLASS
+        size: 1Ti
+        volumeName: ""
+      modelSubPath: model
+      draftSubPath: draft
+    - name: b
+      replicas: 1 # Increase to 2 for the full sixteen-GPU deployment.
+      nodeSelector:
+        kubernetes.io/hostname: REPLACE_GPU_NODE_B
+      modelStorage:
+        storageClass: REPLACE_LOCAL_STORAGE_CLASS
+        size: 1Ti
+        volumeName: ""
+      modelSubPath: model
+      draftSubPath: draft
+
+networkPolicy:
+  enabled: true
+  frontendIngressCidrs: [] # Set verified private gateway source ranges before routing.
