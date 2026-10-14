@@ -99,7 +99,7 @@ Telemetry is off unless you turn it on. Subconscious recommends enabling it.
 | --- | --- |
 | Queue and load | Request queue depth, in-flight request counts, and throughput per runtime replica. |
 | Latency | Time-to-first-token and end-to-end request timing, as aggregated distributions. |
-| Health | Liveness and readiness events, restarts, GPU memory pressure, and cache hit rates from the router. |
+| Health | Liveness and readiness events, restarts, GPU memory pressure, and cache hit rates from the gateway and runtime. |
 | Errors | Error codes, counts, and stack traces from the gateway and runtime. |
 | Version | Running version of each component, so support can match behavior to a known release. |
 
