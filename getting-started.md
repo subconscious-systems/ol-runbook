@@ -52,7 +52,7 @@ Ryvn is not required on every GPU host. Workers attach to the gateway as model r
 
 ## 7. Configure and validate
 
-Your FDE walks [API Gateway setup](https://docs.subconscious.dev/on-prem/api-gateway/setup) with your admin: dashboard access, model routes to OrangeLine, a test request, and pilot keys. Then point coding agents with [`subc`](coding-agents/). Dashboard SSO (optional): [Okta](api-gateway/sso-okta.md) or [Entra ID](api-gateway/sso-entra.md).
+Your FDE walks [API Gateway setup](https://docs.subconscious.dev/on-prem/api-gateway/setup) with your admin: dashboard access, model routes to OrangeLine, a test request, and pilot keys. Then point coding agents with [`subc`](coding-agents/). Dashboard SSO (optional): [Okta](api-gateway/sso-okta.md), [Entra ID](api-gateway/sso-entra.md), or [Google Workspace](api-gateway/sso-google.md).
 
 ## 8. Roll out
 

@@ -39,5 +39,7 @@ A Subconscious FDE leads the work with your technical champion. You grant cloud 
 | [api-gateway/cost-estimates.md](api-gateway/cost-estimates.md) | Gateway-only AWS, GCP, and Azure planning estimates |
 | [api-gateway/sso-okta.md](api-gateway/sso-okta.md) | Dashboard OIDC SSO with Okta |
 | [api-gateway/sso-entra.md](api-gateway/sso-entra.md) | Dashboard OIDC SSO with Microsoft Entra ID |
+| [api-gateway/sso-google.md](api-gateway/sso-google.md) | Dashboard OIDC SSO with Google Workspace |
+| [api-gateway/sso-only.md](api-gateway/sso-only.md) | SSO-only deployments (password login off) |
 
 Before setup, review [TRUST_MODEL.md](TRUST_MODEL.md) with your security team, then follow [getting-started.md](getting-started.md) with your FDE.

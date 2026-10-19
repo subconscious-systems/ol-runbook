@@ -2,7 +2,7 @@
 
 Common questions about the Subconscious Inference System. Canonical public FAQ: [on-prem FAQ](https://docs.subconscious.dev/on-prem/faq).
 
-Working docs in this repo: [getting started](getting-started.md) · [trust model](TRUST_MODEL.md) · [cost estimates](api-gateway/cost-estimates.md) · [OrangeLine](gpu-deployment/README.md) · [coding agents](coding-agents/) · [Okta SSO](api-gateway/sso-okta.md) · [Entra SSO](api-gateway/sso-entra.md).
+Working docs in this repo: [getting started](getting-started.md) · [trust model](TRUST_MODEL.md) · [cost estimates](api-gateway/cost-estimates.md) · [OrangeLine](gpu-deployment/README.md) · [coding agents](coding-agents/) · [Okta SSO](api-gateway/sso-okta.md) · [Entra SSO](api-gateway/sso-entra.md) · [Google SSO](api-gateway/sso-google.md).
 
 ## Why use this over Claude Code or Codex?
 
@@ -88,6 +88,8 @@ Create the IdP application (Okta or Microsoft Entra ID), then your FDE wires OID
 
 - Okta: [api-gateway/sso-okta.md](api-gateway/sso-okta.md)
 - Microsoft Entra ID: [api-gateway/sso-entra.md](api-gateway/sso-entra.md)
+- Google Workspace: [api-gateway/sso-google.md](api-gateway/sso-google.md)
+- Turning password login off entirely: [api-gateway/sso-only.md](api-gateway/sso-only.md)
 
 Password login remains available as break-glass for the bootstrap admin.
 
