@@ -49,3 +49,4 @@ Open `https://<DOMAIN_NAME>/` to reach the dashboard (root redirects to `/dashbo
 - Prefer the **email** claim. If your tenant only emits `preferred_username`, configure Entra optional claims so `email` is present on the ID token. The gateway requires email for identity matching.
 - Multi-tenant / "accounts in any org" is not the default design; use a single tenant issuer unless Subconscious has approved a broader federation model.
 - Password login remains break-glass; API keys remain for agents.
+See also [sso-okta.md](sso-okta.md) for Okta, [sso-google.md](sso-google.md) for Google Workspace, and [sso-only.md](sso-only.md) for deployments that turn password login off.

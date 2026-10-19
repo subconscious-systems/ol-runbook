@@ -73,4 +73,4 @@ Uninvited users see a clear rejection page (no account created). Password login 
 | Callback mismatch | Okta redirect URI vs `https://<DOMAIN_NAME>/dashboard/auth/oidc/callback` |
 | Uninvited email | Invite the user (or create an active user) before SSO |
 
-See also [sso-entra.md](sso-entra.md) for Microsoft Entra ID.
+See also [sso-entra.md](sso-entra.md) for Microsoft Entra ID, [sso-google.md](sso-google.md) for Google Workspace, and [sso-only.md](sso-only.md) for deployments that turn password login off.
