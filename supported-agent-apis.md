@@ -54,22 +54,20 @@ or LiteLLM.
 | OpenCode | `x-session-affinity` + `x-session-id` (+ `x-parent-session-id` for parent link). For reliable detection, set `headers["x-subconscious-client"]: "opencode"` in your provider config. |
 | Pi | Requires `compat.sendSessionAffinityHeaders: true` in `models.json` (Pi sends no session headers by default). Use `sessionAffinityFormat: "openai-nosession"` to send `x-session-affinity` without the underscore `session_id` header. For reliable detection, set `headers["x-subconscious-client"]: "pi"` in your provider config. |
 | Portkey / LiteLLM | `x-portkey-trace-id` / `x-litellm-trace-id` / `x-litellm-session-id` |
-| Cursor | Install the hook with `subc cursor install` ([coding-agents/](coding-agents/)). One `POST /v1/agent-hooks` per prompt; the gateway chains the rest of the conversation onto it. |
-| GitHub Copilot (VS Code) | Install the hook with `subc copilot install` ([coding-agents/](coding-agents/)). Same one-call-per-prompt contract as Cursor, plus `x-subconscious-client: copilot` on model requests. |
+| GitHub Copilot (VS Code) | Install the hook with `subc copilot install` ([coding-agents/](coding-agents/)). One `POST /v1/agent-hooks` per prompt; the gateway chains the rest of the conversation onto it. Model requests also carry `x-subconscious-client: copilot`. |
 
 Traffic without those signals still lands in **Conversations**: the gateway
 chains turns by matching the assistant turn each request's history ends with,
 and auto-binds the chain root into a Conversation. Native headers remain the
-preferred identity when present. Cursor and Copilot hooks remain preferred for
+preferred identity when present. Copilot hooks remain preferred for
 editor conversation naming and nesting; a late hook announcement claims an
 auto-bound chain onto the editor id.
 
-Cursor and Copilot hooks do not modify model HTTP — neither editor can stamp a
-conversation onto an inference request. Instead each announces a prompt once,
+Copilot hooks do not modify model HTTP, because VS Code cannot stamp a
+conversation onto an inference request. Instead the hook announces a prompt once,
 and the gateway links every later turn of that conversation by matching the
 assistant turn its history ends with. That covers multi-turn tool loops and
-subagents without any further hook events. Install with `subc cursor install`
-or `subc copilot install`; see [coding-agents/](coding-agents/).
+subagents without any further hook events. Install with `subc copilot install`; see [coding-agents/](coding-agents/).
 
 For correlated traffic, the gateway’s OpenTelemetry / Datadog `trace_id` is the
 conversation UUID as 32 lowercase hex characters (no dashes). Filter on that
@@ -95,7 +93,7 @@ metadata-only (no prompts or completions).
 Advanced optional overrides (not required for Conversations):
 
 - `x-subconscious-trace-id` — manual grouping key
-- `x-subconscious-client` — force `claude_code` / `codex` / `opencode` / `pi` / `cursor`
+- `x-subconscious-client` — force `claude_code` / `codex` / `opencode` / `pi`
 
 Do not reuse one static `x-subconscious-trace-id` across unrelated processes.
 

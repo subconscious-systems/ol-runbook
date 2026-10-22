@@ -76,7 +76,7 @@ See [customer success](https://docs.subconscious.dev/on-prem/integration-journey
 
 ## Which coding agents are supported?
 
-The API Gateway exposes OpenAI- and Anthropic-compatible endpoints, so teams can connect Claude Code, Cursor, Codex, OpenCode, Pi, and internal tools that speak those APIs.
+The API Gateway exposes OpenAI- and Anthropic-compatible endpoints, so teams can connect Claude Code, Codex, OpenCode, Pi, and internal tools that speak those APIs.
 
 See [coding-agents/](coding-agents/), [supported-agent-apis.md](supported-agent-apis.md), and [API Gateway setup](https://docs.subconscious.dev/on-prem/api-gateway/setup).
 
